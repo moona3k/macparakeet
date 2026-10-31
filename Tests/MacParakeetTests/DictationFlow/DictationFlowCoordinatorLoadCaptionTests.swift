@@ -554,7 +554,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         try await harness.startAndStop()
         let failed = await waitUntil {
             if case .finishing(outcome: .pasteFailedCopied(let message)) = harness.coordinator.flowStateForTesting {
-                return message == "Some text was inserted, but the clipboard could not be updated."
+                return message == "Dictation did not finish, and the clipboard could not be updated."
             }
             return false
         }

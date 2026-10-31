@@ -17,6 +17,8 @@ replace them with mocks.
   checks/prompts/settings links.
 - `ClipboardService.swift` -- pasteboard writes, restore behavior, post-paste
   keystrokes, and optional fail-closed frontmost-application guarding.
+- `AppGeneratedKeyboardEvents.swift` -- marked application keyboard output at
+  the session entry point, downstream of HID key state (#1286).
 - `StreamingCursorScheduler.swift` / `StreamingCursorInserter.swift` -- optional default-off dictation caret stream (#449); paste remains the default path.
 - `EventTapTeardown.swift` -- shared CGEvent tap teardown; always invalidates the Mach port (#1132).
 - `BackgroundEventTap.swift` -- `EventTapThread` and `BackgroundEventTap`: every CGEvent tap runs on one dedicated thread, never the main run loop (#1142).
@@ -59,6 +61,32 @@ ended, so release callback state after it.
 **Keep `@MainActor` work short.** AppKit and Accessibility entry points often
 start on the main actor, but long-running I/O, process execution, model work,
 and waits should move off the actor and publish results back to UI state.
+
+**Keep generated keyboard output out of HID state.** Use
+`AppGeneratedKeyboardEvents` for source/event construction and its session
+posting location. Changing only the source state ID does not isolate HID state
+when posting at the HID entry point. Preserve Command-layout resolution and
+allocate both events before posting either. Hotkey listeners ignore our marker
+before swallowing or gesture bookkeeping; an own key-up is not physical release
+evidence. `StreamingCursorEventMarker` remains a compatibility alias. Mouse and
+explicit per-process routing are separate surfaces.
+
+Streaming interruption also replays at the session entry point, alongside the
+flushed text. Preserve the original input's metadata without applying our
+marker: moving an intercepted session event upstream would contaminate HID.
+If the interrupt flush fails, release the user's input promptly and stop this
+insertion permanently. Do not retry after the input may have moved the cursor
+or focus. For a non-cancelled insertion, report `partialInsert` even with no
+committed text so the coordinator offers clipboard recovery without automatic
+paste. Cancellation retains its quiet return; the caller suppresses success,
+recovery, and post-insert actions, and the stopped flush is never retried.
+
+Bare-Fn admission reads HID keys; custom-trigger and peer recovery retain
+session semantics. Older app versions or other software can still leave HID
+state stale. Preserve observed-release recovery rather than manufacturing a
+release or expiring genuinely held keys. The CI Quartz probe establishes the
+synthetic state distinction; physical input and Jump Desktop require native
+acceptance.
 
 ## How To Verify A Change
 

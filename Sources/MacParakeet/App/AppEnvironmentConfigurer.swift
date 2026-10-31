@@ -171,8 +171,6 @@ final class AppEnvironmentConfigurer {
             entitlementsService: env.entitlementsService,
             launchAtLoginService: env.launchAtLoginService,
             checkoutURL: env.checkoutURL,
-            customWordRepo: env.customWordRepo,
-            snippetRepo: env.snippetRepo,
             sttClient: env.sttScheduler,
             speechEngineSwitcher: env.sttScheduler,
             speechEngineSwitchAvailabilityProvider: env.sttScheduler,
@@ -205,7 +203,6 @@ final class AppEnvironmentConfigurer {
         vocabularyBackupViewModel.configure(service: vocabularyBackupService) { [weak self] in
             self?.customWordsViewModel.loadWords()
             self?.textSnippetsViewModel.loadSnippets()
-            self?.settingsViewModel.refreshStats()
         }
         promptsViewModel.configure(
             repo: env.promptRepo,

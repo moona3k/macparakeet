@@ -87,12 +87,18 @@ public final class HotkeyManager {
     private static let capsLockKeyCode: UInt16 = 57
     private var pressedNonFnKeyCodes: Set<UInt16> = []
     /// Keys whose most recent event seen by the tap was a keyUp. The
-    /// session key-state snapshot can report a key as held forever when some
-    /// app posted a keyDown without its keyUp; a physical press cannot clear
-    /// that. A release the tap saw overrides the snapshot. Cleared whenever
+    /// HID key-state snapshot can report a key as held forever when some
+    /// app posted a keyDown without its keyUp at the HID entry point. An
+    /// unmarked release the tap saw overrides the snapshot. Cleared whenever
     /// the tap may have missed events.
     private var releaseObservedKeyCodes: Set<UInt16> = []
-    private var physicalKeyStateProvider: (UInt16) -> Bool
+    /// Keep peer/custom-trigger recovery on its existing session semantics.
+    private var sessionKeyStateProvider: (UInt16) -> Bool
+    /// Our keyboard output is posted downstream of HID (#1286). A stale
+    /// session key must not veto bare Fn, including after listener restart.
+    private var passiveFnKeyStateProvider: (UInt16) -> Bool = {
+        CGEventSource.keyState(.hidSystemState, key: CGKeyCode($0))
+    }
     private var physicalFlagsProvider: () -> CGEventFlags = {
         CGEventSource.flagsState(.combinedSessionState)
     }
@@ -127,7 +133,7 @@ public final class HotkeyManager {
         self.targetMask = trigger.kind == .modifier ? ModifierKeyMatcher.mask(for: trigger.modifierName) : nil
         self.requiredChordFlags = trigger.chordEventFlags
         self.testingTapFilter = HotkeyTapFilter(trigger: trigger)
-        self.physicalKeyStateProvider = { keyCode in
+        self.sessionKeyStateProvider = { keyCode in
             CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
         }
     }
@@ -565,8 +571,28 @@ public final class HotkeyManager {
     func setPhysicalKeyStateProviderForTesting(
         _ provider: @escaping (UInt16) -> Bool
     ) {
-        physicalKeyStateProvider = provider
+        sessionKeyStateProvider = provider
+        passiveFnKeyStateProvider = provider
         reconcilePassiveFnKeyState()
+    }
+
+    func setKeyStateProvidersForTesting(
+        session: @escaping (UInt16) -> Bool,
+        hid: @escaping (UInt16) -> Bool
+    ) {
+        sessionKeyStateProvider = session
+        passiveFnKeyStateProvider = hid
+        reconcilePassiveFnKeyState()
+    }
+
+    /// Exercises the same marked-event boundary and filter as the live relay.
+    @discardableResult
+    func processEventForTesting(type: CGEventType, event: CGEvent) -> Bool {
+        guard let snapshot = KeyEventSnapshot(type: type, event: event) else { return false }
+        let swallow = testingTapFilter.shouldSwallow(
+            type: type, keyCode: UInt16(snapshot.keyCode), flags: snapshot.flags.rawValue)
+        process(snapshot)
+        return swallow
     }
 
     func setPhysicalFlagsProviderForTesting(_ provider: @escaping () -> CGEventFlags) {
@@ -1042,7 +1068,7 @@ public final class HotkeyManager {
         // The tap may have missed events, so trust the key-state snapshot again.
         releaseObservedKeyCodes.removeAll(keepingCapacity: true)
         // A peer key released while the tap was down no longer excuses typing it.
-        claimedPeerKeyCodes = claimedPeerKeyCodes.filter(physicalKeyStateProvider)
+        claimedPeerKeyCodes = claimedPeerKeyCodes.filter(sessionKeyStateProvider)
         let triggerPressed = currentPhysicalTriggerIsPressed(
             flags: flags,
             triggerKeyPressed: triggerKeyPressed
@@ -1272,7 +1298,7 @@ public final class HotkeyManager {
             Self.ordinaryKeyCodeRange.filter { keyCode in
                 Self.isTrackableNonFnKeyCode(keyCode)
                     && !releaseObservedKeyCodes.contains(keyCode)
-                    && physicalKeyStateProvider(keyCode)
+                    && passiveFnKeyStateProvider(keyCode)
             }
         )
     }
@@ -1499,7 +1525,7 @@ public final class HotkeyManager {
         let otherModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
             .subtracting(targetMask ?? [])
         AudioCaptureDiagnostics.append(
-            "dictation_hotkey_fn_rejected held_keycodes=[\(heldKeyCodes)] other_modifiers=0x\(String(otherModifiers.rawValue, radix: 16))"
+            "dictation_hotkey_fn_rejected held_keycodes=[\(heldKeyCodes)] other_modifiers=0x\(String(otherModifiers.rawValue, radix: 16)) key_state_source=hid"
         )
     }
 
@@ -1528,7 +1554,10 @@ struct KeyEventSnapshot: Sendable {
     let flags: CGEventFlags
     let timestamp: CGEventTimestamp
 
-    init(type: CGEventType, event: CGEvent) {
+    init?(type: CGEventType, event: CGEvent) {
+        // Filter before either swallowing or gesture/release bookkeeping. Our
+        // own keyUp is not evidence that a real held key was released.
+        guard !AppGeneratedEventMarker.isMarked(event) else { return nil }
         self.init(
             type: type,
             keyCode: event.getIntegerValueField(.keyboardEventKeycode),
@@ -1574,11 +1603,9 @@ private final class HotkeyTapRelay: @unchecked Sendable {
             return Unmanaged.passUnretained(event)
         }
 
-        if StreamingCursorEventMarker.isMarked(event) {
+        guard let snapshot = KeyEventSnapshot(type: type, event: event) else {
             return Unmanaged.passUnretained(event)
         }
-
-        let snapshot = KeyEventSnapshot(type: type, event: event)
         let shouldSwallow = filter.shouldSwallow(
             type: type,
             keyCode: UInt16(truncatingIfNeeded: snapshot.keyCode),

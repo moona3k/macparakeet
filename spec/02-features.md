@@ -191,11 +191,20 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - The built-in bare-`Fn` gesture uses a listen-only `CGEvent` tap: Fn and every
   observed cancellation event pass through unchanged. Other configurable
   hotkeys retain their established active-tap behavior.
-- Built-in Fn is admitted only when a combined-session snapshot shows no
-  pre-held non-Fn modifier or ordinary physical key. A key the tap has seen
+- Built-in Fn is admitted only when the incoming event's flags show no non-Fn
+  modifier and an HID-state snapshot shows no pre-held ordinary physical key.
+  Tap recovery and synchronization read combined-session modifier flags.
+  A key the tap has seen
   released since it last saw that key go down no longer counts, because an app
   that posts a keyDown without its keyUp can leave the snapshot reporting the
-  key held indefinitely. Tap-disable recovery trusts the snapshot again.
+  key held indefinitely when posted upstream at the HID entry point.
+  Tap-disable recovery trusts the HID snapshot again. Our paste, post-paste
+  actions, copy/replacement, and Unicode insertion are marked and posted at
+  the session entry point, downstream of HID state; they cannot masquerade
+  as physical input or create a release exception. Stale session-only keys
+  do not veto Fn, including after relaunch. Pre-existing/upstream HID
+  contamination still needs an observed unmarked release; the app never
+  fabricates a key-up or expires a physically held key.
   Rejections are logged with the held key codes (`dictation_hotkey_fn_rejected`). A latched Caps Lock state
   alone is allowed because it does not prove the physical key remains held;
   an observed Caps Lock transition still cancels. While Fn is held, every
@@ -305,7 +314,7 @@ if restoresClipboard {
 ```
 
 Optional **Streaming cursor** (Settings → Dictation, default off) types the finished
-transcript into the focused app with a duration-capped Unicode HID stream.
+transcript into the focused app with a duration-capped Unicode session-event stream.
 Reduce Motion, non-ASCII-capable IMEs, and text containing newline/tab still
 paste. A user key or click flushes remainder before the user event is
 delivered. ⌘Z may undo in pieces. See issue #449.
@@ -1128,28 +1137,21 @@ Important constraints:
 - Add, edit, delete, enable/disable custom words
 - Add, edit, delete text snippets
 - Use count tracking for snippets (helps users know which are active)
-- Accessible from Settings view ("Manage Custom Words...", "Manage Text Snippets...")
+- Accessible at the top of Vocabulary in both Raw and Clean modes. Word corrections opens Manage words; Text snippets opens Manage snippets.
 - Import/export the combined vocabulary backup (custom words + snippets) from
   the Vocabulary panel and CLI.
 
-**Settings integration (v0.2 additions):**
-
-```
-│ PROCESSING                                                       │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Default mode:  ( ) Raw  (•) Clean  ( ) Formal               │ │
-│ │                                                              │ │
-│ │ [Manage Custom Words...]        12 words                     │ │
-│ │ [Manage Text Snippets...]       5 snippets                   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-```
+**Vocabulary integration:** saved words and snippets lead the page, followed by
+Backup & Restore and processing settings. Opening a manager does not enable
+Clean mode. Word loading distinguishes unknown, failed, and successfully empty
+states; failed reads offer Retry and preserve the last loaded rows.
 
 **Acceptance criteria:**
 - [x] Can add/edit/delete/toggle custom words
 - [x] Can add/edit/delete text snippets
 - [x] Use count displayed and updated for snippets
 - [x] Changes take effect immediately for next dictation
-- [x] Settings link opens management views
+- [x] Vocabulary management remains accessible in Raw and Clean modes
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
 - [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure
@@ -1835,15 +1837,19 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 
 > Status: **IMPLEMENTED**
 
-**What:** Embedded playback for YouTube videos (HLS streaming) and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
+**What:** Embedded playback for YouTube videos and local audio/video files. Split-pane layout with video on the left and tabbed content on the right.
 
 **Acceptance criteria:**
-- [x] YouTube videos play via HLS streaming (yt-dlp URL extraction + AVPlayer)
+- [x] YouTube videos use direct combined-stream playback when available (yt-dlp URL extraction + AVPlayer)
+- [x] Separate H.264 MP4 video and AAC M4A audio can be downloaded on demand and combined into a temporary playback file; preparation stages are shown while loading
 - [x] Local video files play via AVPlayer
 - [x] Audio-only files show a 44px horizontal scrubber bar instead of video
 - [x] Playback mode auto-detected (video/audio/none)
 - [x] MediaPlayerViewModel with play/pause, seek, 10Hz time sync
 - [x] Video panel collapsible (full → hidden)
+
+The [YouTube video playback contract](contracts/youtube-video-playback.md) defines
+format selection, temporary-file ownership, cancellation, and retained-audio safety.
 
 ### F25: Synced Transcript & Timestamps
 

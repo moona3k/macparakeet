@@ -300,7 +300,17 @@ remain unchanged. Required fields remain required; the optional playback
 fallback and encoded JSON shape are unchanged. This normalization applies when
 reading stored reports, without rewriting source audio or requiring a migration.
 
-Meeting `durationMs` is the probed duration of the decodable
+A source-only processing row may precede canonical playback. It retains the
+expected `filePath` for recovery identity, with unknown `durationMs` and file
+size. Raw sources and metadata are already durable. The Library distinguishes
+saved sources from missing audio, permits Retry after preparation failure, and
+enables playback/export only when the playback file exists. Final-transcription
+admission replaces unknown duration with the probed result after preflight. If
+preflight fails, duration may remain unknown even with ready playback, so Retry
+conservatively repeats preparation. Elapsed capture time is not a placeholder
+playback duration. No new DB status or artifact schema is required.
+
+Once final transcription is admitted, meeting `durationMs` is the probed duration of the decodable
 `meeting-playback.m4a` artifact. Normal finalization keeps it equal to
 `capturedDurationMs`. Crash recovery refreshes surviving source media facts and
 rebuilds `capturedDurationMs`, while preserving elapsed/interruption history

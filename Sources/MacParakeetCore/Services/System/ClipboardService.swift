@@ -52,51 +52,48 @@ protocol ClipboardEventPosting {
 }
 
 struct CGClipboardEventPosting: ClipboardEventPosting {
+    var isAccessibilityTrusted: () -> Bool = { AXIsProcessTrusted() }
+    var postEvent: (CGEvent, CGEventTapLocation) -> Void = { $0.post(tap: $1) }
+
     @MainActor
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
-        guard AXIsProcessTrusted() else {
+        guard isAccessibilityTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
 
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
+        guard let source = AppGeneratedKeyboardEvents.makeSource() else {
             throw ClipboardServiceError.eventSourceUnavailable
         }
 
         // Resolve under the same Command-modified layout state that the CGEvents carry.
         let vKeyCode = pasteShortcutKeyResolver.virtualKeyCode(for: "v", modifierKeyState: UInt32(cmdKey >> 8))
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
+        guard let keyDown = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: vKeyCode, keyDown: true, flags: .maskCommand),
+              let keyUp = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: vKeyCode, keyDown: false, flags: .maskCommand) else {
             throw ClipboardServiceError.eventCreationFailed
         }
 
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        postEvent(keyDown, AppGeneratedKeyboardEvents.postingLocation)
+        postEvent(keyUp, AppGeneratedKeyboardEvents.postingLocation)
     }
 
     @MainActor
     func simulateKeystroke(_ keyCode: UInt16) throws {
-        guard AXIsProcessTrusted() else {
+        guard isAccessibilityTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
 
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
+        guard let source = AppGeneratedKeyboardEvents.makeSource() else {
             throw ClipboardServiceError.eventSourceUnavailable
         }
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+        guard let keyDown = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: keyCode, keyDown: true, flags: []),
+              let keyUp = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: keyCode, keyDown: false, flags: []) else {
             throw ClipboardServiceError.eventCreationFailed
         }
 
-        keyDown.flags = []
-        keyUp.flags = []
-
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        postEvent(keyDown, AppGeneratedKeyboardEvents.postingLocation)
+        postEvent(keyUp, AppGeneratedKeyboardEvents.postingLocation)
     }
 }
 

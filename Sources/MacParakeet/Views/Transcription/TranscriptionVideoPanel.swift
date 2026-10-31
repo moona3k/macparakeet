@@ -93,6 +93,14 @@ struct TranscriptionVideoPanel: View {
     }
 
     private var loadingTitle: String {
+        switch playerViewModel.videoPreparationStage {
+        case .downloading:
+            return "Downloading video..."
+        case .combining:
+            return "Preparing video..."
+        case .extracting:
+            break
+        }
         let elapsed = Int(playerViewModel.loadingElapsed)
         if elapsed < 3 {
             return "Loading video..."
@@ -103,6 +111,9 @@ struct TranscriptionVideoPanel: View {
 
     private var loadingSubtitle: String? {
         let elapsed = Int(playerViewModel.loadingElapsed)
+        if playerViewModel.videoPreparationStage != .extracting {
+            return "Preparing playback may take a few minutes (\(elapsed)s)"
+        }
         guard elapsed >= 3 else { return nil }
         return "Usually 10–20s, longer on slow connections (\(elapsed)s)"
     }

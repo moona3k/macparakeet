@@ -154,9 +154,9 @@ final class DictationFlowCoordinator {
 
     static func streamingPartialInsertMessage(copiedToClipboard copied: Bool) -> String {
         if copied {
-            return "Some text was inserted. The full transcript is on the clipboard."
+            return "Dictation did not finish. The full transcript is on the clipboard."
         }
-        return "Some text was inserted, but the clipboard could not be updated."
+        return "Dictation did not finish, and the clipboard could not be updated."
     }
 
     /// Set after init; updated when dictation hotkey managers are recreated.

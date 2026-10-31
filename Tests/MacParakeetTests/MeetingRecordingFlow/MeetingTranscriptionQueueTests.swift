@@ -4,6 +4,103 @@ import XCTest
 
 @MainActor
 final class MeetingTranscriptionQueueTests: XCTestCase {
+    func testCaptureAdmissionDoesNotAwaitPlaybackAndPreservesFIFO() async throws {
+        let repo = MockTranscriptionRepository()
+        let locks = QueueRecordingLockFileStore()
+        let service = QueueTranscriptionServiceSpy(transcriptionRepo: repo)
+        let ready = makeRecordingOutput(displayName: "A")
+        let capture = try makeCapture(from: ready)
+        defer { try? FileManager.default.removeItem(at: capture.folderURL) }
+        let stub = capture.makeProcessingTranscription()
+        try repo.save(stub)
+        let entered = expectation(description: "Playback started")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: service, transcriptionRepo: repo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(lockFileStore: locks, transcriptionRepo: repo),
+            preparePlayback: { _ in
+                entered.fulfill()
+                var iterator = release.makeAsyncIterator()
+                _ = await iterator.next()
+                return ready
+            }
+        )
+        let first = MeetingTranscriptionQueue.Item(
+            input: .capture(capture), transcriptionID: stub.id, recordingGeneration: 1,
+            operationContext: ObservabilityOperationContext(), trigger: .manual,
+            liveWordCount: 0, liveTranscriptLagged: false
+        )
+        let admitted = try await queue.enqueueClaimingFinalizationOwnership(first)
+        XCTAssertTrue(admitted)
+        await fulfillment(of: [entered], timeout: 5)
+        XCTAssertEqual(queue.snapshot.activeItem?.sessionID, capture.sessionID)
+        XCTAssertNil(try repo.fetch(id: stub.id)?.durationMs)
+        XCTAssertNotNil(try MeetingRecordingLockFileStore().read(folderURL: capture.folderURL)?.finalizationLeaseId)
+        let started = await service.snapshot()
+        XCTAssertTrue(started.isEmpty)
+        let second = makeItem(name: "B")
+        try persistProcessingRows([second], in: repo)
+        await queue.enqueue(second)
+        XCTAssertEqual(queue.snapshot.pendingCount, 1)
+        continuation.yield(())
+        continuation.finish()
+        await queue.waitUntilIdle()
+        let finalized = await service.snapshot()
+        XCTAssertEqual(finalized, [stub.id, second.transcriptionID])
+        XCTAssertEqual(repo.transcriptions.filter { $0.filePath == ready.mixedAudioURL.path }.map(\.id), [stub.id])
+    }
+
+    func testPlaybackFailureAndCancellationPreserveSourcesAndDoNotBlockNextItem() async throws {
+        for cancelled in [false, true] {
+            let repo = MockTranscriptionRepository()
+            let locks = QueueRecordingLockFileStore()
+            let service = QueueTranscriptionServiceSpy(transcriptionRepo: repo)
+            let capture = try makeCapture(from: makeRecordingOutput(displayName: "A"))
+            defer { try? FileManager.default.removeItem(at: capture.folderURL) }
+            let stub = capture.makeProcessingTranscription()
+            try repo.save(stub)
+            let queue = MeetingTranscriptionQueue(
+                transcriptionService: service, transcriptionRepo: repo,
+                meetingRecordingSettlement: MeetingRecordingSettlement(lockFileStore: locks, transcriptionRepo: repo),
+                preparePlayback: { _ in
+                    if cancelled { throw CancellationError() }
+                    throw QueueTestError.failed
+                }
+            )
+            let first = MeetingTranscriptionQueue.Item(
+                input: .capture(capture), transcriptionID: stub.id, recordingGeneration: 1,
+                operationContext: ObservabilityOperationContext(), trigger: .manual,
+                liveWordCount: 0, liveTranscriptLagged: false
+            )
+            _ = try await queue.enqueueClaimingFinalizationOwnership(first)
+            let second = makeItem(name: "B")
+            try persistProcessingRows([second], in: repo)
+            await queue.enqueue(second)
+            await queue.waitUntilIdle()
+            XCTAssertEqual(try repo.fetch(id: stub.id)?.status, cancelled ? .cancelled : .error)
+            XCTAssertEqual(try repo.fetch(id: second.transcriptionID)?.status, .completed)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: capture.microphoneAudioURL.path))
+            XCTAssertNil(try MeetingRecordingLockFileStore().read(folderURL: capture.folderURL)?.finalizationLeaseId)
+            XCTAssertEqual(locks.deletes, [second.folderURL])
+            let finalized = await service.snapshot()
+            XCTAssertEqual(finalized, [second.transcriptionID])
+        }
+    }
+
+    private func makeCapture(from output: MeetingRecordingOutput) throws -> MeetingRecordingCapture {
+        try FileManager.default.createDirectory(at: output.folderURL, withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: output.microphoneAudioURL)
+        let lock = MeetingRecordingLockFile(
+            sessionId: output.sessionID, startedAt: Date(), displayName: output.displayName,
+            state: .awaitingTranscription, folderURL: output.folderURL
+        )
+        let metadata = MeetingRecordingMetadata(sourceAlignment: output.sourceAlignment)
+        try MeetingRecordingLockFileStore().write(lock, folderURL: output.folderURL)
+        try MeetingRecordingMetadataStore.save(metadata, folderURL: output.folderURL)
+        return try MeetingRecordingCapture.load(from: output.folderURL)
+    }
+
     func testQueueFinalizesMeetingsFIFO() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
@@ -29,8 +126,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(
             lockStore.deletes,
             [
-                first.recording.folderURL,
-                second.recording.folderURL,
+                first.recording!.folderURL,
+                second.recording!.folderURL,
             ])
     }
 
@@ -62,7 +159,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             do {
                 let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: transcription.id))
                 refreshedStatuses.append(persisted.status)
-                XCTAssertEqual(lockStore.deletes, [item.recording.folderURL])
+                XCTAssertEqual(lockStore.deletes, [item.recording!.folderURL])
             } catch {
                 XCTFail("Completion must expose a durably saved row: \(error)")
             }
@@ -106,9 +203,9 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         queue.onCompletion = { completion in
             switch completion {
             case .success(let item, _):
-                completions.append("success:\(item.recording.displayName)")
+                completions.append("success:\(item.recording!.displayName)")
             case .failure(let item, _):
-                completions.append("failure:\(item.recording.displayName)")
+                completions.append("failure:\(item.recording!.displayName)")
             }
         }
 
@@ -119,11 +216,11 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let transcriptionSnapshot = await transcriptionService.snapshot()
         XCTAssertEqual(completions, ["failure:A", "success:B"])
         XCTAssertEqual(transcriptionSnapshot, [first.transcriptionID, second.transcriptionID])
-        XCTAssertEqual(lockStore.deletes, [second.recording.folderURL])
+        XCTAssertEqual(lockStore.deletes, [second.recording!.folderURL])
         let failed = try XCTUnwrap(transcriptionRepo.fetch(id: first.transcriptionID))
         XCTAssertEqual(failed.status, .error)
         XCTAssertNotNil(failed.errorMessage)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: first.recording.mixedAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.recording!.mixedAudioURL.path))
         XCTAssertEqual(ownershipClaimer.releasedLeaseIDs, [lease.id])
         XCTAssertEqual(ownershipClaimer.releaseMainThreadValues, [false])
     }
@@ -152,9 +249,9 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         queue.onCompletion = { completion in
             switch completion {
             case .success(let item, _):
-                completions.append("success:\(item.recording.displayName)")
+                completions.append("success:\(item.recording!.displayName)")
             case .failure(let item, _):
-                completions.append("failure:\(item.recording.displayName)")
+                completions.append("failure:\(item.recording!.displayName)")
             }
         }
 
@@ -248,9 +345,9 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let item = makeItem(name: "Retry")
         let failed = Transcription(
             id: item.transcriptionID,
-            fileName: item.recording.displayName,
-            filePath: item.recording.mixedAudioURL.path,
-            meetingArtifactFolderPath: item.recording.folderURL.path,
+            fileName: item.recording!.displayName,
+            filePath: item.recording!.mixedAudioURL.path,
+            meetingArtifactFolderPath: item.recording!.folderURL.path,
             status: .error,
             errorMessage: "Previous failure",
             sourceType: .meeting
@@ -265,7 +362,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(fetched.status, .completed)
         XCTAssertNil(fetched.errorMessage)
         XCTAssertEqual(transcriptionRepo.transcriptions.map(\.id), [item.transcriptionID])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording!.mixedAudioURL.path))
     }
 
     func testCancelledFinalizationCanBeRetriedFromSameRow() async throws {
@@ -291,7 +388,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let cancelled = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
         XCTAssertEqual(cancelled.status, .cancelled)
         XCTAssertNil(cancelled.errorMessage)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording!.mixedAudioURL.path))
 
         await transcriptionService.clearFailures(transcriptionID: item.transcriptionID)
         await queue.enqueue(item)
@@ -393,14 +490,14 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
     ) -> MeetingFinalizationOwnershipLease {
         MeetingFinalizationOwnershipLease(
             id: UUID(),
-            folderURL: item.recording.folderURL,
+            folderURL: item.recording!.folderURL,
             previousLock: MeetingRecordingLockFile(
-                sessionId: item.recording.sessionID,
+                sessionId: item.recording!.sessionID,
                 startedAt: Date(timeIntervalSince1970: 1_700_000_000),
                 pid: 42,
-                displayName: item.recording.displayName,
+                displayName: item.recording!.displayName,
                 state: .awaitingTranscription,
-                folderURL: item.recording.folderURL
+                folderURL: item.recording!.folderURL
             )
         )
     }
@@ -422,9 +519,9 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try repo.save(
             Transcription(
                 id: item.transcriptionID,
-                fileName: item.recording.displayName,
-                filePath: item.recording.mixedAudioURL.path,
-                meetingArtifactFolderPath: item.recording.folderURL.path,
+                fileName: item.recording!.displayName,
+                filePath: item.recording!.mixedAudioURL.path,
+                meetingArtifactFolderPath: item.recording!.folderURL.path,
                 status: status,
                 sourceType: .meeting
             ))
@@ -432,12 +529,12 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
 
     private func createAudioFile(for item: MeetingTranscriptionQueue.Item) throws {
         try FileManager.default.createDirectory(
-            at: item.recording.folderURL,
+            at: item.recording!.folderURL,
             withIntermediateDirectories: true
         )
         XCTAssertTrue(
             FileManager.default.createFile(
-                atPath: item.recording.mixedAudioURL.path,
+                atPath: item.recording!.mixedAudioURL.path,
                 contents: Data("audio".utf8)
             ))
     }

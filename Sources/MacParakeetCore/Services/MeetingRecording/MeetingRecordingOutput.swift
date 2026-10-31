@@ -169,6 +169,10 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         return microphoneAudioURL
     }
 
+    public static func isViablePlaybackFile(at url: URL) -> Bool {
+        isViableCleanedMicrophoneFile(at: url)
+    }
+
     static func isViableCleanedMicrophoneFile(
         at url: URL,
         fileManager: FileManager = .default

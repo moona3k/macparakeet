@@ -148,3 +148,25 @@ chord that does not require fn still ignores `NX_SECONDARYFNMASK` on its own
 key event. After the chord is down, release-any-part is unchanged: losing a
 required modifier or the trigger key stops push-to-talk, and adding a modifier
 does not. Tap recovery still asks whether the required modifiers remain down.
+
+
+## Amendment: Separate generated keyboard output from Fn admission (2026-10-30)
+
+Issue #1286 showed that a stale session key can indefinitely reject bare Fn.
+Native fault injection found that posting at the HID entry point contaminates
+both Quartz tables, regardless of source ID, and survives producer exit.
+Posting at the session entry point leaves HID key state unchanged.
+
+Application-generated keyboard input therefore uses marked session events, and
+bare-Fn key admission reads HID state. Own events are ignored before hotkey
+consumption or gesture/release bookkeeping. Custom-trigger, peer recovery,
+modifier flags, clipboard restoration, and layout resolution retain their
+existing policies. The streaming marker remains compatible.
+
+This prevents our own direct injection from creating the admission veto. It
+does not automatically repair old or third-party HID contamination: retain
+observed-release recovery, and never synthesize an unconditional release or
+expire real held keys. Physical input and Jump Desktop acceptance remain
+separate from the measured runner boundary. See the
+[experiment](../../docs/research/2026-10-30-1286-quartz-state/README.md) and
+[shortcut contract](../contracts/dictation-shortcuts.md).

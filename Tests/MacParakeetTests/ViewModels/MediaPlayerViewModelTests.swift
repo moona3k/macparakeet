@@ -163,6 +163,154 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertFalse(vm.needsVideoStreamLoad)
     }
 
+    // MARK: - YouTube video preparation
+
+    @MainActor
+    func testPreparedVideoLivesUntilPlayerCleanup() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = PreparedVideoStub(directory: directory)
+        let vm = MediaPlayerViewModel(videoStreamService: service, playbackRateDefaults: nil)
+        vm.setPlaybackRate(1.5)
+
+        await vm.load(for: youtubeTranscription())
+
+        XCTAssertNotNil(vm.player)
+        XCTAssertEqual(vm.player?.defaultRate, 1.5)
+        XCTAssertFalse(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .combining)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+        let previousPlayer = vm.player
+        vm.cancelVideoPreparation()
+        XCTAssertTrue(vm.player === previousPlayer, "Hiding prepared video must keep its audio available")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+
+        vm.cleanup()
+
+        XCTAssertNil(previousPlayer?.currentItem, "Detach the item before deleting its temporary media")
+        XCTAssertNil(vm.player)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @MainActor
+    func testVideoPreparationFailurePreservesRetainedAudio() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let audio = directory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let transcription = youtubeTranscription(filePath: audio.path)
+        let vm = MediaPlayerViewModel(videoStreamService: FailingVideoStub(), playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        await vm.prepare(for: transcription)
+        let audioPlayer = vm.player
+
+        await vm.load(for: transcription)
+
+        XCTAssertTrue(vm.player === audioPlayer)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed preparation should show a retryable error")
+        }
+    }
+
+    @MainActor
+    func testNavigationDiscardsLateVideoAndPreparationUpdates() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = expectation(description: "Video download started")
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let vm = MediaPlayerViewModel(videoStreamService: service, playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        let oldLoad = Task { await vm.load(for: youtubeTranscription()) }
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertEqual(vm.videoPreparationStage, .downloading)
+
+        await vm.prepare(for: youtubeTranscription())
+        await service.finish()
+        await oldLoad.value
+
+        XCTAssertNil(vm.player, "The old download must not install its player in the newly selected transcript")
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
+    @MainActor
+    func testVideoSwitchUsesPlaybackStateChangedDuringPreparation() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = expectation(description: "Video download started")
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let vm = MediaPlayerViewModel(videoStreamService: service, playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        vm.player = AVPlayer()
+        vm.currentTimeMs = 5_000
+        vm.isPlaying = true
+        let load = Task { await vm.load(for: youtubeTranscription()) }
+        await fulfillment(of: [started], timeout: 2)
+
+        vm.seek(toMs: 45_000)
+        vm.isPlaying = false
+        vm.setPlaybackRate(1.5)
+        await service.finish()
+        await load.value
+
+        XCTAssertEqual(vm.currentTimeMs, 45_000, "The switch must use the latest seek position")
+        XCTAssertEqual(vm.player?.rate, 0, "Pausing during preparation must prevent automatic playback")
+        XCTAssertEqual(vm.player?.defaultRate, 1.5)
+    }
+
+    @MainActor
+    func testHidingVideoCancelsPreparationAndPreservesRetainedAudio() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: audioDirectory)
+        }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let transcription = youtubeTranscription(filePath: audio.path)
+        let started = expectation(description: "Video download started")
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let vm = MediaPlayerViewModel(videoStreamService: service, playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        await vm.prepare(for: transcription)
+        let audioPlayer = vm.player
+        let load = Task { await vm.load(for: transcription) }
+        await fulfillment(of: [started], timeout: 2)
+
+        vm.cancelVideoPreparation()
+        await service.finish()
+        await load.value
+
+        XCTAssertTrue(vm.player === audioPlayer)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @MainActor
+    func testPreparingAnotherTranscriptReleasesPreviousVideo() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let vm = MediaPlayerViewModel(
+            videoStreamService: PreparedVideoStub(directory: directory), playbackRateDefaults: nil
+        )
+        defer { vm.cleanup() }
+        await vm.load(for: youtubeTranscription())
+
+        await vm.prepare(for: youtubeTranscription())
+
+        XCTAssertNil(vm.player)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+    }
+
     // MARK: - Playback Rate
 
     @MainActor
@@ -427,10 +575,77 @@ final class MediaPlayerViewModelTests: XCTestCase {
 }
 
 private extension MediaPlayerViewModelTests {
+    func youtubeTranscription(filePath: String? = nil) -> Transcription {
+        Transcription(
+            fileName: "Video", filePath: filePath,
+            sourceURL: "https://www.youtube.com/watch?v=P-4nHu9y9gk", sourceType: .youtube
+        )
+    }
+
+    func makeVideoPreparationDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("video-preparation-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data([0]).write(to: directory.appendingPathComponent("playback.mp4"))
+        return directory
+    }
+
     func isolatedPlaybackDefaults() -> UserDefaults {
         let suiteName = makeIsolatedDefaultsSuite("com.macparakeet.tests.playback-rate.")
         let defaults = UserDefaults(suiteName: suiteName)!
         return defaults
+    }
+}
+
+private struct PreparedVideoStub: VideoStreamProviding {
+    let directory: URL
+
+    func playbackResource(
+        for youtubeURL: String,
+        onStageChange: @escaping @Sendable (VideoPreparationStage) async -> Void
+    ) async throws -> VideoPlaybackResource {
+        await onStageChange(.combining)
+        return VideoPlaybackResource(url: directory.appendingPathComponent("playback.mp4"), temporaryDirectory: directory)
+    }
+}
+
+private struct FailingVideoStub: VideoStreamProviding {
+    func playbackResource(
+        for youtubeURL: String,
+        onStageChange: @escaping @Sendable (VideoPreparationStage) async -> Void
+    ) async throws -> VideoPlaybackResource {
+        await onStageChange(.downloading)
+        throw VideoStreamError.preparationFailed("Fixture download failed")
+    }
+}
+
+private actor SuspendedVideoStub: VideoStreamProviding {
+    let directory: URL
+    let started: XCTestExpectation
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(directory: URL, started: XCTestExpectation) {
+        self.directory = directory
+        self.started = started
+    }
+
+    func playbackResource(
+        for youtubeURL: String,
+        onStageChange: @escaping @Sendable (VideoPreparationStage) async -> Void
+    ) async throws -> VideoPlaybackResource {
+        await onStageChange(.downloading)
+        // Deliberately return after cancellation to exercise the caller's stale-result guard.
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            started.fulfill()
+        }
+        await onStageChange(.combining)
+        return VideoPlaybackResource(url: directory.appendingPathComponent("playback.mp4"), temporaryDirectory: directory)
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 

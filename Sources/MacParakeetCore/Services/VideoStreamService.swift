@@ -1,171 +1,263 @@
 import Foundation
 import os
 
-public final class VideoStreamService: Sendable {
-    private let logger = Logger(subsystem: "com.macparakeet", category: "VideoStream")
+public enum VideoPreparationStage: Sendable, Equatable {
+    case extracting
+    case downloading
+    case combining
+}
 
-    /// Shared cache across all instances — survives view recreation
-    private static let cache = OSAllocatedUnfairLock(initialState: [String: CachedURL]())
+public protocol VideoStreamProviding: Sendable {
+    func playbackResource(
+        for youtubeURL: String,
+        onStageChange: @escaping @Sendable (VideoPreparationStage) async -> Void
+    ) async throws -> VideoPlaybackResource
+}
+
+/// Retain this alongside the player. Only fallback media created for this
+/// resource is removed when its last owner releases it.
+public final class VideoPlaybackResource: Sendable {
+    public let url: URL
+    private let temporaryDirectory: URL?
+
+    public init(url: URL) {
+        self.url = url
+        temporaryDirectory = nil
+    }
+
+    init(url: URL, temporaryDirectory: URL) {
+        self.url = url
+        self.temporaryDirectory = temporaryDirectory
+    }
+
+    deinit {
+        if let temporaryDirectory {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+    }
+}
+
+public final class VideoStreamService: VideoStreamProviding, Sendable {
+    typealias ProcessRunner = @Sendable (String, [String], TimeInterval, URL) async throws -> String
 
     private struct CachedURL: Sendable {
         let url: URL
         let expiresAt: Date
     }
 
-    /// TTL for cached stream URLs (YouTube URLs typically expire after ~2-6 hours)
+    private static let sharedCache = OSAllocatedUnfairLock(initialState: [String: CachedURL]())
+    private let cache: OSAllocatedUnfairLock<[String: CachedURL]>
+    private let ytDlpPath: @Sendable () throws -> String
+    private let ffmpegPath: @Sendable () throws -> String
+    private let temporaryRoot: URL
+    private let run: ProcessRunner
+
     private static let cacheTTL: TimeInterval = 2 * 60 * 60
+    private static let maximumTrackBytes: UInt64 = 512 * 1024 * 1024
+    private static let containerOverheadBytes: UInt64 = 16 * 1024 * 1024
+    private static let videoFormat = "bv[ext=mp4][vcodec^=avc1][height<=1080][protocol=https][filesize<=?512M]"
+    private static let audioFormat = "ba[ext=m4a][acodec^=mp4a][protocol=https][filesize<=?512M]"
 
-    /// Timeout for the entire yt-dlp extraction (pipe reads + termination)
-    private static let extractionTimeout: TimeInterval = 30
+    public init() {
+        cache = Self.sharedCache
+        ytDlpPath = { try Self.resolveYtDlpPath() }
+        ffmpegPath = { try BinaryBootstrap.requireRuntimeFFmpegPath() }
+        temporaryRoot = FileManager.default.temporaryDirectory
+        run = { try await Self.runProcess($0, arguments: $1, timeout: $2, directory: $3) }
+    }
 
-    public init() {}
+    init(
+        ytDlpPath: @escaping @Sendable () throws -> String,
+        ffmpegPath: @escaping @Sendable () throws -> String,
+        temporaryRoot: URL,
+        runner: @escaping ProcessRunner
+    ) {
+        cache = OSAllocatedUnfairLock(initialState: [:])
+        self.ytDlpPath = ytDlpPath
+        self.ffmpegPath = ffmpegPath
+        self.temporaryRoot = temporaryRoot
+        run = runner
+    }
 
-    /// Extract a streaming URL for a YouTube video. Caches per video ID.
-    public func streamURL(for youtubeURL: String) async throws -> URL {
+    public func playbackResource(
+        for youtubeURL: String,
+        onStageChange: @escaping @Sendable (VideoPreparationStage) async -> Void = { _ in }
+    ) async throws -> VideoPlaybackResource {
+        try Task.checkCancellation()
         let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
-
-        // Check cache
-        if let cached = Self.cache.withLock({ $0[videoID] }),
-           cached.expiresAt > Date() {
-            logger.notice("video_stream_cache_hit video_id=\(videoID, privacy: .private) expires_in_seconds=\(Int(cached.expiresAt.timeIntervalSinceNow), privacy: .public)")
-            return cached.url
-        }
-        logger.notice("video_stream_cache_miss video_id=\(videoID, privacy: .private)")
-
-        let url = try await extractStreamURL(youtubeURL: youtubeURL)
-
-        Self.cache.withLock {
-            $0[videoID] = CachedURL(url: url, expiresAt: Date().addingTimeInterval(Self.cacheTTL))
-        }
-        logger.notice("video_stream_cached video_id=\(videoID, privacy: .private) ttl_seconds=\(Int(Self.cacheTTL), privacy: .public)")
-
-        return url
-    }
-
-    /// Invalidate cached URL for a video (e.g., after playback error).
-    public func invalidateCache(for youtubeURL: String) {
-        let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
-        _ = Self.cache.withLock { $0.removeValue(forKey: videoID) }
-        logger.notice("video_stream_cache_invalidated video_id=\(videoID, privacy: .private)")
-    }
-
-    // MARK: - Private
-
-    private func extractStreamURL(youtubeURL: String) async throws -> URL {
-        let ytDlpPath = try resolveYtDlpPath()
-        let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? "unknown"
-        logger.notice("video_stream_extraction_started video_id=\(videoID, privacy: .private)")
-        logger.notice("video_stream_yt_dlp_path path=\(ytDlpPath, privacy: .private)")
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = [
-            "-f", "b",
-            "--get-url",
-            "--no-playlist",
-            "--", youtubeURL,
-        ]
-
-        var env = ProcessInfo.processInfo.environment
-        let current = env["PATH"] ?? "/usr/bin:/bin"
-        let extras = [AppPaths.binDir, "/opt/homebrew/bin", "/usr/local/bin"]
-        let existing = Set(current.split(separator: ":").map(String.init))
-        let missing = extras.filter { !existing.contains($0) }
-        env["PATH"] = (missing + [current]).joined(separator: ":")
-        process.environment = env
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        let startTime = ContinuousClock.now
-
-        try process.run()
-        logger.notice("video_stream_yt_dlp_launched pid=\(process.processIdentifier, privacy: .public)")
-
-        // Wrap EVERYTHING in a single timeout — process termination + pipe drain.
-        // The pipes are read AFTER the process terminates (or is killed) rather
-        // than concurrently on a DispatchQueue. That avoids the previous bug
-        // where the dispatched `readDataToEndOfFile` blocked on a global queue
-        // thread that TaskGroup cancellation could not interrupt; if yt-dlp
-        // hung, the read leaked the thread and never resumed.
-        //
-        // For `yt-dlp --get-url` the output is one URL line (well under the 64K
-        // pipe buffer), so reading after termination cannot deadlock. If we ever
-        // wrap a yt-dlp invocation that produces large output, switch to
-        // incremental drain via `FileHandle.bytes`.
-        try await ChildProcessWaiter.waitUntilExit(
-            process,
-            timeout: Self.extractionTimeout,
-            timeoutError: VideoStreamError.extractionFailed(
-                "Stream extraction timed out after \(Int(Self.extractionTimeout))s"
-            )
-        )
-        let result = (
-            stdout: (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data(),
-            stderr: (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
-        )
-
-        let elapsed = ContinuousClock.now - startTime
-        logger.notice("video_stream_yt_dlp_finished elapsed=\(String(describing: elapsed), privacy: .public) exit=\(process.terminationStatus, privacy: .public)")
-
-        let stdout = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let stderr = String(data: result.stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        if !stderr.isEmpty {
-            logger.notice("video_stream_yt_dlp_stderr detail=\(Self.sanitizedYtDlpMessage(stderr), privacy: .private)")
+        if let cached = cache.withLock({ $0[videoID] }), cached.expiresAt > Date() {
+            return VideoPlaybackResource(url: cached.url)
         }
 
-        guard process.terminationStatus == 0, !stdout.isEmpty else {
-            let reason = stderr.isEmpty ? "No output from yt-dlp" : Self.sanitizedYtDlpMessage(stderr)
-            logger.error("video_stream_extraction_failed reason=\(reason, privacy: .private)")
-            throw VideoStreamError.extractionFailed(reason)
-        }
-
-        // yt-dlp may return multiple URLs (video + audio); take the first
-        let urlString = stdout.components(separatedBy: .newlines).first ?? stdout
-        guard let url = URL(string: urlString) else {
-            logger.error("video_stream_invalid_url")
-            throw VideoStreamError.invalidStreamURL
-        }
-
-        logger.notice("video_stream_extraction_succeeded video_id=\(videoID, privacy: .private) elapsed=\(String(describing: elapsed), privacy: .public)")
-        return url
-    }
-
-    private static func sanitizedYtDlpMessage(_ raw: String) -> String {
-        String(TelemetryErrorClassifier.sanitize(raw).prefix(512))
-    }
-
-    private func resolveYtDlpPath() throws -> String {
-        let candidates = [
-            BinaryBootstrap.resolveYtDlpPath(),
-            "/opt/homebrew/bin/yt-dlp",
-            "/usr/local/bin/yt-dlp",
-        ].compactMap { $0 }
-        for path in candidates {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
+        let executable = try ytDlpPath()
+        let directory = temporaryRoot.appendingPathComponent("macparakeet-video-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var ownsDirectory = true
+        defer {
+            if ownsDirectory {
+                try? FileManager.default.removeItem(at: directory)
             }
         }
-        throw VideoStreamError.ytDlpNotFound
+
+        await onStageChange(.extracting)
+        try Task.checkCancellation()
+        let output = try await run(executable, [
+            "--ignore-config", "--no-cache-dir", "--no-playlist",
+            "-f", "b/\(Self.videoFormat)+\(Self.audioFormat)",
+            "--get-url", "--", youtubeURL,
+        ], 30, directory)
+        try Task.checkCancellation()
+        let urls = try Self.streamURLs(from: output)
+        if urls.count == 1 {
+            let url = urls[0]
+            cache.withLock { $0[videoID] = CachedURL(url: url, expiresAt: Date().addingTimeInterval(Self.cacheTTL)) }
+            return VideoPlaybackResource(url: url)
+        }
+
+        // Download separately so yt-dlp never owns an FFmpeg child process.
+        // Our own process waiter can then cancel each subprocess completely.
+        let ffmpeg = try ffmpegPath()
+        await onStageChange(.downloading)
+        try Task.checkCancellation()
+        _ = try await run(executable, [
+            "--ignore-config", "--no-cache-dir", "--no-playlist", "--quiet", "--no-progress",
+            "--fixup", "never", "--no-part", "--max-filesize", "512M",
+            "--socket-timeout", "15", "--retries", "1",
+            "-f", "\(Self.videoFormat),\(Self.audioFormat)",
+            "-o", directory.appendingPathComponent("source.%(ext)s").path,
+            "--", youtubeURL,
+        ], 600, directory)
+        try Task.checkCancellation()
+
+        let video = directory.appendingPathComponent("source.mp4")
+        let audio = directory.appendingPathComponent("source.m4a")
+        try Self.validateFile(video, maximumBytes: Self.maximumTrackBytes)
+        try Self.validateFile(audio, maximumBytes: Self.maximumTrackBytes)
+
+        await onStageChange(.combining)
+        try Task.checkCancellation()
+        let merged = directory.appendingPathComponent("playback.mp4")
+        _ = try await run(ffmpeg, [
+            "-nostdin", "-hide_banner", "-loglevel", "error",
+            "-i", video.path, "-i", audio.path,
+            "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+            "-movflags", "+faststart", "-y", merged.path,
+        ], 120, directory)
+        try Task.checkCancellation()
+        try Self.validateFile(merged, maximumBytes: 2 * Self.maximumTrackBytes + Self.containerOverheadBytes)
+        try FileManager.default.removeItem(at: video)
+        try FileManager.default.removeItem(at: audio)
+
+        let resource = VideoPlaybackResource(url: merged, temporaryDirectory: directory)
+        ownsDirectory = false
+        return resource
+    }
+
+    public func invalidateCache(for youtubeURL: String) {
+        let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
+        _ = cache.withLock { $0.removeValue(forKey: videoID) }
+    }
+
+    private static func streamURLs(from output: String) throws -> [URL] {
+        let lines = output.split(whereSeparator: \.isNewline).map(String.init)
+        guard (1...2).contains(lines.count) else { throw VideoStreamError.invalidStreamURL }
+        return try lines.map { line in
+            guard !line.contains(where: \.isWhitespace),
+                  let url = URL(string: line),
+                  let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+                  let host = url.host, !host.isEmpty else {
+                throw VideoStreamError.invalidStreamURL
+            }
+            return url
+        }
+    }
+
+    private static func validateFile(_ url: URL, maximumBytes: UInt64) throws {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        guard let size = attributes?[.size] as? NSNumber,
+              size.uint64Value > 0, size.uint64Value <= maximumBytes else {
+            throw VideoStreamError.preparationFailed(
+                "Could not prepare both video and audio. Each downloaded track must be smaller than 512 MB."
+            )
+        }
+    }
+
+    /// Files avoid pipe-buffer deadlocks during downloads; reads stay bounded.
+    static func runProcess(_ executable: String, arguments: [String], timeout: TimeInterval, directory: URL) async throws -> String {
+        try Task.checkCancellation()
+        let stdoutURL = directory.appendingPathComponent("process.stdout")
+        let stderrURL = directory.appendingPathComponent("process.stderr")
+        try Data().write(to: stdoutURL)
+        try Data().write(to: stderrURL)
+        defer {
+            try? FileManager.default.removeItem(at: stdoutURL)
+            try? FileManager.default.removeItem(at: stderrURL)
+        }
+        let stdout = try FileHandle(forWritingTo: stdoutURL)
+        defer { try? stdout.close() }
+        let stderr = try FileHandle(forWritingTo: stderrURL)
+        defer { try? stderr.close() }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.currentDirectoryURL = directory
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        var environment = ProcessInfo.processInfo.environment
+        let path = environment["PATH"] ?? "/usr/bin:/bin"
+        environment["PATH"] = ([AppPaths.binDir, "/opt/homebrew/bin", "/usr/local/bin", path]).joined(separator: ":")
+        process.environment = environment
+
+        try process.run()
+        try await ChildProcessWaiter.waitUntilExit(
+            process,
+            timeout: timeout,
+            timeoutError: VideoStreamError.preparationFailed("Video preparation timed out. Please try again.")
+        )
+        guard process.terminationStatus == 0 else {
+            let detail = try readOutput(stderrURL, limit: 16 * 1024)
+            throw VideoStreamError.preparationFailed(
+                detail.isEmpty ? "The media helper exited without producing playable video." : String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
+            )
+        }
+        return try readOutput(stdoutURL, limit: 64 * 1024)
+    }
+
+    private static func readOutput(_ url: URL, limit: Int) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: limit + 1) ?? Data()
+        guard data.count <= limit else {
+            throw VideoStreamError.preparationFailed("The media helper returned too much output.")
+        }
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func resolveYtDlpPath() throws -> String {
+        let candidates = [BinaryBootstrap.resolveYtDlpPath(), "/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp"].compactMap { $0 }
+        guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            throw VideoStreamError.ytDlpNotFound
+        }
+        return path
     }
 }
 
 public enum VideoStreamError: Error, LocalizedError {
     case ytDlpNotFound
-    case extractionFailed(String)
+    case preparationFailed(String)
     case invalidStreamURL
 
     public var errorDescription: String? {
         switch self {
         case .ytDlpNotFound:
             return "yt-dlp not found for video streaming"
-        case .extractionFailed(let reason):
-            return "Failed to extract stream URL: \(reason)"
+        case .preparationFailed(let reason):
+            return "Failed to prepare video: \(reason)"
         case .invalidStreamURL:
-            return "Extracted URL is not valid"
+            return "The media helper did not return a supported video stream."
         }
     }
 }

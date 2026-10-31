@@ -147,8 +147,9 @@ backlog limit is reached; durable file and finalization jobs are retained.
 
 **Meeting stop does not create a second ASR lane.** Back-to-back meeting
 recording is implemented by returning the recorder to idle after the stopped
-meeting's audio files, `awaitingTranscription` lock, and processing Library row
-are durable. The queued final STT still enters the shared background slot as
+meeting's source audio files, metadata, `awaitingTranscription` lock, and
+processing Library row are durable. Playback preparation runs in the existing
+meeting queue before STT, so it cannot delay the next capture. The queued final STT still enters the shared background slot as
 `meetingFinalize`. If a file, folder, YouTube, podcast, or media URL
 transcription is already running, it is not preempted; the stopped meeting
 waits for that job to finish. Once the slot is free, `meetingFinalize` outranks

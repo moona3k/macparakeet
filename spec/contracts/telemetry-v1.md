@@ -337,3 +337,31 @@ Deploy the website validator before releasing a client that emits new
 `build_number`). Unknown event names still 400 the whole batch; unknown keys
 on this event are dropped silently. A paired source change or passing app
 tests does not prove the deployed endpoint accepts the fields.
+
+### Source-only meeting stop
+
+`meetingRecordingCompleted` at queue admission uses the captured source-timeline
+duration when playback has not yet been prepared. Ready-output callers retain
+probed playback duration. Failed playback preparation has no ready recording
+output; unknown output-derived facts are omitted. The local
+`meeting_playback_prepared` and `prepare_playback` queue stage diagnostics record
+derivation timing separately from stop/capture settlement. No audio, notes,
+transcript text, or new network payload fields are added.
+
+### Knowledge-card LLM stage
+
+For llm_operation with feature=knowledge_card, one invocation emits exactly
+one terminal event, including setup failure or cancellation. Success means a
+complete, structurally valid, non-empty-synopsis provider response; later card
+citation resolution and the conditional database save can still reject it.
+It is not a saved-card counter.
+
+Card recovery makes at most two LLM client requests. retry_count counts only
+additional client requests (0 or 1), not bounded local configuration reads
+or work internal to a provider. Token counts sum the responses only when every response
+reports that count; a missing count keeps the cumulative count unknown.
+Returned card-generation usage follows the same rule. No prompt, transcript,
+model output, or raw provider error is added to telemetry.
+
+Tests: KnowledgeCardRecoveryTests, CardGenerationServiceTests,
+LLMConfigStoreTests, and the knowledge-card wire fixtures in LLMHTTPAdapterTests.

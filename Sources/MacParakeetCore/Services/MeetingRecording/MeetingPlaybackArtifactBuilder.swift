@@ -9,7 +9,7 @@ actor MeetingPlaybackArtifactBuilder {
     /// installed. This wrapper preserves the callers' injected filesystem
     /// dependency while the builder serializes its own operations.
     struct SendableFileManager: @unchecked Sendable {
-        fileprivate let value: FileManager
+        let value: FileManager
 
         init(_ value: FileManager = .default) {
             self.value = value
@@ -99,6 +99,8 @@ actor MeetingPlaybackArtifactBuilder {
             try installArtifact(from: mixURL, at: outputURL)
             return Result(durationSeconds: mixedDuration, method: .mixed, source: nil)
         } catch {
+            try Task.checkCancellation()
+            if error is CancellationError { throw error }
             let fallback = bestFallback(from: playableCandidates)
             do {
                 let duration = try await materialize(fallback, at: outputURL)
