@@ -190,6 +190,12 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
     }
 
     func testSourceOnlyFailedMeetingDetailShowsRecoveryInsteadOfEmptyTranscript() throws {
+        // Request SwiftUI's accessibility tree without requiring VoiceOver on
+        // the runner. Restore the process setting after this hosting check.
+        let enhancedUI = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+        let wasEnhanced = NSApplication.shared.accessibilityAttributeValue(enhancedUI) as? Bool ?? false
+        NSApplication.shared.accessibilitySetValue(true, forAttribute: enhancedUI)
+        defer { NSApplication.shared.accessibilitySetValue(wasEnhanced, forAttribute: enhancedUI) }
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -291,16 +297,27 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
     }
 
     private func renderedText(in view: NSView) -> String {
+        var visited: Set<ObjectIdentifier> = []
+        return renderedText(in: view, visited: &visited)
+    }
+
+    private func renderedText(in element: AnyObject, visited: inout Set<ObjectIdentifier>) -> String {
+        guard visited.insert(ObjectIdentifier(element)).inserted else { return "" }
         var parts: [String] = []
-        if let label = view.accessibilityLabel(), !label.isEmpty { parts.append(label) }
-        if let value = view.accessibilityValue() as? String, !value.isEmpty { parts.append(value) }
-        let identifier = view.accessibilityIdentifier()
-        if !identifier.isEmpty { parts.append(identifier) }
-        if let field = view as? NSTextField { parts.append(field.stringValue) }
-        if let textView = view as? NSTextView { parts.append(textView.string) }
-        if let button = view as? NSButton, !button.title.isEmpty { parts.append(button.title) }
-        for subview in view.subviews {
-            parts.append(renderedText(in: subview))
+        // SwiftUI's virtual nodes implement the Objective-C accessibility
+        // selectors without declaring NSAccessibilityProtocol conformance.
+        if let label = element.accessibilityLabel?(), !label.isEmpty { parts.append(label) }
+        let value: Any? = element.accessibilityValue?()
+        if let text = value as? String, !text.isEmpty { parts.append(text) }
+        if let identifier = element.accessibilityIdentifier?(), !identifier.isEmpty { parts.append(identifier) }
+        for child in element.accessibilityChildren?() ?? [] {
+            parts.append(renderedText(in: child as AnyObject, visited: &visited))
+        }
+        if let field = element as? NSTextField { parts.append(field.stringValue) }
+        if let textView = element as? NSTextView { parts.append(textView.string) }
+        if let button = element as? NSButton, !button.title.isEmpty { parts.append(button.title) }
+        for subview in (element as? NSView)?.subviews ?? [] {
+            parts.append(renderedText(in: subview, visited: &visited))
         }
         return parts.joined(separator: "\n")
     }
