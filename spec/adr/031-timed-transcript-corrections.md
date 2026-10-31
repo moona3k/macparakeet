@@ -121,8 +121,9 @@ for audit but is neither replayed nor undoable on the new automatic transcript.
 The implementation includes correction replay and migration,
 effective search/card derivation, Timed and Text views, playback highlighting,
 SRT/VTT/TXT/Markdown/PDF/DOCX and DAPT exports, AI context, encrypted-share
-projection, meeting artifacts, and CLI meeting JSON. Public JSON and artifact
-fields are additive; automatic word evidence stays present for inspection.
+projection, meeting artifacts, and CLI meeting and history transcription JSON.
+Public JSON and artifact fields are additive; automatic word evidence stays
+present for inspection.
 
 Focused model, database, view-model, UI-layout, export, sharing, artifact, and
 CLI tests cover the projection and compatibility rules. Segment-timed correction

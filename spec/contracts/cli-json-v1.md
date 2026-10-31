@@ -68,14 +68,15 @@ still apply.
 - `history transcriptions --json`, `history search-transcriptions --json`,
   and `history favorites --json` return arrays of saved transcription objects
   with active corrections resolved through the shared effective projection.
-  `cleanTranscript`, speakers, speaker assignments, and `transcriptSegments`
-  reflect the same corrections as the app and JSON export. An intentionally
-  omitted transcript has empty `cleanTranscript` and no effective segments;
-  consumers must not treat that empty string as missing and restore raw text.
-  `rawTranscript` and recognized word strings/timestamps remain automatic
-  evidence, not a second edited transcript. Fields, array shape, metadata,
-  ordering, filters, and limits are unchanged. These reads never persist the
-  materialized projection back over the automatic transcription row.
+  `cleanTranscript`, `speakers`, `speakerCount`, word `speakerId` values,
+  `diarizationSegments`, and `transcriptSegments` reflect the same corrections
+  as the app and JSON export. An intentionally omitted transcript has empty
+  `cleanTranscript` and no effective segments; consumers must not treat that
+  empty string as missing and restore raw text. `rawTranscript` and recognized
+  word strings/timestamps remain automatic evidence, not a second edited
+  transcript. Fields, array shape, metadata, ordering, filters, and limits are
+  unchanged. These reads never persist the materialized projection back over
+  the automatic transcription row.
 - `transcript --json` returns one object with transcription metadata and an
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
