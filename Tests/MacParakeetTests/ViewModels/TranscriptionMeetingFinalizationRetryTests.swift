@@ -20,7 +20,7 @@ final class TranscriptionMeetingFinalizationRetryTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        viewModel.onRetryMeetingFinalization = nil
+        viewModel?.onRetryMeetingFinalization = nil
         try FileManager.default.removeItem(at: folder)
     }
 
