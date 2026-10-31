@@ -496,8 +496,8 @@ failure, including time spent behind another meeting. Admission errors are
 shown for the initiating meeting; completion clears its pending state even
 when another detail is selected. Processing copy covers playback preparation
 and transcription without implying that either has already started. Pending
-detail retries disable transcript editing and generic retranscription, including
-saving a draft opened before admission. Their completion refreshes the same
+detail retries disable transcript editing, speaker renames, and generic
+retranscription, including saving a draft opened before admission. Their completion refreshes the same
 meeting quietly without switching to it after the user navigates elsewhere.
 
 Cleaned-microphone rendering starts only when final STT consumes its readiness

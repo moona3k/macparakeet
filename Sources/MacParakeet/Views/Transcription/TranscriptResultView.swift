@@ -5371,6 +5371,7 @@ struct TranscriptResultView: View {
         let speakerStats = viewModel.speakerAttribution?.statistics
             ?? cachedSpeakerStats
         let mutationsDisabled = viewModel.speakerAttribution == nil || viewModel.isApplyingSpeakerCorrection
+            || viewModel.isRetryingMeetingFinalization(id: activeTranscription.id)
 
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             Button {

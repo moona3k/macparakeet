@@ -185,6 +185,31 @@ final class TranscriptionMeetingFinalizationRetryTests: XCTestCase {
         XCTAssertTrue(viewModel.transcriptEditFailure?.contains("processing finishes") == true)
     }
 
+    func testPendingRetryRejectsSpeakerRenamesWithoutChangingMetadata() async {
+        var failed = savedMeeting()
+        failed.speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        repository.transcriptions = [failed]
+        viewModel.currentTranscription = failed
+        viewModel.onRetryMeetingFinalization = { _ in }
+        await viewModel.retryMeetingFinalization(failed)
+
+        XCTAssertFalse(viewModel.renameSpeaker(id: "S1", to: "Alice"))
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?.first?.label, "Speaker 1")
+        XCTAssertEqual(repository.transcriptions.first?.speakers?.first?.label, "Speaker 1")
+        XCTAssertTrue(repository.updateSpeakersCalls.isEmpty)
+        XCTAssertTrue(viewModel.errorMessage?.contains("processing finishes") == true)
+
+        viewModel.finishMeetingFinalizationRetry(id: failed.id)
+        let committed = expectation(description: "rename is available after the retry ends")
+        XCTAssertTrue(
+            viewModel.renameSpeaker(id: "S1", to: "Alice", offersEnrollment: false) { saved in
+                XCTAssertTrue(saved)
+                committed.fulfill()
+            })
+        await fulfillment(of: [committed], timeout: 2)
+        XCTAssertEqual(repository.transcriptions.first?.speakers?.first?.label, "Alice")
+    }
+
     func testDetailRetryCompletionUsesQuietPresentationEvenWhenAutomaticOpeningIsRequested() async {
         let failed = savedMeeting()
         let other = Transcription(fileName: "Keep this detail open", status: .completed)

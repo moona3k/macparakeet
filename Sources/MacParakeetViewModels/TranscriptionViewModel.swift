@@ -3001,7 +3001,7 @@ public final class TranscriptionViewModel {
     }
 
     /// Returns `false` only when the rename must be retried later because
-    /// speaker corrections are still loading or saving.
+    /// meeting processing or speaker corrections are still pending.
     ///
     /// `offersEnrollment` is false when the name came from a suggestion the
     /// user just confirmed: that voice is already matched and recorded.
@@ -3016,6 +3016,10 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty else {
             onCommitted?(true)
             return true
+        }
+        if let id = currentTranscription?.id, isRetryingMeetingFinalization(id: id) {
+            setError(message: "Speaker names can be changed after meeting processing finishes.")
+            return false
         }
         if speakerCorrectionService != nil,
             currentTranscription?.status == .completed,
