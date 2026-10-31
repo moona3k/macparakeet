@@ -29,6 +29,162 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(output.contains("kept after cancel"), output)
     }
 
+    func testHistoryJSONReadsResolveCorrectionsAndPreserveAutomaticEvidence() async throws {
+        let appState = try useTemporaryAppState()
+        defer { resetTemporaryAppState(appState) }
+        let dbURL = appState.url.appendingPathComponent("history.db")
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let corrections = SpeakerCorrectionService(dbQueue: db.dbQueue)
+        var originals: [Transcription] = []
+
+        for (index, source) in Transcription.SourceType.allCases.enumerated() {
+            let original = historyCorrectionFixture(source: source, timestamp: Double(index + 1))
+            try repo.save(original)
+            originals.append(original)
+            let segment = try XCTUnwrap(original.transcriptSegments?.first)
+            let fingerprint = SpeakerAttributionResolver.fingerprint(for: original)
+            _ = try await corrections.apply(
+                transcriptionId: original.id,
+                command: .editText(
+                    target: .init(anchorTranscriptSegmentIDs: [segment.id], wordRange: segment.wordRange),
+                    text: "Revised statement."
+                ),
+                expectedFingerprint: fingerprint,
+                expectedRevision: 0
+            )
+            _ = try await corrections.apply(
+                transcriptionId: original.id,
+                command: .rename(speakerID: "S1", label: "Alicia"),
+                expectedFingerprint: fingerprint,
+                expectedRevision: 1
+            )
+        }
+        // An uncorrected row must keep all fields and its position in the list.
+        let untouched = historyCorrectionFixture(source: .file, timestamp: 100)
+        try repo.save(untouched)
+        let expectedIDs = [untouched.id] + originals.reversed().map(\.id)
+
+        for rows in try historyJSONReads(database: dbURL) {
+            XCTAssertEqual(rows.map(\.id), expectedIDs)
+            let first = try XCTUnwrap(rows.first)
+            XCTAssertEqual(try cliJSONEncoder.encode(first), try cliJSONEncoder.encode(untouched))
+            for original in originals {
+                let row = try XCTUnwrap(rows.first { $0.id == original.id })
+                XCTAssertEqual(row.cleanTranscript, "Revised statement.")
+                XCTAssertEqual(row.transcriptSegments?.map(\.text), ["Revised statement."])
+                XCTAssertEqual(row.speakers?.first?.label, "Alicia")
+                XCTAssertEqual(row.transcriptSegments?.first?.speakerLabel, "Alicia")
+                XCTAssertEqual(row.rawTranscript, original.rawTranscript)
+                XCTAssertEqual(row.wordTimestamps, original.wordTimestamps)
+                XCTAssertEqual(row.createdAt, original.createdAt)
+                XCTAssertEqual(row.updatedAt, original.updatedAt)
+                XCTAssertEqual(row.fileName, original.fileName)
+                XCTAssertEqual(row.titleOverride, original.titleOverride)
+                XCTAssertEqual(row.userNotes, original.userNotes)
+                XCTAssertEqual(row.durationMs, original.durationMs)
+                XCTAssertEqual(row.isFavorite, original.isFavorite)
+                XCTAssertEqual(row.sourceType, original.sourceType)
+                XCTAssertEqual(row.status, original.status)
+                XCTAssertEqual(row.transcriptTextAlignment, .segment)
+            }
+        }
+        // Search finds the corrected words and returns those same words.
+        let search = try SearchTranscriptionsSubcommand.parse([
+            "Revised", "--json", "--database", dbURL.path,
+        ])
+        let matches = try decodeHistoryJSON(captureStandardOutput { try search.run() })
+        XCTAssertEqual(matches.map(\.id), originals.reversed().map(\.id))
+        XCTAssertTrue(matches.allSatisfy { $0.cleanTranscript == "Revised statement." })
+        for original in originals {
+            let stored = try XCTUnwrap(repo.fetch(id: original.id))
+            XCTAssertEqual(try cliJSONEncoder.encode(stored), try cliJSONEncoder.encode(original))
+        }
+    }
+
+    func testHistoryJSONReadsKeepAnOmittedTranscriptEmpty() async throws {
+        let appState = try useTemporaryAppState()
+        defer { resetTemporaryAppState(appState) }
+        let dbURL = appState.url.appendingPathComponent("history.db")
+        let db = try DatabaseManager(path: dbURL.path)
+        let original = historyCorrectionFixture(source: .meeting, timestamp: 1)
+        try TranscriptionRepository(dbQueue: db.dbQueue).save(original)
+        let segment = try XCTUnwrap(original.transcriptSegments?.first)
+        _ = try await SpeakerCorrectionService(dbQueue: db.dbQueue).apply(
+            transcriptionId: original.id,
+            command: .reviseText(changes: [
+                .omit(target: .init(anchorTranscriptSegmentIDs: [segment.id], wordRange: segment.wordRange))
+            ]),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: original),
+            expectedRevision: 0
+        )
+
+        for rows in try historyJSONReads(database: dbURL) {
+            XCTAssertEqual(rows.count, 1)
+            let row = try XCTUnwrap(rows.first)
+            XCTAssertEqual(row.cleanTranscript, "")
+            XCTAssertEqual(row.transcriptSegments?.count, 0)
+            XCTAssertEqual(row.rawTranscript, original.rawTranscript)
+            XCTAssertEqual(row.wordTimestamps, original.wordTimestamps)
+            XCTAssertEqual(row.transcriptTextAlignment, .segment)
+        }
+    }
+
+    func testHistoryJSONReadsKeepEmptyArrayShape() throws {
+        let appState = try useTemporaryAppState()
+        defer { resetTemporaryAppState(appState) }
+        let dbURL = appState.url.appendingPathComponent("history.db")
+        for rows in try historyJSONReads(database: dbURL) {
+            XCTAssertTrue(rows.isEmpty)
+        }
+    }
+
+    private func historyCorrectionFixture(source: Transcription.SourceType, timestamp: Double) -> Transcription {
+        Transcription(
+            createdAt: Date(timeIntervalSince1970: timestamp),
+            fileName: "History projection \(source.rawValue)",
+            durationMs: 500,
+            rawTranscript: "Original statement.",
+            cleanTranscript: "Original statement.",
+            wordTimestamps: [
+                .init(word: "Original", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+                .init(word: "statement.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+            ],
+            speakerCount: 1,
+            speakers: [.init(id: "S1", label: "Alice")],
+            transcriptSegments: [
+                .init(
+                    startMs: 0, endMs: 500, speakerId: "S1", speakerLabel: "Alice",
+                    text: "Original statement.", wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                )
+            ],
+            status: .completed,
+            isFavorite: true,
+            sourceType: source,
+            userNotes: "Synthetic notes",
+            titleOverride: "History projection title",
+            updatedAt: Date(timeIntervalSince1970: timestamp)
+        )
+    }
+
+    private func historyJSONReads(database: URL) throws -> [[Transcription]] {
+        let options = ["--json", "--database", database.path]
+        let list = try TranscriptionsSubcommand.parse(options)
+        let search = try SearchTranscriptionsSubcommand.parse(["History projection"] + options)
+        let favorites = try FavoritesSubcommand.parse(options)
+        return try [
+            decodeHistoryJSON(captureStandardOutput { try list.run() }),
+            decodeHistoryJSON(captureStandardOutput { try search.run() }),
+            decodeHistoryJSON(captureStandardOutput { try favorites.run() }),
+        ]
+    }
+
+    private func decodeHistoryJSON(_ output: String) throws -> [Transcription] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([Transcription].self, from: Data(output.utf8))
+    }
+
     // MARK: - Delete Dictation
 
     func testDeleteDictationRemovesRecord() throws {

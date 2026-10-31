@@ -96,6 +96,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Fixed
 
+- `history transcriptions --json`, `history search-transcriptions --json`,
+  and `history favorites --json` now resolve saved text and speaker corrections, matching the
+  app and corrected exports. A search for corrected words returns those words
+  in `cleanTranscript`; deliberately omitted text remains empty. Automatic
+  `rawTranscript` and recognized word text/times remain available. Array shapes,
+  fields, ordering, metadata, and exit codes are unchanged (patch fix).
+
 - Knowledge-card generation now makes one corrective retry for incomplete or
   malformed output, waits briefly for busy AI settings, and reserves provider
   context for the answer. Usage totals include both responses when both report
