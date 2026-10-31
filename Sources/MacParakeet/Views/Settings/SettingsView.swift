@@ -163,7 +163,11 @@ struct SettingsView: View {
             Group {
                 if rootViewModel.isSearching {
                     SettingsSearchResultsList(
-                        results: SettingsSearchIndex.matches(rootViewModel.searchQuery),
+                        results: SettingsSearchIndex.matches(
+                            rootViewModel.searchQuery,
+                            hasEnrolledVoices: voiceProfilesViewModel.hasEnrolledVoices,
+                            speakerDetectionEnabled: viewModel.meetingSpeakerDiarization
+                        ),
                         onSelect: handleSearchResultTap
                     )
                 } else {
@@ -183,6 +187,11 @@ struct SettingsView: View {
         }
         .background(DesignSystem.Colors.background)
         .background(focusSearchHotkey)
+        .task {
+            // Search can open before the Meeting Recording card ever mounts.
+            // Its management destination must reflect existing voices then too.
+            await voiceProfilesViewModel.load()
+        }
         .onAppear {
             viewModel.refreshLaunchAtLoginStatus()
             viewModel.startPermissionPolling()
@@ -1308,6 +1317,19 @@ struct SettingsView: View {
 
                 Divider()
 
+                if viewModel.playDictationCaptureSounds {
+                    DictationSoundSettingsSection(controller: SoundManager.shared.dictationSounds)
+                    Divider()
+                }
+
+                settingsToggleRow(
+                    title: "Allow dictation control from links",
+                    detail: "Let links start, stop, or toggle dictation. Any app or website can send these links while enabled. Only enable this for automations you trust.",
+                    isOn: $viewModel.dictationURLControlEnabled
+                )
+
+                Divider()
+
                 settingsToggleRow(
                     title: "Keep dictation on clipboard",
                     detail: "Leaves a copy of the pasted text on the clipboard, which helps when a remote desktop needs a manual ⌘V.",
@@ -1497,12 +1519,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-        // On the card, never on the row above: that row is conditional on what
-        // this load finds, so loading from there would leave it hidden forever
-        // for exactly the people it exists to serve.
-        .task {
-            await voiceProfilesViewModel.load()
         }
     }
 

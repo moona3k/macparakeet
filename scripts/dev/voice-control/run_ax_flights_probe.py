@@ -26,16 +26,12 @@ if args.env_file:
             env['JEV_API_KEY'] = value.strip().strip('\"\'')
 with tempfile.TemporaryDirectory(prefix='macparakeet-native-flights-') as build:
     folder = Path(build)
-    source = (root / 'Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift').read_text()
-    start = source.index('public enum StreamingCursorEventMarker')
-    end = source.index('\n}', start) + 2
-    marker = folder / 'StreamingCursorEventMarker.swift'
-    marker.write_text('import CoreGraphics\n' + source[start:end])
+    keyboard_events = root / 'Sources/MacParakeetCore/Services/System/AppGeneratedKeyboardEvents.swift'
     binary = folder / 'probe'
     files = ['VoiceControlTypes', 'VoiceControlDiagnostics', 'VoiceControlTurnRunner',
              'VoiceControlCommandRouter', 'JevDecisionClient', 'NativeVoiceControlAdapter']
     subprocess.run(['swiftc', '-parse-as-library', *[str(core / (name + '.swift')) for name in files],
-                    str(marker), str(Path(__file__).with_name('AXFlightsProbe.swift')), '-o', str(binary)], check=True)
+                    str(keyboard_events), str(Path(__file__).with_name('AXFlightsProbe.swift')), '-o', str(binary)], check=True)
     subprocess.run([
         'osascript', '-e',
         'tell application "Google Chrome"\n'

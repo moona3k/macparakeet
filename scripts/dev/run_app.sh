@@ -148,6 +148,7 @@ done < <(find "$PRODUCT_DIR" -maxdepth 1 -type d -name '*.bundle' -print0)
 mkdir -p "$RESOURCES_DIR/Legal"
 cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt" "$RESOURCES_DIR/Legal/MarkdownDependencies.txt"
 cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt" "$RESOURCES_DIR/Legal/NemotronDiarization.txt"
+cp "$ROOT_DIR/Sources/MacParakeet/Resources/Legal/HandySounds.txt" "$RESOURCES_DIR/Legal/HandySounds.txt"
 cp "$ROOT_DIR/THIRD_PARTY_LICENSES.md" "$RESOURCES_DIR/Legal/THIRD_PARTY_LICENSES.md"
 
 # Only opted-in Debug launches need the experimental Ask runtime. Ordinary

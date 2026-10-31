@@ -250,3 +250,11 @@ declared license, and included license filenames in the generated manifest.
 ## Orukeet optional model weights
 
 Orukeet is an optional download from [oruk/orukeet](https://huggingface.co/oruk/orukeet), an Oruk adaptation of NVIDIA Parakeet v3. The model weights are licensed under [Creative Commons Attribution-ShareAlike 4.0](https://huggingface.co/oruk/orukeet/blob/main/LICENSE). They are not bundled with this application.
+
+## Handy dictation sounds
+
+- Source: <https://github.com/cjpais/Handy>
+- Revision: `93c9ee05efe294cf2a56bd534b77ea1079f21b77`
+- License: MIT; copyright (c) 2025 CJ Pais
+- Used for: optional Pop and Marimba start/stop presets (four unmodified WAV files)
+- Complete notice: `Sources/MacParakeet/Resources/Legal/HandySounds.txt`, included in the app's SwiftPM resource bundle.

@@ -107,6 +107,9 @@ public final class TranscriptionViewModel {
     }
 
     public var transcriptions: [Transcription] = []
+    public var onRetryMeetingFinalization: ((Transcription) async throws -> Void)?
+    private var meetingFinalizationRetryAttempts: [UUID: UUID] = [:]
+    public private(set) var meetingFinalizationRetryErrors: [UUID: String] = [:]
     /// Monotonic identity for the selected transcript snapshot. Views use this
     /// to reject asynchronous derivations that finished after a same-row edit,
     /// retranscription, refresh, or metadata update.
@@ -1805,6 +1808,50 @@ public final class TranscriptionViewModel {
         refreshPromptResultStatus()
     }
 
+    public func isRetryingMeetingFinalization(id: UUID) -> Bool {
+        meetingFinalizationRetryAttempts[id] != nil
+    }
+
+    /// Retry the saved meeting through its existing finalization queue, keeping
+    /// the same row. Admission can finish before a queued job starts, so retain
+    /// the pending state until the queue reports its terminal outcome.
+    public func retryMeetingFinalization(_ transcription: Transcription) async {
+        let id = transcription.id
+        guard transcription.sourceType == .meeting,
+            transcription.status == .error || transcription.status == .cancelled,
+            !isRetryingMeetingFinalization(id: id)
+        else { return }
+        meetingFinalizationRetryErrors[id] = nil
+        guard MeetingAudioFile.canRetryFinalization(for: transcription) else {
+            meetingFinalizationRetryErrors[id] = "Saved meeting audio is no longer available."
+            return
+        }
+        guard let retry = onRetryMeetingFinalization else {
+            meetingFinalizationRetryErrors[id] = "Meeting retry is not available."
+            return
+        }
+        let attempt = UUID()
+        meetingFinalizationRetryAttempts[id] = attempt
+        do {
+            try await retry(transcription)
+        } catch {
+            // A completion or a newer attempt may have arrived during admission.
+            guard meetingFinalizationRetryAttempts[id] == attempt else { return }
+            meetingFinalizationRetryAttempts[id] = nil
+            meetingFinalizationRetryErrors[id] = "Could not retry this meeting: \(error.localizedDescription)"
+            refreshCurrentTranscriptionIfMatching(id: id)
+        }
+    }
+
+    /// Returns whether this was a detail retry, whose completion should refresh
+    /// the selected row quietly rather than automatically opening a meeting.
+    @discardableResult
+    public func finishMeetingFinalizationRetry(id: UUID) -> Bool {
+        let wasDetailRetry = meetingFinalizationRetryAttempts.removeValue(forKey: id) != nil
+        meetingFinalizationRetryErrors[id] = nil
+        return wasDetailRetry
+    }
+
     public func refreshCurrentTranscriptionIfMatching(id: UUID) {
         guard currentTranscription?.id == id,
             let fresh = try? transcriptionRepo?.fetch(id: id)
@@ -2028,6 +2075,10 @@ public final class TranscriptionViewModel {
 
     public func makeTranscriptEditSnapshot() -> TranscriptEditSnapshot? {
         guard let current = currentTranscription, let repo = transcriptionRepo else { return nil }
+        guard !isRetryingMeetingFinalization(id: current.id) else {
+            transcriptEditFailure = "Editing is available after meeting processing finishes."
+            return nil
+        }
         do {
             let snapshot = try repo.transcriptEditSnapshot(for: current)
             transcriptEditFailure = nil
@@ -2056,6 +2107,10 @@ public final class TranscriptionViewModel {
     }
 
     private func persistTranscriptText(_ text: String?, expected: TranscriptEditSnapshot) -> Bool {
+        guard !isRetryingMeetingFinalization(id: expected.transcription.id) else {
+            transcriptEditFailure = "Editing is available after meeting processing finishes. Your draft has not been saved."
+            return false
+        }
         guard let repo = transcriptionRepo, currentTranscription?.id == expected.transcription.id else {
             transcriptEditFailure = TranscriptEditError.changed.localizedDescription
             return false
@@ -2946,7 +3001,7 @@ public final class TranscriptionViewModel {
     }
 
     /// Returns `false` only when the rename must be retried later because
-    /// speaker corrections are still loading or saving.
+    /// meeting processing or speaker corrections are still pending.
     ///
     /// `offersEnrollment` is false when the name came from a suggestion the
     /// user just confirmed: that voice is already matched and recorded.
@@ -2961,6 +3016,10 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty else {
             onCommitted?(true)
             return true
+        }
+        if let id = currentTranscription?.id, isRetryingMeetingFinalization(id: id) {
+            setError(message: "Speaker names can be changed after meeting processing finishes.")
+            return false
         }
         if speakerCorrectionService != nil,
             currentTranscription?.status == .completed,

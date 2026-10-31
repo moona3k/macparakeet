@@ -5,6 +5,116 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testURLStartRecordsURLControlTelemetry() async throws {
+        let harness = try await makeRecordingHarness()
+        let telemetry = URLDictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer {
+            // Cancel the take, then dismiss its undo countdown.
+            harness.coordinator.cancelDictation()
+            harness.coordinator.cancelDictation()
+            Telemetry.configure(NoOpTelemetryService())
+        }
+
+        harness.coordinator.handleURLCommand(.start)
+
+        let recordedStart = await waitUntil {
+            telemetry.snapshot().contains { event in
+                if case .dictationStarted(trigger: .urlControl, mode: .persistent) = event { return true }
+                return false
+            }
+        }
+        XCTAssertTrue(recordedStart, "URL start must record its own trigger and persistent mode")
+    }
+
+    func testURLRepeatedStartPreservesTakeAndStopDeliversOnce() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "URL dictation"))
+        harness.coordinator.handleURLCommand(.start)
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .recording(mode: .persistent))
+        harness.coordinator.handleURLCommand(.stop)
+        harness.coordinator.handleURLCommand(.stop)
+        harness.coordinator.handleURLCommand(.toggle)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .processing)
+        let pasted = await waitUntilAsync { await harness.clipboard.snapshot().pastedTexts.count == 1 }
+        XCTAssertTrue(pasted)
+        XCTAssertEqual(try harness.repo.fetchAll(limit: nil).map(\.rawTranscript), ["URL dictation"])
+    }
+
+    func testURLToggleCancelsPendingEntitlementsWithoutDelayedStart() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.handleURLCommand(.toggle)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.handleURLCommand(.toggle)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        let started = await waitUntil(timeoutMs: 300) { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertFalse(started)
+        XCTAssertEqual(try harness.repo.fetchAll(limit: nil).count, 0)
+    }
+
+    func testURLStopDuringStartupPreservesPendingStopAndDelivers() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "early stop"))
+        await harness.audio.configureStartCaptureDelay(milliseconds: 150)
+        harness.coordinator.handleURLCommand(.start)
+        let starting = await waitUntil {
+            harness.coordinator.flowStateForTesting == .startingService(mode: .persistent)
+        }
+        XCTAssertTrue(starting)
+        harness.coordinator.handleURLCommand(.stop)
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .pendingStop(mode: .persistent))
+        let pasted = await waitUntilAsync { await harness.clipboard.snapshot().pastedTexts.count == 1 }
+        XCTAssertTrue(pasted)
+    }
+
+    func testURLCommandsPreserveUndoWindow() async throws {
+        let harness = try await makeRecordingHarness()
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.cancelDictation()
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .cancelCountdown)
+        harness.coordinator.cancelDictation()
+    }
+
+    func testURLCommandsDoNotInterruptPendingPaste() async throws {
+        let harness = try await makeRecordingHarness()
+        await harness.stt.configure(result: STTResult(text: "keep this paste"))
+        await harness.clipboard.setPasteDelayMs(300)
+        harness.coordinator.handleURLCommand(.start)
+        let started = await waitUntil { self.isFlowRecording(harness.coordinator.flowStateForTesting) }
+        XCTAssertTrue(started)
+        harness.coordinator.handleURLCommand(.toggle)
+        let pasteStarted = await waitUntilAsync { await harness.clipboard.snapshot().pasteCallCount == 1 }
+        XCTAssertTrue(pasteStarted)
+        for command in DictationURLCommand.allCases { harness.coordinator.handleURLCommand(command) }
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .finishing(outcome: .success))
+        let pasted = await waitUntilAsync {
+            await harness.clipboard.snapshot().pastedTexts == ["keep this paste "]
+        }
+        XCTAssertTrue(pasted)
+    }
+
+    func testURLStartRespectsInteractionArbiter() async throws {
+        let arbiter = GUIMutationArbiter()
+        let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
+        let lease = try XCTUnwrap(arbiter.acquire(.transform))
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .idle)
+        XCTAssertEqual(arbiter.current, lease)
+        arbiter.release(lease)
+        harness.coordinator.handleURLCommand(.start)
+        XCTAssertEqual(harness.coordinator.flowStateForTesting, .checkingEntitlements(mode: .persistent))
+        harness.coordinator.handleURLCommand(.stop)
+    }
+
     func testBusyDictationStartIsRefusedAndNextStartCanProceed() async throws {
         let arbiter = GUIMutationArbiter()
         let harness = try await makeRecordingHarness(mutationArbiter: arbiter)
@@ -805,14 +915,14 @@ final class DictationFlowCoordinatorTests: XCTestCase {
     func testStreamingPartialInsertMessageReportsClipboardWhenCopied() {
         XCTAssertEqual(
             DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: true),
-            "Some text was inserted. The full transcript is on the clipboard."
+            "Dictation did not finish. The full transcript is on the clipboard."
         )
     }
 
     func testStreamingPartialInsertMessageReportsClipboardFailureWhenNotCopied() {
         XCTAssertEqual(
             DictationFlowCoordinator.streamingPartialInsertMessage(copiedToClipboard: false),
-            "Some text was inserted, but the clipboard could not be updated."
+            "Dictation did not finish, and the clipboard could not be updated."
         )
     }
 
@@ -1052,6 +1162,37 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let clipboard: MockClipboardService
         let repo: DictationRepository
         let cues: CaptureCueSpy
+    }
+}
+
+private final class URLDictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
     }
 }
 

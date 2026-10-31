@@ -19,7 +19,7 @@ struct CustomWordsView: View {
                 .frame(width: 0, height: 0)
 
             VocabSheetHeader(
-                title: "Custom Words",
+                title: "Word corrections",
                 subtitle: recognitionStatus.detail,
                 onDone: { dismiss() },
                 usesDismissShortcut: !viewModel.isSelecting
@@ -39,7 +39,7 @@ struct CustomWordsView: View {
                     .padding(.bottom, DesignSystem.Spacing.lg)
 
                     wordsSection
-                    if !viewModel.isSelecting {
+                    if !viewModel.isSelecting, viewModel.loadState == .loaded {
                         addSection
                             .padding(.top, DesignSystem.Spacing.lg)
                     }
@@ -103,24 +103,32 @@ struct CustomWordsView: View {
 
     private var wordsSection: some View {
         Section {
-            if viewModel.filteredWords.isEmpty {
+            if viewModel.filteredWords.isEmpty, viewModel.loadState == .loaded || !viewModel.words.isEmpty {
                 emptyWordsState
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, DesignSystem.Spacing.xl)
                     .vocabGroup()
-            } else {
+            } else if !viewModel.filteredWords.isEmpty {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(viewModel.filteredWords.enumerated()), id: \.element.id) { index, word in
                         if index > 0 {
                             Divider().padding(.leading, VocabMetrics.rowDividerInset)
                         }
                         wordRow(word)
+                            .disabled(!viewModel.canEditWords)
                     }
                 }
                 .vocabGroup()
+            } else if viewModel.loadState == .notLoaded {
+                ProgressView("Loading saved words…")
+                    .frame(maxWidth: .infinity)
+                    .padding(DesignSystem.Spacing.lg)
             }
         } header: {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                if case .failed(let message) = viewModel.loadState {
+                    loadFailure(message)
+                }
                 if let error = viewModel.deletionErrorMessage {
                     Text(error)
                         .font(DesignSystem.Typography.caption)
@@ -135,14 +143,40 @@ struct CustomWordsView: View {
         }
     }
 
+    private func loadFailure(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Couldn't load word corrections")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                Text(
+                    viewModel.words.isEmpty
+                        ? "Retry to load your saved words."
+                        : "Showing the last loaded list. Retry to make changes."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                Text(message)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .help(message)
+            }
+            Spacer(minLength: 0)
+            Button("Retry") { viewModel.loadWords() }
+                .parakeetAction(.secondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .vocabGroup()
+    }
+
     @ViewBuilder
     private var wordsHeader: some View {
         if viewModel.isSelecting {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 SelectAllWordsCheckbox(
-                    title: viewModel.searchText.isEmpty ? "Select all" : "Select all matching",
+                    title: viewModel.isSearching ? "Select all matching" : "Select all",
                     state: selectAllState,
-                    isEnabled: !viewModel.filteredWords.isEmpty && !viewModel.isDeleting,
+                    isEnabled: !viewModel.filteredWords.isEmpty && viewModel.canEditWords,
                     action: viewModel.toggleSelectAll
                 )
                 .fixedSize()
@@ -164,7 +198,7 @@ struct CustomWordsView: View {
                 }
                 .parakeetAction(.destructive)
                 .controlSize(.small)
-                .disabled(viewModel.selectedWordIDs.isEmpty)
+                .disabled(viewModel.selectedWordIDs.isEmpty || !viewModel.canEditWords)
                 .accessibilityLabel("Delete selected words")
 
                 Button("Cancel") {
@@ -192,7 +226,7 @@ struct CustomWordsView: View {
                     }
                     .parakeetAction(.subtle)
                     .controlSize(.small)
-                    .disabled(viewModel.filteredWords.isEmpty)
+                    .disabled(viewModel.filteredWords.isEmpty || !viewModel.canEditWords)
                     .accessibilityLabel("Select words to delete")
                 }
             }
@@ -398,9 +432,13 @@ struct CustomWordsView: View {
     }
 
     private var wordsCountLabel: String {
+        switch viewModel.loadState {
+        case .notLoaded: return "Loading…"
+        case .failed: return "Unavailable"
+        case .loaded: break
+        }
         let total = viewModel.words.count
-        let searching = !viewModel.searchText.trimmingCharacters(in: .whitespaces).isEmpty
-        if searching {
+        if viewModel.isSearching {
             return "\(viewModel.filteredWords.count) of \(total)"
         }
         let disabled = viewModel.words.filter { !$0.isEnabled }.count

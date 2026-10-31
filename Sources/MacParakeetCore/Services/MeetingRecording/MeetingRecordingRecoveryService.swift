@@ -365,7 +365,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             0,
             recordingDurationProvider(recoveredSources.map(\.duration), lock.startedAt)
         )
-        let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
+        let cleanedMicrophoneReadiness = prepareCleanedMicrophoneReadiness(
             folderURL: folderURL,
             microphoneURL: recoveredBySource[.microphone],
             systemURL: recoveredBySource[.system],
@@ -472,8 +472,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     /// Re-derive `microphone-cleaned.m4a` from recovered mic + system audio on
     /// the same readiness gate as the normal stop path. Recovery does not block
-    /// here; final STT owns the bounded wait and observable raw fallback.
-    private func scheduleCleanedMicrophoneRender(
+    /// here; final STT starts the writer after preflight and owns the bounded
+    /// wait and observable raw fallback.
+    private func prepareCleanedMicrophoneReadiness(
         folderURL: URL,
         microphoneURL: URL?,
         systemURL: URL?,
@@ -483,28 +484,34 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     ) -> MeetingCleanedMicrophoneReadiness {
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        guard
+        let shouldAttemptRender =
             MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
                 for: recordingDuration
             )
-        else {
-            return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+        let fileManager = UncheckedSendableBox(fileManager)
+        let conditionerFactory = micConditionerFactory
+        return .deferred(
+            outputURL: shouldAttemptRender && microphoneURL != nil && systemURL != nil ? outputURL : nil
+        ) {
+            guard shouldAttemptRender else {
+                return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                    outputURL: outputURL,
+                    sessionID: sessionID,
+                    fileManager: fileManager.value,
+                    eventName: "meeting_recovery_cleaned_mic"
+                )
+            }
+            return MeetingCleanedMicrophoneRenderScheduler.schedule(
                 outputURL: outputURL,
+                microphoneURL: microphoneURL,
+                systemURL: systemURL,
+                sourceAlignment: sourceAlignment,
                 sessionID: sessionID,
-                fileManager: fileManager,
+                conditionerFactory: conditionerFactory,
+                fileManager: fileManager.value,
                 eventName: "meeting_recovery_cleaned_mic"
             )
         }
-        return MeetingCleanedMicrophoneRenderScheduler.schedule(
-            outputURL: outputURL,
-            microphoneURL: microphoneURL,
-            systemURL: systemURL,
-            sourceAlignment: sourceAlignment,
-            sessionID: sessionID,
-            conditionerFactory: micConditionerFactory,
-            fileManager: fileManager,
-            eventName: "meeting_recovery_cleaned_mic"
-        )
     }
 
     private func makeRecoveredAlignment(

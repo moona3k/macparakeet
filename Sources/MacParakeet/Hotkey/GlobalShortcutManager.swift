@@ -71,14 +71,14 @@ public final class GlobalShortcutManager {
     }
 
     /// Runs on the tap thread.
-    private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             // `BackgroundEventTap` already re-enabled the tap.
             recoverFromDisabledTap()
             return Unmanaged.passUnretained(event)
         }
 
-        if StreamingCursorEventMarker.isMarked(event) {
+        if AppGeneratedEventMarker.isMarked(event) {
             return Unmanaged.passUnretained(event)
         }
 

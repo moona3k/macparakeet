@@ -45,8 +45,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         isEnabled: { UserDefaultsAppRuntimePreferences.meetingURLControlEnabled() },
         execute: { [weak self] command in
             guard let self, !self.onboardingWindowController.isVisible,
-                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil else { return }
+                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil,
+                  !self.savedMeetingNotesCoordinator.isPreparingToQuit else { return }
             self.meetingRecordingFlowCoordinator?.handleURLCommand(command)
+        }
+    )
+    private lazy var dictationURLCommandRouter = DictationURLCommandRouter(
+        scheme: Bundle.main.bundleIdentifier == AppPaths.developmentBundleIdentifier ? "macparakeet-dev" : "macparakeet",
+        isEnabled: { UserDefaultsAppRuntimePreferences.dictationURLControlEnabled() },
+        execute: { [weak self] command in
+            guard let self, !self.onboardingWindowController.isVisible,
+                  !self.isPresentingQuitAlert, self.meetingQuitTask == nil,
+                  !self.savedMeetingNotesCoordinator.isPreparingToQuit else { return }
+            self.dictationFlowCoordinator?.handleURLCommand(command)
         }
     )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
@@ -401,7 +412,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App Lifecycle
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        meetingURLCommandRouter.open(urls)
+        for url in urls {
+            meetingURLCommandRouter.open([url])
+            dictationURLCommandRouter.open([url])
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -421,6 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         applyAppAppearance()
+        Task { await SoundManager.shared.dictationSounds.prepareCustomSounds() }
         startEnvironmentSetup()
         menuBarCoordinator.setupMainMenu()
         menuBarCoordinator.setMenuBarIconVisible(settingsViewModel.showMenuBarIcon)
@@ -570,6 +585,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             } catch {
                 meetingURLCommandRouter.discardPending()
+                dictationURLCommandRouter.discardPending()
                 presentEnvironmentSetupError(error)
             }
         }
@@ -787,6 +803,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
         meetingURLCommandRouter.finishLaunching()
+        dictationURLCommandRouter.finishLaunching()
         scheduleDeferredSpeechPreWarm(environment: env)
         let recoveryTask = meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
         meetingAudioRetentionSweepCoordinator.scheduleLaunchSweep(environment: env, after: recoveryTask)

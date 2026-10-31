@@ -35,6 +35,13 @@ final class MeetingCleanedMicRenderer {
     static let echoProbeAnalysisSamples = 8_192
     static let echoProbeReferenceRMSFloor: Float = 0.005
     static let echoProbeCorrelationThreshold: Float = 0.08
+    /// The recorded host-time offsets can place the system reference a few ms
+    /// after its echo in the mic (−1 to −9 ms measured on a speakerphone meeting,
+    /// #920). The delay estimator and LocalVQE only model a causal echo path, so
+    /// a late reference collapses cancellation to ~1 dB. Offline we have the
+    /// whole reference: read it this much earlier so the residual lag is
+    /// positive and the estimator recovers it (~22 dB on the same meeting).
+    static let referenceLookaheadMs = 20
 
     private static let logger = Logger(
         subsystem: "com.macparakeet.core", category: "MeetingCleanedMicRenderer")
@@ -281,9 +288,10 @@ final class MeetingCleanedMicRenderer {
             )
         }
 
-        let relativeShiftSamples = Int(
-            (Double(systemStartOffsetMs - microphoneStartOffsetMs) / 1000.0
-                * Double(sampleRate)).rounded())
+        let relativeShiftSamples = referenceShiftSamples(
+            microphoneStartOffsetMs: microphoneStartOffsetMs,
+            systemStartOffsetMs: systemStartOffsetMs,
+            sampleRate: sampleRate)
         let starts = probeCandidateWindowStarts(
             sampleCount: microphone.count,
             windowLength: windowLength,
@@ -445,6 +453,17 @@ final class MeetingCleanedMicRenderer {
         return Float((power / Double(windowLength)).squareRoot())
     }
 
+    /// Where system sample 0 lands on the mic timeline: the recorded start-offset
+    /// difference, minus `referenceLookaheadMs`.
+    static func referenceShiftSamples(
+        microphoneStartOffsetMs: Int,
+        systemStartOffsetMs: Int,
+        sampleRate: Int
+    ) -> Int {
+        let shiftMs = systemStartOffsetMs - microphoneStartOffsetMs - referenceLookaheadMs
+        return Int((Double(shiftMs) / 1000.0 * Double(max(1, sampleRate))).rounded())
+    }
+
     private static func alignedReferenceWindow(
         system: MeetingAudioSamples,
         start: Int,
@@ -520,9 +539,10 @@ final class MeetingCleanedMicRenderer {
             self.microphone = microphone
             self.system = system
             self.conditioner = conditioner
-            relativeShiftSamples = Int(
-                (Double(systemStartOffsetMs - microphoneStartOffsetMs) / 1000.0
-                    * Double(max(1, sampleRate))).rounded())
+            relativeShiftSamples = MeetingCleanedMicRenderer.referenceShiftSamples(
+                microphoneStartOffsetMs: microphoneStartOffsetMs,
+                systemStartOffsetMs: systemStartOffsetMs,
+                sampleRate: sampleRate)
             conditioner.reset()
         }
 

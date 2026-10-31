@@ -6,6 +6,89 @@ import XCTest
 /// Coverage for `MeetingRecordingOutput` archive reconstruction, metadata
 /// compatibility, cleaned-microphone preference, and validated STT routing.
 final class MeetingRecordingOutputTests: XCTestCase {
+    func testDeferredReadinessStartsOnceAndReusesPublishedArtifact() async throws {
+        let folder = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let outputURL = folder.appendingPathComponent("cleaned.m4a")
+        let candidateURL = folder.appendingPathComponent("candidate.m4a")
+        try Data("existing".utf8).write(to: outputURL)
+        let probe = DeferredReadinessStartProbe()
+        let readiness = MeetingCleanedMicrophoneReadiness.deferred(outputURL: outputURL) {
+            probe.recordStart()
+            return .scheduled(
+                outputURL: outputURL,
+                task: Task {
+                    try? Data("replacement".utf8).write(to: candidateURL)
+                    return .rendered(candidateURL)
+                },
+                candidateOutputURL: candidateURL
+            )
+        }
+        let copy = readiness
+        XCTAssertEqual(probe.starts, 0)
+        XCTAssertEqual(try Data(contentsOf: outputURL), Data("existing".utf8))
+        async let first = readiness.awaitCompletion(timeoutSeconds: 5)
+        async let second = copy.awaitCompletion(timeoutSeconds: 5)
+        let results = try await (first, second)
+        XCTAssertEqual(results.0, .rendered(outputURL))
+        XCTAssertEqual(results.1, .rendered(outputURL))
+        let repeated = try await readiness.awaitCompletion(timeoutSeconds: 5)
+        XCTAssertEqual(repeated, .rendered(outputURL))
+        XCTAssertEqual(probe.starts, 1)
+        XCTAssertEqual(try Data(contentsOf: outputURL), Data("replacement".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidateURL.path))
+    }
+
+    func testCancelledDeferredReadinessDoesNotStartPreparation() async throws {
+        let probe = DeferredReadinessStartProbe()
+        let readiness = MeetingCleanedMicrophoneReadiness.deferred(outputURL: nil) {
+            probe.recordStart()
+            return .notScheduled(reason: .rawNoAECAssets)
+        }
+        let consumer = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await readiness.awaitCompletion(timeoutSeconds: 5)
+        }
+        do {
+            _ = try await consumer.value
+            XCTFail("Cancelled consumption must not start a renderer")
+        } catch is CancellationError {}
+        XCTAssertEqual(probe.starts, 0)
+    }
+
+    func testCancellingDeferredReadinessCancelsStartedRender() async throws {
+        let folder = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let outputURL = folder.appendingPathComponent("cleaned.m4a")
+        let started = expectation(description: "Deferred renderer started")
+        let cancelled = expectation(description: "Renderer received cancellation")
+        let readiness = MeetingCleanedMicrophoneReadiness.deferred(outputURL: nil) {
+            .scheduled(
+                outputURL: outputURL,
+                task: Task {
+                    started.fulfill()
+                    do {
+                        try await Task.sleep(nanoseconds: 60_000_000_000)
+                        XCTFail("Renderer should have been cancelled")
+                    } catch is CancellationError {
+                        cancelled.fulfill()
+                    } catch {
+                        XCTFail("Unexpected render error: \(error)")
+                    }
+                    return .fallback(.rawRenderFailed)
+                }
+            )
+        }
+        let consumer = Task { try await readiness.awaitCompletion(timeoutSeconds: 60) }
+        await fulfillment(of: [started], timeout: 5)
+        consumer.cancel()
+        do {
+            _ = try await consumer.value
+            XCTFail("Cancelled consumption must throw")
+        } catch is CancellationError {}
+        await fulfillment(of: [cancelled], timeout: 5)
+    }
+
     func testEqualityIncludesImportChronologyRetentionAndTitleIntent() {
         let sessionID = UUID()
         let folder = URL(fileURLWithPath: "/tmp/meeting-recording-output-equality")
@@ -1017,4 +1100,11 @@ private final class RecordingMetadataFileManager: FileManager {
         self.data = data
         return true
     }
+}
+
+private final class DeferredReadinessStartProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var starts: Int { lock.withLock { count } }
+    func recordStart() { lock.withLock { count += 1 } }
 }

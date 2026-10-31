@@ -55,8 +55,9 @@ public struct MeetingCleanedMicrophoneReadinessPolicy: Sendable, Equatable {
 
     public func shouldAttemptRender(for recordingDuration: TimeInterval) -> Bool {
         guard recordingDuration.isFinite, recordingDuration > 0 else { return true }
-        return recordingDuration / Self.bestMeasuredRealtimeFactor <= timeoutSeconds(
-            for: recordingDuration)
+        return recordingDuration / Self.bestMeasuredRealtimeFactor
+            <= timeoutSeconds(
+                for: recordingDuration)
     }
 }
 
@@ -89,19 +90,35 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
     private let task: Task<MeetingCleanedMicrophoneRenderCompletion, Never>?
     private let fileManager: UncheckedSendableBox<FileManager>?
     private let notScheduledReason: MeetingCleanedMicrophoneRoutingReason?
+    private let deferredPreparation: DeferredMeetingCleanedMicrophonePreparation?
 
     private init(
         outputURL: URL?,
         candidateOutputURL: URL?,
         task: Task<MeetingCleanedMicrophoneRenderCompletion, Never>?,
         fileManager: FileManager?,
-        notScheduledReason: MeetingCleanedMicrophoneRoutingReason?
+        notScheduledReason: MeetingCleanedMicrophoneRoutingReason?,
+        deferredPreparation: DeferredMeetingCleanedMicrophonePreparation? = nil
     ) {
         self.outputURL = outputURL
         self.candidateOutputURL = candidateOutputURL
         self.task = task
         self.fileManager = fileManager.map(UncheckedSendableBox.init)
         self.notScheduledReason = notScheduledReason
+        self.deferredPreparation = deferredPreparation
+    }
+
+    /// Creating this handle must not touch artifacts: entitlement preflight can
+    /// still reject finalization before the microphone source is requested.
+    static func deferred(
+        outputURL: URL?,
+        prepare: @escaping @Sendable () -> MeetingCleanedMicrophoneReadiness
+    ) -> MeetingCleanedMicrophoneReadiness {
+        MeetingCleanedMicrophoneReadiness(
+            outputURL: outputURL, candidateOutputURL: nil, task: nil, fileManager: nil,
+            notScheduledReason: nil,
+            deferredPreparation: DeferredMeetingCleanedMicrophonePreparation(prepare: prepare)
+        )
     }
 
     static func notScheduled(
@@ -132,6 +149,9 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
     }
 
     func awaitCompletion(timeoutSeconds: TimeInterval) async throws -> MeetingCleanedMicrophoneRenderCompletion? {
+        if let deferredPreparation {
+            return try await deferredPreparation.completion(timeoutSeconds: timeoutSeconds)
+        }
         if let notScheduledReason {
             return .fallback(notScheduledReason)
         }
@@ -214,6 +234,36 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
         let maxSeconds = Double(UInt64.max) / 1_000_000_000
         guard clamped < maxSeconds else { return UInt64.max }
         return UInt64((clamped * 1_000_000_000).rounded())
+    }
+}
+
+/// Copies of a deferred handle share both one render and its published result.
+private actor DeferredMeetingCleanedMicrophonePreparation {
+    private let prepare: @Sendable () -> MeetingCleanedMicrophoneReadiness
+    private var resolution: Task<MeetingCleanedMicrophoneRenderCompletion?, Error>?
+
+    init(prepare: @escaping @Sendable () -> MeetingCleanedMicrophoneReadiness) {
+        self.prepare = prepare
+    }
+
+    func completion(timeoutSeconds: TimeInterval) async throws -> MeetingCleanedMicrophoneRenderCompletion? {
+        try Task.checkCancellation()
+        let task: Task<MeetingCleanedMicrophoneRenderCompletion?, Error>
+        if let resolution {
+            task = resolution
+        } else {
+            let prepare = self.prepare
+            task = Task {
+                try Task.checkCancellation()
+                return try await prepare().awaitCompletion(timeoutSeconds: timeoutSeconds)
+            }
+            resolution = task
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }
 
@@ -755,7 +805,7 @@ extension MeetingRecordingOutput {
                     probeBestCorrelation: existing.probeBestCorrelation
                 )
             case .rawTimeout, .rawRenderFailed, .rawMissingSystemReference, .rawNoAECAssets,
-                    .skippedNoEchoPath, .predictedRenderTimeout:
+                .skippedNoEchoPath, .predictedRenderTimeout:
                 break
             }
         }

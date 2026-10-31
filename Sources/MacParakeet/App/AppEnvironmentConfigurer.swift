@@ -172,8 +172,6 @@ final class AppEnvironmentConfigurer {
             entitlementsService: env.entitlementsService,
             launchAtLoginService: env.launchAtLoginService,
             checkoutURL: env.checkoutURL,
-            customWordRepo: env.customWordRepo,
-            snippetRepo: env.snippetRepo,
             sttClient: env.sttScheduler,
             speechEngineSwitcher: env.sttScheduler,
             speechEngineSwitchAvailabilityProvider: env.sttScheduler,
@@ -206,7 +204,6 @@ final class AppEnvironmentConfigurer {
         vocabularyBackupViewModel.configure(service: vocabularyBackupService) { [weak self] in
             self?.customWordsViewModel.loadWords()
             self?.textSnippetsViewModel.loadSnippets()
-            self?.settingsViewModel.refreshStats()
         }
         promptsViewModel.configure(
             repo: env.promptRepo,
@@ -416,15 +413,18 @@ final class AppEnvironmentConfigurer {
                 )
             },
             onQueuedTranscriptionReady: { [weak self] transcription, canPresent in
-                self?.handleMeetingTranscriptReady(
+                guard let self else { return }
+                let wasDetailRetry = self.transcriptionViewModel.finishMeetingFinalizationRetry(id: transcription.id)
+                self.handleMeetingTranscriptReady(
                     transcription,
                     preferences: env.runtimePreferences,
-                    canPresent: canPresent,
+                    canPresent: canPresent && !wasDetailRetry,
                     openMainWindow: callbacks.onOpenMainWindow
                 )
             },
             onQueuedTranscriptionFailed: { [weak self] transcriptionID, content in
                 guard let self else { return }
+                self.transcriptionViewModel.finishMeetingFinalizationRetry(id: transcriptionID)
                 self.transcriptionViewModel.refreshCurrentTranscriptionIfMatching(
                     id: transcriptionID
                 )
@@ -460,6 +460,7 @@ final class AppEnvironmentConfigurer {
         }
         libraryViewModel.onRetryMeetingTranscription = retryMeetingFinalization
         meetingsWorkspaceViewModel.recentMeetingsViewModel.onRetryMeetingTranscription = retryMeetingFinalization
+        transcriptionViewModel.onRetryMeetingFinalization = retryMeetingFinalization
 
         Task { [weak self] in
             do {

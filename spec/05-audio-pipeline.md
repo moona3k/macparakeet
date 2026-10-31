@@ -237,9 +237,10 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                               (queueing, ordering, cancellation, STT)
                                                           │
                                                           ▼ (on stop)
-                                              AudioFileConverter (FFmpeg mix)
-                                              → meeting-playback.m4a (stereo dual-source when both tracks exist)
+                                              Finalize captured source M4As + metadata
                                               → awaiting-transcription lock + Library stub
+                                              → background FFmpeg playback mix
+                                                (stereo dual-source when both tracks exist)
                                               → background source-file STT + aligned merge
 ```
 
@@ -277,11 +278,12 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
   reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
-- After recording stops, the captured source M4As are finalized and merged into
-  `meeting-playback.m4a`. Dual-input sessions preserve source separation as stereo
-  (`L=mic`, `R=system`), while single-input sessions remain mono. The recovery
-  lock is then rewritten to `awaitingTranscription`, and a processing Library
-  row is saved before the recorder returns to idle.
+- After recording stops, the captured source M4As and metadata are finalized.
+  The recovery lock is rewritten to `awaitingTranscription`, and a processing
+  Library row is saved before queue admission returns the recorder to idle.
+  The background queue then builds `meeting-playback.m4a`. Dual-input sessions
+  preserve source separation as stereo (`L=mic`, `R=system`), while single-input
+  sessions remain mono.
 - Final meeting STT does **not** transcribe `meeting-playback.m4a`. A background queue
   transcribes the captured source files separately with the engine captured at
   recording start, then merges those fresh results by persisted
@@ -330,15 +332,19 @@ Dual-source meeting capture preserves raw source artifacts:
 export. After stop, `MeetingCleanedMicRenderer` can derive
 `microphone-cleaned.m4a` offline from the raw mic and system reference using
 the LocalVQE echo-only v1.4 path with `MeetingEchoDelayEstimator` delay
-estimation. Before running the model, the echo probe can skip no-echo meetings
+estimation. The system reference is aligned by the recorded start offsets and
+then read 20 ms early (`referenceLookaheadMs`): recorded offsets can place it a
+few ms after its echo in the mic, and the estimator and model only handle a
+causal (non-negative) echo lag (#920). Before running the model, the echo probe can skip no-echo meetings
 (headphones or inaudible remote audio) and choose raw without manufacturing a
 cleaned file. For very long meetings, the duration guard skips upfront when the
 render is predicted to exceed the bounded final-STT deadline.
 
 Decoded PCM is spooled sequentially to private, immediately unlinked temporary
 files. The echo probe reads bounded windows; conditioning and AAC encoding pull
-bounded chunks instead of retaining whole recordings in RAM. Sample alignment,
-probe thresholds, conditioner cadence and output duration are unchanged. Temporary
+bounded chunks instead of retaining whole recordings in RAM. Spooling does not
+change sample alignment (including the reference lookahead above), probe
+thresholds, conditioner cadence or output duration. Temporary
 storage is roughly 220 MiB per hour per source at 16 kHz mono Float32; descriptors
 release it on completion, cancellation, failure or process exit. Scratch I/O
 failure follows the existing observable raw-microphone fallback.
@@ -401,13 +407,13 @@ User clicks "Start Meeting Recording"
       cannot finalize, preserve the lock/source artifacts and abort settlement
     → Persist `meeting-recording-metadata.json` with source alignment,
       frame-derived capture report, final speech engine, and optional provenance
-    → Build and probe `meeting-playback.m4a` (stereo for dual input; mono for
-      single input); a failed dual mix installs the longest aligned source and
-      durably marks playback partial
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
     → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting-playback.m4a`
     → Enqueue background finalization and return recorder to idle
     → User may immediately start the next meeting recording
+    → Background queue builds and probes `meeting-playback.m4a` (stereo for dual input; mono for
+      single input); a failed dual mix installs the longest aligned source and
+      durably marks playback partial
     → Background queue converts each captured source M4A → 16kHz mono WAV via FFmpeg
     → Send each source WAV to the captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
@@ -419,9 +425,11 @@ User clicks "Start Meeting Recording"
 ```
 
 The foreground stop path is intentionally sequential, not concurrent: Meeting
-B can start only after Meeting A's source audio, mixed playback artifact,
-`awaitingTranscription` lock, and processing Library row are durable. Meeting
-A's final STT then continues in the queue-owned background path.
+B can start once Meeting A's source audio, metadata, `awaitingTranscription`
+lock, and processing Library row are durable and queue admission succeeds.
+A's playback mix and final STT continue in the existing serial background
+queue. A's deferred work never accesses shared capture state. Playback duration
+is unknown until preparation finishes; Retry can rebuild it from saved sources.
 
 On app startup, processing-row reconciliation excludes both finalizations in
 the current process's queue and rows whose exact artifact folder has a readable

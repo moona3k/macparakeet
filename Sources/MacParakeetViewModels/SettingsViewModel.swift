@@ -317,6 +317,11 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
         }
     }
+    public var dictationURLControlEnabled: Bool {
+        didSet {
+            defaults.set(dictationURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.dictationURLControlEnabledKey)
+        }
+    }
     public var meetingURLControlEnabled: Bool {
         didSet {
             defaults.set(meetingURLControlEnabled, forKey: UserDefaultsAppRuntimePreferences.meetingURLControlEnabledKey)
@@ -619,8 +624,6 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .removeUmFiller, value: Self.settingValue(removeUmFiller)))
         }
     }
-    public var customWordCount: Int = 0
-    public var snippetCount: Int = 0
     public var customVocabularyRecognitionStatus: CustomVocabularyBoostingSupportPresentation {
         guard let capabilities = SpeechEngineCapabilityRegistry.capabilities(
             for: engine.speechEnginePreference,
@@ -983,8 +986,6 @@ public final class SettingsViewModel {
     private var dictationRepo: DictationRepositoryProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var transformHistoryRepo: TransformHistoryRepositoryProtocol?
-    private var customWordRepo: CustomWordRepositoryProtocol?
-    private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
     private var launchAtLoginService: LaunchAtLoginControlling?
     private var meetingRecoveryService: MeetingRecordingRecoveryServicing?
@@ -1131,6 +1132,7 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        dictationURLControlEnabled = UserDefaultsAppRuntimePreferences.dictationURLControlEnabled(defaults: defaults)
         meetingURLControlEnabled = UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: defaults)
         startMeetingsMuted = UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
@@ -1524,8 +1526,6 @@ public final class SettingsViewModel {
         entitlementsService: EntitlementsService,
         launchAtLoginService: LaunchAtLoginControlling? = nil,
         checkoutURL: URL?,
-        customWordRepo: CustomWordRepositoryProtocol? = nil,
-        snippetRepo: TextSnippetRepositoryProtocol? = nil,
         sttClient: STTClientProtocol? = nil,
         speechEngineSwitcher: SpeechEngineSwitching? = nil,
         speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding? = nil,
@@ -1539,8 +1539,6 @@ public final class SettingsViewModel {
         self.entitlementsService = entitlementsService
         self.launchAtLoginService = launchAtLoginService
         self.checkoutURL = checkoutURL
-        self.customWordRepo = customWordRepo
-        self.snippetRepo = snippetRepo
         engine.configure(
             sttClient: sttClient,
             speechEngineSwitcher: speechEngineSwitcher,
@@ -1906,10 +1904,6 @@ public final class SettingsViewModel {
         guard let repo = dictationRepo else { return }
         do { dictationCount = try repo.stats().visibleCount }
         catch { logger.error("Failed to load dictation stats: \(error.localizedDescription)") }
-        do { customWordCount = try customWordRepo?.fetchAll().count ?? 0 }
-        catch { logger.error("Failed to load custom word count: \(error.localizedDescription)") }
-        do { snippetCount = try snippetRepo?.fetchAll().count ?? 0 }
-        catch { logger.error("Failed to load snippet count: \(error.localizedDescription)") }
 
         refreshStorageStats()
     }

@@ -247,7 +247,7 @@ the UI. Setup **step views** remain a separate 24h funnel (`onboarding`).
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
+| `dictation_started` | `trigger` (hotkey, pill_click, menu_bar, url_control) | How do people start dictating? |
 | `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `app_category`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? Where do people dictate? |
 | `first_dictation_completed` | `activation_window` (under_1m, under_1h, under_1d, under_1w, over_1w, unknown) | First **successful** dictation per install (shipped **2026-05-23**). Not comparable to 30d `onboarding_completed` without ship-date cohort filter — see [activation caveats](audits/2026-06-03-activation-metrics-cohort-caveats.md) |
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |

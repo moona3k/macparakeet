@@ -665,12 +665,12 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
         return false
     }
 
-    /// Webpage fields often ignore AXSelectedText. Unicode HID posts are the
+    /// Webpage fields often ignore AXSelectedText. Unicode session posts are the
     /// same path dictation already uses for Chrome, marked so hotkeys ignore them.
     private func typeUnicode(_ text: String, authority: ActionAuthority) throws {
         try authority.perform {
             guard AXIsProcessTrusted() else { throw NativeVoiceControlError.permission }
-            guard let source = CGEventSource(stateID: .hidSystemState) else {
+            guard let source = AppGeneratedKeyboardEvents.makeSource() else {
                 throw NativeVoiceControlError.unsupported
             }
             let units = Array(text.utf16)
@@ -678,19 +678,15 @@ public actor NativeVoiceControlAdapter: VoiceControlAdapter {
             while index < units.endIndex {
                 let end = units.index(index, offsetBy: 20, limitedBy: units.endIndex) ?? units.endIndex
                 var chunk = Array(units[index..<end])
-                guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-                    let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+                guard let down = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: 0, keyDown: true, flags: []),
+                    let up = AppGeneratedKeyboardEvents.makeEvent(source: source, keyCode: 0, keyDown: false, flags: [])
                 else {
                     throw NativeVoiceControlError.unsupported
                 }
-                down.flags = []
-                up.flags = []
-                StreamingCursorEventMarker.mark(down)
-                StreamingCursorEventMarker.mark(up)
                 down.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
                 up.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
-                down.post(tap: .cghidEventTap)
-                up.post(tap: .cghidEventTap)
+                down.post(tap: AppGeneratedKeyboardEvents.postingLocation)
+                up.post(tap: AppGeneratedKeyboardEvents.postingLocation)
                 index = end
             }
         }

@@ -171,7 +171,7 @@ public final class TransformsHotkeyRegistry {
             return Unmanaged.passUnretained(event)
         }
 
-        if StreamingCursorEventMarker.isMarked(event) {
+        if AppGeneratedEventMarker.isMarked(event) {
             return Unmanaged.passUnretained(event)
         }
 

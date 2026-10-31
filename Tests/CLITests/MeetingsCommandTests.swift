@@ -5,6 +5,71 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingsCommandTests: XCTestCase {
+    func testShowSourceOnlyProcessingMeetingKeepsIdentityWithoutInventingDuration() async throws {
+        let dbURL = temporaryDatabaseURL()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let source = folder.appendingPathComponent("microphone-raw.m4a")
+        try writeM4A(to: source)
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let playback = folder.appendingPathComponent("meeting-playback.m4a")
+        let row = Transcription(
+            fileName: "Saved capture", filePath: playback.path, meetingArtifactFolderPath: folder.path,
+            durationMs: nil, status: .processing, sourceType: .meeting
+        )
+        try repo.save(row)
+        let command = try MeetingsCommand.ShowSubcommand.parse([
+            row.id.uuidString, "--json", "--database", dbURL.path,
+        ])
+        let output = try await captureStandardOutput { try await command.run() }
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(object["id"] as? String, row.id.uuidString)
+        XCTAssertEqual(object["status"] as? String, "processing")
+        XCTAssertEqual(object["filePath"] as? String, playback.path)
+        XCTAssertEqual(object["playbackAudioPath"] as? String, playback.path)
+        XCTAssertNil(object["durationMs"])
+        XCTAssertEqual(object["rawMicrophoneAudioPath"] as? String, source.path)
+
+        let artifactCommand = try MeetingsCommand.ArtifactSubcommand.parse([
+            row.id.uuidString, "--json", "--database", dbURL.path,
+        ])
+        let artifactOutput = try await captureStandardOutput { try await artifactCommand.run() }
+        let snapshot = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any])
+        XCTAssertEqual(snapshot["meetingID"] as? String, row.id.uuidString)
+        XCTAssertEqual(snapshot["playbackAudioPath"] as? String, playback.path)
+        XCTAssertEqual(snapshot["rawMicrophoneAudioPath"] as? String, source.path)
+        // Duration belongs to the manifest's meeting summary, not the artifact snapshot.
+        let manifestPath = try XCTUnwrap(snapshot["manifestPath"] as? String)
+        let manifestData = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+        let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+        let manifestMeeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        XCTAssertEqual(manifestMeeting["id"] as? String, row.id.uuidString)
+        XCTAssertEqual(manifestMeeting["status"] as? String, "processing")
+        XCTAssertNil(manifestMeeting["durationMs"])
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            row.id.uuidString, "--format", "json", "--stdout", "--database", dbURL.path,
+        ])
+        let exportOutput = try await captureStandardOutput { try await exportCommand.run() }
+        let exported = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any])
+        XCTAssertEqual(exported["id"] as? String, row.id.uuidString)
+        XCTAssertEqual(exported["status"] as? String, "processing")
+        XCTAssertEqual(exported["filePath"] as? String, playback.path)
+        XCTAssertEqual(exported["playbackAudioPath"] as? String, playback.path)
+        XCTAssertNil(exported["durationMs"])
+        XCTAssertEqual(exported["rawMicrophoneAudioPath"] as? String, source.path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: playback.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(try repo.fetchAll(limit: nil).map(\.id), [row.id])
+    }
+
     func testResultEditAndTextRevisionRequireExplicitInputs() throws {
         XCTAssertThrowsError(
             try MeetingsCommand.ResultsSubcommand.EditSubcommand.parse([
@@ -281,15 +346,17 @@ final class MeetingsCommandTests: XCTestCase {
             cleanTranscript: "Wrong words.",
             wordTimestamps: words,
             speakers: [SpeakerInfo(id: "S1", label: "Alice")],
-            transcriptSegments: [TranscriptSegmentRecord(
-                id: segmentID,
-                startMs: 0,
-                endMs: 500,
-                speakerId: "S1",
-                speakerLabel: "Alice",
-                text: "Wrong words.",
-                wordRange: .init(startIndex: 0, endIndexExclusive: 2)
-            )],
+            transcriptSegments: [
+                TranscriptSegmentRecord(
+                    id: segmentID,
+                    startMs: 0,
+                    endMs: 500,
+                    speakerId: "S1",
+                    speakerLabel: "Alice",
+                    text: "Wrong words.",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                )
+            ],
             status: .completed,
             sourceType: .meeting
         )
@@ -893,7 +960,9 @@ final class MeetingsCommandTests: XCTestCase {
             transcriptionId: meeting.id,
             command: .add(
                 speaker: ManualSpeaker(id: manualID, label: "Alice"),
-                assigning: [.init(anchorTranscriptSegmentIDs: target.anchorTranscriptSegmentIDs, wordRange: target.wordRange)]
+                assigning: [
+                    .init(anchorTranscriptSegmentIDs: target.anchorTranscriptSegmentIDs, wordRange: target.wordRange)
+                ]
             ),
             expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: meeting),
             expectedRevision: 0
@@ -906,9 +975,10 @@ final class MeetingsCommandTests: XCTestCase {
             meeting.id.uuidString, "--add-label", label.id.uuidString, "--json", "--database", dbURL.path,
         ])
         _ = try await captureStandardOutput { try await command.run() }
-        let transcript = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: Data(contentsOf: folder.appendingPathComponent(MeetingArtifactStore.transcriptFileName))
-        ) as? [String: Any])
+        let transcript = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: folder.appendingPathComponent(MeetingArtifactStore.transcriptFileName))
+            ) as? [String: Any])
         XCTAssertEqual(transcript["speakerCorrectionsApplied"] as? Bool, true)
         XCTAssertEqual(transcript["speakerCorrectionRevision"] as? Int, 1)
         let exportedWords = try XCTUnwrap(transcript["wordTimestamps"] as? [[String: Any]])
@@ -935,9 +1005,10 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.LabelsSubcommand.List.parse(["--json"]))
         XCTAssertNoThrow(try MeetingsCommand.LabelsSubcommand.Add.parse(["--name", "QBR", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.LabelsSubcommand.Set.parse(["QBR", "--color", "blue", "--json"]))
-        XCTAssertNoThrow(try MeetingsCommand.ClassifySubcommand.parse([
-            "Meeting", "--type", "Customer", "--add-label", "QBR", "--json",
-        ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.ClassifySubcommand.parse([
+                "Meeting", "--type", "Customer", "--add-label", "QBR", "--json",
+            ]))
     }
 
     func testMeetingClassificationValidation() {
@@ -1112,22 +1183,27 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.ListSubcommand.parse(["--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.TranscriptSubcommand.parse(["abcd", "--format", "srt"]))
-        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
-            "abcd", "--segment", UUID().uuidString, "--text", "fixed", "--expected-revision", "0",
-        ]))
-        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
-            "abcd", "--segment", UUID().uuidString, "--segment", UUID().uuidString,
-            "--expected-revision", "0",
-        ]))
-        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Undo.parse([
-            "abcd", "--expected-revision", "1",
-        ]))
-        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Redo.parse([
-            "abcd", "--expected-revision", "1",
-        ]))
-        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Reset.parse([
-            "abcd", "--expected-revision", "1",
-        ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+                "abcd", "--segment", UUID().uuidString, "--text", "fixed", "--expected-revision", "0",
+            ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+                "abcd", "--segment", UUID().uuidString, "--segment", UUID().uuidString,
+                "--expected-revision", "0",
+            ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.CorrectionsSubcommand.Undo.parse([
+                "abcd", "--expected-revision", "1",
+            ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.CorrectionsSubcommand.Redo.parse([
+                "abcd", "--expected-revision", "1",
+            ]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.CorrectionsSubcommand.Reset.parse([
+                "abcd", "--expected-revision", "1",
+            ]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(
             try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))

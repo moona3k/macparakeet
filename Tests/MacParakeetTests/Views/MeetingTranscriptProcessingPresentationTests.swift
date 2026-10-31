@@ -10,8 +10,9 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
                 status: .processing
             ))
 
-        XCTAssertEqual(presentation.title, "Transcribing meeting")
+        XCTAssertEqual(presentation.title, "Processing meeting")
         XCTAssertTrue(presentation.message.contains("audio is saved"))
+        XCTAssertTrue(presentation.message.contains("Playback and transcription"))
         XCTAssertTrue(presentation.message.contains("background"))
         XCTAssertTrue(presentation.message.contains("leave this page"))
     }
@@ -26,6 +27,40 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
             MeetingTranscriptProcessingPresentation.make(
                 sourceType: .file,
                 status: .processing
+            ))
+    }
+
+    func testSourceOnlyFailureAndCancellationExplainRecovery() throws {
+        for status in [Transcription.TranscriptionStatus.error, .cancelled] {
+            let presentation = try XCTUnwrap(
+                MeetingTranscriptRecoveryPresentation.make(
+                    sourceType: .meeting, status: status, audioState: .sourcesSaved
+                ))
+            XCTAssertEqual(
+                presentation.title,
+                status == .cancelled ? "Meeting processing stopped" : "Meeting processing failed"
+            )
+            XCTAssertTrue(presentation.message.contains("audio is saved"))
+            XCTAssertTrue(presentation.message.contains("Retry"))
+        }
+    }
+
+    func testRecoveryDoesNotOfferSourceOnlyRetryForOtherStates() {
+        for status in [Transcription.TranscriptionStatus.processing, .completed] {
+            XCTAssertNil(
+                MeetingTranscriptRecoveryPresentation.make(
+                    sourceType: .meeting, status: status, audioState: .sourcesSaved
+                ))
+        }
+        for audioState in [MeetingAudioFile.State.saved, .removed, .missing, .notMeeting] {
+            XCTAssertNil(
+                MeetingTranscriptRecoveryPresentation.make(
+                    sourceType: .meeting, status: .error, audioState: audioState
+                ))
+        }
+        XCTAssertNil(
+            MeetingTranscriptRecoveryPresentation.make(
+                sourceType: .file, status: .error, audioState: .sourcesSaved
             ))
     }
 

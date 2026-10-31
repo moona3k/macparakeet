@@ -561,6 +561,13 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    /// Separate, default-off consent for any app or website to control dictation.
+    public static let dictationURLControlEnabledKey = "dictationURLControlEnabled"
+
+    public static func dictationURLControlEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: dictationURLControlEnabledKey) as? Bool ?? false
+    }
+
     /// Consent for `macparakeet://meeting/...` links to start, stop, pause,
     /// or resume meeting recording (default off). While on, any app or
     /// website can send those links.

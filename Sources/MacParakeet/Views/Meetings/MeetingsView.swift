@@ -714,7 +714,8 @@ struct MeetingsView: View {
                 Label("Retry Transcription", systemImage: "arrow.clockwise")
             }
             .disabled(
-                viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription) || audioState != .saved)
+                viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription)
+                    || !MeetingAudioFile.canRetryFinalization(for: transcription))
 
             Divider()
         }

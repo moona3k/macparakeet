@@ -48,6 +48,19 @@ final class SettingsViewModelTests: XCTestCase {
     var youtubeDownloadsTestDir: URL!
     var meetingRecordingsTestDir: URL!
 
+    func testDictationURLControlRequiresSeparateOptInAndPersists() {
+        XCTAssertFalse(viewModel.dictationURLControlEnabled)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.dictationURLControlEnabled(defaults: testDefaults))
+        viewModel.meetingURLControlEnabled = true
+        XCTAssertFalse(viewModel.dictationURLControlEnabled)
+        viewModel.dictationURLControlEnabled = true
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.dictationURLControlEnabled(defaults: testDefaults))
+        XCTAssertTrue(SettingsViewModel(defaults: testDefaults).dictationURLControlEnabled)
+        viewModel.dictationURLControlEnabled = false
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.dictationURLControlEnabled(defaults: testDefaults))
+        XCTAssertTrue(viewModel.meetingURLControlEnabled)
+    }
+
     func testMeetingURLControlRequiresExplicitOptInAndPersists() {
         XCTAssertFalse(viewModel.meetingURLControlEnabled)
         XCTAssertFalse(UserDefaultsAppRuntimePreferences.meetingURLControlEnabled(defaults: testDefaults))
