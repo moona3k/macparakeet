@@ -1,0 +1,43 @@
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_6f26576d2ce855::t_60f759b99bd658 954-981
+Sources/MacParakeetCore/STT/RealtimeTranscribeEngine.swift
+  s_6f26576d2ce855::t_389a683958bdaa 114,183-191,244-252,255-256,258,365,401
+  s_6f26576d2ce855::t_60df1e51656cd8 253-254,257
+Sources/MacParakeetCore/Services/LiveCaptionSession.swift
+  s_6f26576d2ce855::t_389a683958bdaa 57,125,160,186-188,190,194-199,204,206-216,218-219,297-307,311-314,323,326
+Sources/CLI/CHANGELOG.md
+  s_6f26576d2ce855::t_60f759b99bd658 112-115
+spec/contracts/cli-json-v1.md
+  s_6f26576d2ce855::t_60f759b99bd658 579-585
+Tests/MacParakeetTests/STT/RealtimeTranscribeEngineTests.swift
+  s_6f26576d2ce855::t_f5aa0ba56376a9 15-16,425-428,444-448,456-459,464-465,470-474,497-501,505-507
+  s_6f26576d2ce855::t_50e8ce71a36420 293,295,347
+  s_6f26576d2ce855::t_c2f3caa7ac560a 12,14,17,19,38,111-129,424,429-443,449-455,460-463,466-469,475-496,502-504,508-513
+  s_6f26576d2ce855::t_2f13c8545ca042 130,514
+Tests/MacParakeetTests/Services/LiveCaptionSessionTests.swift
+  s_6f26576d2ce855::t_f5aa0ba56376a9 84-85,311-313,316,484,486,488,496-497,503-608,685-706,711-712,718,726-730,736-737,741,744
+  s_6f26576d2ce855::t_50e8ce71a36420 609-641
+  s_6f26576d2ce855::t_983ff16a421b16 642-684
+Sources/CLI/Commands/ModelsCommand.swift
+  s_6f26576d2ce855::t_60f759b99bd658 655-657,744-746,771,774-780
+Sources/MacParakeetCore/STT/README.md
+  s_6f26576d2ce855::t_09dd6fde937a4f 107-113
+spec/02-features.md
+  s_6f26576d2ce855::t_09dd6fde937a4f 2393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd23b70f023e4f3615c81469b6e1c4f9c98053e1",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
