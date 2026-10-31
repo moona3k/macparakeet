@@ -1,0 +1,47 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_a7db50ec1095f1::t_fb9c55178ac2b8 425,459
+  s_a7db50ec1095f1::t_6f5af891ba35cf 414-416,419
+Tests/MacParakeetTests/ViewModels/TranscriptionMeetingFinalizationRetryTests.swift
+  s_a7db50ec1095f1::t_129494bb110281 1-22,24-56,61-154,157-170,213-219
+  s_a7db50ec1095f1::t_94fb5d936a1948 23
+  s_a7db50ec1095f1::t_6f5af891ba35cf 57-60,171-210
+  s_a7db50ec1095f1::t_1343ea70c467ba 155-156,211-212
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_a7db50ec1095f1::t_6f5af891ba35cf 1568-1573,2790-2792,2915-2916
+  s_a7db50ec1095f1::t_d16437cd3503d9 2158-2162,2999
+  s_a7db50ec1095f1::t_fb9c55178ac2b8 508,510-530,2155-2156,2891-2914,2917-2926
+  s_a7db50ec1095f1::t_c2e158c8635f91 2157
+  s_a7db50ec1095f1::t_91175cde8f28de 2927
+spec/adr/014-meeting-recording.md
+  s_a7db50ec1095f1::t_fb9c55178ac2b8 99-100,103-104,107,113-117
+spec/contracts/meeting-recovery-retention.md
+  s_a7db50ec1095f1::t_d16437cd3503d9 491-497,502
+  s_a7db50ec1095f1::t_6f5af891ba35cf 498-501
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_a7db50ec1095f1::t_fb9c55178ac2b8 110-112,1811-1845,1851
+  s_a7db50ec1095f1::t_6f5af891ba35cf 1846-1850,1852-1854,2078-2081,2110-2113
+Tests/MacParakeetTests/Views/MeetingTranscriptProcessingPresentationTests.swift
+  s_a7db50ec1095f1::t_d16437cd3503d9 13,15,33-63,65
+  s_a7db50ec1095f1::t_25044c30373984 64
+  s_a7db50ec1095f1::t_eeb8a23945d903 66
+Tests/MacParakeetTests/Views/TranscriptDocumentLayoutTests.swift
+  s_a7db50ec1095f1::t_e1a65a0198b26c 241
+  s_a7db50ec1095f1::t_94fb5d936a1948 192-230,242-243
+  s_a7db50ec1095f1::t_6f5af891ba35cf 231-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28022957a3b457a86760885481e6be9be1c3f8eb",
+  "prompts": {},
+  "sessions": {
+    "s_a7db50ec1095f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18ee2-1964-7e31-bb46-e22abcc88701",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
