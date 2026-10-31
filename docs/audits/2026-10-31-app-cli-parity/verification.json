@@ -69,7 +69,7 @@
       "plans/active/2026-09-24-issue-1142-event-taps-off-main.md": "f7a32f26ea8ef1812a1a2deb18d6bdffbc80cc88c72b2adbd9b44a9ab8b01634",
       "plans/active/2026-10-30-1291-capture-finalization.md": "8f43b4ad74c481b746c0eb9e0a218f4cc5dfb7b3ac69e93801e6bcb75dbd7f0b",
       "spec/00-vision.md": "c824360c5cb7512bb689bca17c8bd3afaf04801ee495658d49cd860d5336743f",
-      "spec/02-features.md": "a8064c8d03eb0311f1f6306ea2a6e7b45e78e00aa6580b83480e2fc2158eb80b",
+      "spec/02-features.md": "7eed1a86f97dc504d584904fe968496ba928b0fceb79b874cd445cdecc528861",
       "spec/03-architecture.md": "0e035e799ff6ba69d80e831a033dc8c8954dc45b1ae1d8efec6c703d02eb83be",
       "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
       "spec/11-llm-integration.md": "96eaa635c799c18a1fd09e1f1dfffcfd071ea421c430991ae785d5cef5abf59c",
@@ -3496,7 +3496,8 @@
     "findingsAddressed": [
       "README download links restored to the canonical downloads.macparakeet.com/MacParakeet.dmg host; published 0.8.10 wording and GitHub publication evidence retained.",
       "Trailing blank line removed from data-agent-review.md.",
-      "Remaining current-behavior Apple Intelligence statements reworded to cleanup-only in README.md, spec/11-llm-integration.md, spec/03-architecture.md, spec/adr/034-meeting-ask-workspace.md and integrations/README.md. Dated ADR-011 amendments and dated plans were not rewritten."
+      "Remaining current-behavior Apple Intelligence statements reworded to cleanup-only in README.md, spec/11-llm-integration.md, spec/03-architecture.md, spec/adr/034-meeting-ask-workspace.md and integrations/README.md. Dated ADR-011 amendments and dated plans were not rewritten.",
+      "Documentation phase: spec/02-features.md Ask workspace status no longer claims the stable app remains 0.8.7; it defers to the spec/README.md flag table. No link was added, so the local link count is unchanged."
     ],
     "committedRangeDiffCheck": {
       "before": {
@@ -3563,6 +3564,7 @@
         "docs/audits/2026-10-31-app-cli-parity/README.md",
         "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md",
         "integrations/README.md",
+        "spec/02-features.md",
         "spec/03-architecture.md",
         "spec/11-llm-integration.md",
         "spec/adr/034-meeting-ask-workspace.md"
