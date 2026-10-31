@@ -499,6 +499,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        meetingActivityDetectionCoordinator?.dismissPromptForQuit()
         // Repeated Quit commands share the original deferred decision. Do not
         // replace its completion or cancel it while notes are being saved.
         if savedMeetingNotesCoordinator.isPreparingToQuit { return .terminateLater }
@@ -519,6 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sender.reply(toApplicationShouldTerminate: false)
                 _ = self.presentActiveMeetingQuitAlert()
             } else {
+                self.meetingActivityDetectionCoordinator?.stop()
                 sender.reply(toApplicationShouldTerminate: true)
             }
         }) {
@@ -526,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard meetingRecordingFlowCoordinator?.quitState != nil else {
+            meetingActivityDetectionCoordinator?.stop()
             return .terminateNow
         }
 
@@ -687,8 +690,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 isOnboardingBlockingDictation: { [weak self] in
                     self?.onboardingWindowController.isBlockingDictation ?? false
                 },
-                isOnboardingVisible: { [weak self] in
-                    self?.onboardingWindowController.isVisible == true
+                isActivityRecordingSuppressed: { [weak self] in
+                    guard let self else { return true }
+                    return self.onboardingWindowController.isVisible
+                        || self.savedMeetingNotesCoordinator.isPreparingToQuit
+                        || self.isPresentingQuitAlert || self.meetingQuitTask != nil
                 }
             )
         )
@@ -1179,6 +1185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return .terminateCancel
         }
         guard let quitState = meetingRecordingFlowCoordinator?.quitState else {
+            meetingActivityDetectionCoordinator?.stop()
             return .terminateNow
         }
         isPresentingQuitAlert = true

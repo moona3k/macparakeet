@@ -44,7 +44,7 @@ final class AppEnvironmentConfigurer {
         /// whose taps are armed) can never start a model-less dictation, while
         /// the practice box can still run a real one.
         let isOnboardingBlockingDictation: () -> Bool
-        let isOnboardingVisible: () -> Bool
+        let isActivityRecordingSuppressed: () -> Bool
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
@@ -597,7 +597,7 @@ final class AppEnvironmentConfigurer {
                 isDictationActive: { [weak dictationCoordinator] in
                     dictationCoordinator?.isBusyForMeetingRecording == true
                 },
-                isOnboardingVisible: callbacks.isOnboardingVisible,
+                isStartSuppressed: callbacks.isActivityRecordingSuppressed,
                 onRecordingConfirmed: { [weak meetingCoordinator] in
                     meetingCoordinator?.startRecording(trigger: .activityDetection, presentLivePanelWhenReady: true)
                 }

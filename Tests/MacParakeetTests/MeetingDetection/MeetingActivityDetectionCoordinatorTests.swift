@@ -14,10 +14,11 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
     private var starts = 0
     private var recording = false
     private var meetingBusy = false
-    private var nativePIDs: [String: Int32] = ["us.zoom.xos": 7]
+    private var nativePIDs: [String: Set<Int32>] = ["us.zoom.xos": [7]]
     private var recordingAvailable = true
     private var dictation = false
     private var onboarding = false
+    private var quitting = false
     private var rejectStart = false
     private var rejectionIsBusy = true
     private var beginCaptureSynchronously = false
@@ -55,7 +56,7 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
             isMeetingFlowBusy: { [unowned self] in meetingBusy || recording },
             runningNativeProcessIDsProvider: { [unowned self] in nativePIDs },
             isDictationActive: { [unowned self] in dictation },
-            isOnboardingVisible: { [unowned self] in onboarding },
+            isStartSuppressed: { [unowned self] in onboarding || quitting },
             onRecordingConfirmed: { [unowned self] in
                 starts += 1
                 if rejectStart {
@@ -465,6 +466,36 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         XCTAssertEqual(shown.count, 1)
     }
 
+    func testAdditionalNativeInstanceAndPartialExitPreserveDismissal() async throws {
+        audio.setZoom()
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        (try XCTUnwrap(callbacks.first))(.declined)
+        nativePIDs["us.zoom.xos"] = [7, 8]
+        await tick(5, coordinator)
+        nativePIDs["us.zoom.xos"] = [8]
+        audio.setZoom(pid: 8)
+        await tick(6, coordinator)
+        await tick(10, coordinator)
+        XCTAssertEqual(shown.count, 1, "A surviving instance keeps the same call session")
+    }
+
+    func testPartialNativeExitPreservesAcceptedDeferredStart() async throws {
+        nativePIDs["us.zoom.xos"] = [7, 8]
+        audio.setZoom(pid: 8)
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        dictation = true
+        (try XCTUnwrap(callbacks.first))(.accepted)
+        await tick(5, coordinator)
+        nativePIDs["us.zoom.xos"] = [8]
+        await tick(6, coordinator)
+        XCTAssertNotNil(coordinator.testHook_pendingRecordID)
+        dictation = false
+        await tick(7, coordinator)
+        XCTAssertEqual(starts, 1)
+    }
+
     func testNativeAppRestartCancelsDeferredClickForPreviousProcess() async throws {
         audio.setZoom()
         let coordinator = makeCoordinator()
@@ -473,7 +504,8 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         (try XCTUnwrap(callbacks.first))(.accepted)
         await tick(5, coordinator)
         XCTAssertNotNil(coordinator.testHook_pendingRecordID)
-        nativePIDs["us.zoom.xos"] = 8
+        nativePIDs["us.zoom.xos"] = [8]
+        audio.setZoom(pid: 8)
         await tick(6, coordinator)
         XCTAssertNil(coordinator.testHook_pendingRecordID)
         dictation = false
@@ -487,7 +519,8 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         let coordinator = makeCoordinator()
         await tick(4, coordinator)
         (try XCTUnwrap(callbacks.first))(.declined)
-        nativePIDs["us.zoom.xos"] = 8
+        nativePIDs["us.zoom.xos"] = [8]
+        audio.setZoom(pid: 8)
         await tick(5, coordinator)
         await tick(9, coordinator)
         XCTAssertEqual(shown.count, 2)
@@ -501,8 +534,8 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         nativePIDs = [:]
         audio.value = ProcessAudioSnapshot(processes: [])
         await tick(5, coordinator)
-        nativePIDs = ["us.zoom.xos": 8]
-        audio.setZoom()
+        nativePIDs = ["us.zoom.xos": [8]]
+        audio.setZoom(pid: 8)
         await tick(6, coordinator)
         await tick(10, coordinator)
         XCTAssertEqual(shown.count, 2)
@@ -634,6 +667,87 @@ final class MeetingActivityDetectionCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.testHook_pendingRecordID)
     }
 
+    func testQuitSuppressionDefersAnUnshownOfferUntilCancelled() async {
+        audio.setZoom()
+        quitting = true
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        XCTAssertTrue(shown.isEmpty)
+        quitting = false
+        await tick(5, coordinator)
+        XCTAssertEqual(shown.count, 1)
+        XCTAssertEqual(starts, 0)
+    }
+
+    func testQuitEntryDismissesOfferAndInvalidatesStaleClickWithoutConsumingIt() async throws {
+        audio.setZoom()
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        let callback = try XCTUnwrap(callbacks.first)
+        coordinator.dismissPromptForQuit()
+        quitting = true
+        XCTAssertNil(coordinator.testHook_presentedID)
+        callback(.accepted)
+        await tick(5, coordinator)
+        quitting = false
+        await tick(6, coordinator)
+        XCTAssertEqual(starts, 0)
+        XCTAssertNil(coordinator.testHook_pendingRecordID)
+        XCTAssertEqual(shown.count, 2)
+    }
+
+    func testCancelledQuitPreservesExistingCallDismissal() async throws {
+        audio.setZoom()
+        let coordinator = makeCoordinator()
+        await tick(4, coordinator)
+        (try XCTUnwrap(callbacks.first))(.declined)
+        coordinator.dismissPromptForQuit()
+        quitting = true
+        await tick(5, coordinator)
+        quitting = false
+        await tick(6, coordinator)
+        XCTAssertEqual(shown.count, 1)
+    }
+
+    func testAcceptedStartRechecksQuitStateAfterMetadataRead() async throws {
+        audio.setZoom()
+        let gate = BlockingBrowserObservation(BrowserMeetingObservation())
+        let coordinator = makeCoordinator(meetingURLProvider: { await gate.snapshot() })
+        await tick(4, coordinator)
+        await gate.blockNextRead()
+        (try XCTUnwrap(callbacks.first))(.accepted)
+        await gate.waitUntilBlocked()
+        quitting = true
+        await gate.releaseRead()
+        await coordinator.testHook_waitForScheduledEvaluation()
+        XCTAssertEqual(starts, 0)
+        XCTAssertNotNil(coordinator.testHook_pendingRecordID)
+        quitting = false
+        await tick(5, coordinator)
+        XCTAssertEqual(starts, 1)
+    }
+
+    func testApprovedTerminationInvalidatesDeferredStartAndInFlightMetadataRead() async throws {
+        audio.setZoom()
+        let gate = BlockingBrowserObservation(BrowserMeetingObservation())
+        let coordinator = makeCoordinator(meetingURLProvider: { await gate.snapshot() })
+        await tick(4, coordinator)
+        let callback = try XCTUnwrap(callbacks.first)
+        await gate.blockNextRead()
+        callback(.accepted)
+        await gate.waitUntilBlocked()
+        quitting = true
+        coordinator.stop()
+        await gate.releaseRead()
+        quitting = false
+        callback(.accepted)
+        await tick(5, coordinator)
+        XCTAssertEqual(starts, 0)
+        XCTAssertFalse(coordinator.testHook_isCollecting)
+        XCTAssertNil(coordinator.testHook_pendingRecordID)
+        XCTAssertNil(coordinator.testHook_presentedID)
+    }
+
     func testBusyDictationDefersAnUnshownOffer() async throws {
         audio.setZoom()
         dictation = true
@@ -653,9 +767,9 @@ private final class PromptAudioCollector: AudioProcessActivityCollecting {
     func start(handler: @escaping @Sendable (ProcessAudioSnapshot) -> Void) { startCount += 1 }
     func stop() { stopCount += 1 }
     func snapshot() -> ProcessAudioSnapshot { value }
-    func setZoom() {
+    func setZoom(pid: Int32 = 7) {
         value = ProcessAudioSnapshot(processes: [
-            AudioProcessActivity(pid: 7, bundleID: "us.zoom.xos", isRunningInput: true, isRunningOutput: false)
+            AudioProcessActivity(pid: pid, bundleID: "us.zoom.xos", isRunningInput: true, isRunningOutput: false)
         ])
     }
 }

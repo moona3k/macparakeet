@@ -31,9 +31,9 @@ final class MeetingActivityDetectionCoordinator {
     private let meetingURLProvider: @Sendable () async -> BrowserMeetingObservation
     private let isRecordingActive: @MainActor () -> Bool
     private let isMeetingFlowBusy: @MainActor () -> Bool
-    private let runningNativeProcessIDsProvider: @MainActor () -> [String: Int32]
+    private let runningNativeProcessIDsProvider: @MainActor () -> [String: Set<Int32>]
     private let isDictationActive: @MainActor () -> Bool
-    private let isOnboardingVisible: @MainActor () -> Bool
+    private let isStartSuppressed: @MainActor () -> Bool
     private let onRecordingConfirmed: @MainActor () -> Int?
     private let showPrompt: PromptPresenter
     private let closePrompt: @MainActor () -> Void
@@ -47,7 +47,7 @@ final class MeetingActivityDetectionCoordinator {
     private var presentationToken: UUID?
     private var pendingRecordID: String?
     private var requestedRecordingCandidateID: String?
-    private var nativeProcessIDs: [String: Int32] = [:]
+    private var nativeProcessIDs: [String: Set<Int32>] = [:]
     private var lastEvaluationAt: Date?
     private var started = false
     private var collecting = false
@@ -62,17 +62,17 @@ final class MeetingActivityDetectionCoordinator {
         meetingURLProvider: (@Sendable () async -> BrowserMeetingObservation)? = nil,
         isRecordingActive: @escaping @MainActor () -> Bool,
         isMeetingFlowBusy: (@MainActor () -> Bool)? = nil,
-        runningNativeProcessIDsProvider: @escaping @MainActor () -> [String: Int32] = {
+        runningNativeProcessIDsProvider: @escaping @MainActor () -> [String: Set<Int32>] = {
             NSWorkspace.shared.runningApplications.reduce(into: [:]) { result, application in
                 guard let bundleID = application.bundleIdentifier,
                     let descriptor = MeetingAppRegistry.descriptor(forBundleID: bundleID),
                     descriptor.trustTier != .browser
                 else { return }
-                result[bundleID] = application.processIdentifier
+                result[bundleID, default: []].insert(application.processIdentifier)
             }
         },
         isDictationActive: @escaping @MainActor () -> Bool = { false },
-        isOnboardingVisible: @escaping @MainActor () -> Bool = { false },
+        isStartSuppressed: @escaping @MainActor () -> Bool = { false },
         onRecordingConfirmed: @escaping @MainActor () -> Int?,
         showPrompt: PromptPresenter? = nil,
         closePrompt: (@MainActor () -> Void)? = nil,
@@ -94,7 +94,7 @@ final class MeetingActivityDetectionCoordinator {
         self.isMeetingFlowBusy = isMeetingFlowBusy ?? isRecordingActive
         self.runningNativeProcessIDsProvider = runningNativeProcessIDsProvider
         self.isDictationActive = isDictationActive
-        self.isOnboardingVisible = isOnboardingVisible
+        self.isStartSuppressed = isStartSuppressed
         self.onRecordingConfirmed = onRecordingConfirmed
         let controller = MeetingActivityPromptController()
         self.showPrompt =
@@ -136,6 +136,10 @@ final class MeetingActivityDetectionCoordinator {
     }
 
     func recordingStateDidChange() { scheduleEvaluation() }
+
+    /// Hide the offer before quit can enter a nested modal loop. A cancelled
+    /// quit keeps the call policy and any previously accepted request intact.
+    func dismissPromptForQuit() { dismissPanel() }
 
     /// Clear attribution before any async metadata read. A failed/cancelled
     /// activity start may be followed immediately by an unrelated manual start.
@@ -221,11 +225,12 @@ final class MeetingActivityDetectionCoordinator {
         let audio = audioCollector.snapshot()
         let runningNativeProcessIDs = runningNativeProcessIDsProvider()
         let exitedNativeIDs = Set(
-            nativeProcessIDs.compactMap { bundleID, pid in
-                runningNativeProcessIDs[bundleID] == pid ? nil : "app:\(bundleID)"
+            nativeProcessIDs.compactMap { bundleID, pids in
+                pids.isDisjoint(with: runningNativeProcessIDs[bundleID] ?? []) ? "app:\(bundleID)" : nil
             })
         // Microphone loss is ambiguous (mute/reconnect versus a new call).
-        // App exit or a new PID is a confirmed native session boundary.
+        // Preserve continuity while any previously observed instance survives.
+        // Complete process replacement is a confirmed native session boundary.
         policy.resetSessions(for: exitedNativeIDs)
         if let pendingRecordID, exitedNativeIDs.contains(pendingRecordID) {
             self.pendingRecordID = nil
@@ -253,7 +258,7 @@ final class MeetingActivityDetectionCoordinator {
             excludedPreJoinURLsByBundleID: browserObservation.preJoinURLs
         )
         let meetingBusy = isMeetingFlowBusy()
-        let busy = meetingBusy || isDictationActive() || isOnboardingVisible()
+        let busy = meetingBusy || isDictationActive() || isStartSuppressed()
         if !meetingBusy { requestedRecordingCandidateID = nil }
         let offer =
             policy.update(
@@ -306,7 +311,7 @@ final class MeetingActivityDetectionCoordinator {
         guard collecting, settingsViewModel.meetingActivityDetectionMode != .off,
             presentationToken == token, presentedID == candidateID
         else { return }
-        guard !isOnboardingVisible() else { dismissPanel(); return }
+        guard !isStartSuppressed() else { dismissPanel(); return }
         switch outcome {
         case .declined:
             dismissPanel()
@@ -318,7 +323,7 @@ final class MeetingActivityDetectionCoordinator {
             }
             dismissPanel()
             // Revalidate against current audio/URL metadata before starting. A
-            // busy recorder, dictation or onboarding leaves an accepted click
+            // busy recorder, dictation or lifecycle gate leaves an accepted click
             // pending for this call.
             pendingRecordID = candidateID
             scheduleEvaluation()
