@@ -1,0 +1,27 @@
+spec/02-features.md
+  s_3ef21a9f415b11::t_407ab12a09250b 2233
+docs/dev/meeting-detection.html
+  s_3ef21a9f415b11::t_407ab12a09250b 24-25
+spec/adr/024-activity-based-meeting-detection.md
+  s_3ef21a9f415b11::t_407ab12a09250b 496
+Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift
+  s_3ef21a9f415b11::t_407ab12a09250b 6,150
+spec/04-ui-patterns.md
+  s_3ef21a9f415b11::t_2d01c6ae88d02b 1163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a74329b098e499716a7b0486edb99e4e55110d5",
+  "prompts": {},
+  "sessions": {
+    "s_3ef21a9f415b11": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9b4806c-d105-4f2d-8c60-979e2c405150",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
