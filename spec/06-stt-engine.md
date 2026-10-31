@@ -166,7 +166,7 @@ Source of truth:
 - Enabled `CustomWord` rows with `replacement == nil` or blank replacement
   become recognition-time vocabulary anchors. Independently of boosting,
   deterministic custom-word processing uses these entries to restore stored
-  casing when a whole-word match exists.
+  casing when a standalone match exists.
 - Enabled rows with nonblank `replacement` remain deterministic
   post-transcription corrections/backstops.
 - Disabled rows and terms shorter than `minTermLength` (`3`) are ignored by

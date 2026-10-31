@@ -26,7 +26,7 @@ Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid p
 
 ### Step 2: Custom Word Replacements
 
-User-defined word corrections applied with case-insensitive matching and whole-word boundaries.
+User-defined word corrections. Matching and ordering rules are listed below.
 
 Two categories:
 
