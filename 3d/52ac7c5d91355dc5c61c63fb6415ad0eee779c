@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_6f26576d2ce855::t_f8d154c0f66078 1562,1564,1572,1586,1588-1589,1600-1604,1615,1621,2188,2196-2199,2239
+  s_6f26576d2ce855::t_8b85813496b295 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d52ac7c5d91355dc5c61c63fb6415ad0eee779c",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
