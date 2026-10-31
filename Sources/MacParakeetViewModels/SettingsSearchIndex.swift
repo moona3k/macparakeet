@@ -129,6 +129,9 @@ public enum SettingsSearchIndex {
         if !AppFeatures.meetingAutoStopEnabled {
             result = result.filter { !meetingAutoStopGatedIds.contains($0.id) }
         }
+        if !AppFeatures.meetingActivityDetectionEnabled {
+            result = result.filter { $0.id != "meeting.activityDetection" }
+        }
         return result
     }()
 
@@ -415,6 +418,15 @@ public enum SettingsSearchIndex {
             title: "Auto-stop meetings",
             subtitle: "in Meeting Recording",
             keywords: ["auto stop", "auto-stop", "stop recording", "meeting ended", "silence", "zoom closed"],
+            cardAnchor: "meeting"
+        ),
+
+        SettingsSearchEntry(
+            id: "meeting.activityDetection",
+            tab: .capture,
+            title: "Remind me to record meetings",
+            subtitle: "in Meeting Recording",
+            keywords: ["meeting detection", "detect calls", "record this meeting", "zoom", "google meet", "reminder"],
             cardAnchor: "meeting"
         ),
 

@@ -61,7 +61,12 @@ final class AskActivityViewTests: XCTestCase {
         await service.setSources([source])
         await service.enableControlledStream()
         let model = AskWorkspaceViewModel(service: service)
-        await model.openConversation(conversation.id)
+        addTeardownBlock {
+            // Release the fake even if startup or a snapshot fails. Finishing
+            // before send starts is latched by the mock's stream gate.
+            await service.finishStream(text: "")
+            await model.stopAndSettle()
+        }
         let view = AskWorkspaceView(model: model, onOpenAISettings: {}, onOpenSource: { _ in })
             .frame(width: 900, height: 740)
         _ = NSApplication.shared
@@ -73,20 +78,43 @@ final class AskActivityViewTests: XCTestCase {
         defer { window.close() }
         window.contentView = host
         host.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(100))
+        // The mounted view owns load(). Pre-opening the conversation and
+        // sleeping could race its reload against send's navigation guards.
+        guard
+            try await waitForState({
+                model.conversation?.id == conversation.id && model.activeSourceSnapshots.count == 1
+            })
+        else {
+            return XCTFail("Workspace did not finish its initial load: \(model.errorMessage ?? "no model error")")
+        }
         try capture(try snapshot(host), name: "workspace-complete")
 
         model.updateDraft("What should I follow up on?")
         await model.send()
-        await service.waitUntilRequested("streamStarted")
+        guard try await waitForState({ await service.hasRequested("streamStarted") }) else {
+            return XCTFail(
+                "Workspace did not start streaming; isSending=\(model.isSending), error=\(model.errorMessage ?? "none")"
+            )
+        }
         for step in steps { await service.emit(.step(step)) }
         await service.emit(.phase(.writing))
         await service.emit(.text("Follow up on the **accessibility test results** before confirming the revised date."))
-        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(model.activities, steps)
+        XCTAssertEqual(model.runPhase, .writing)
+        XCTAssertFalse(model.streamingText.isEmpty)
         try capture(try snapshot(host), name: "workspace-streaming")
         await service.finishStream(text: "Follow up on the accessibility test results.")
         await model.stopAndSettle()
         XCTAssertFalse(model.isSending)
+    }
+
+    private func waitForState(_ condition: () async -> Bool) async throws -> Bool {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !(await condition()) {
+            guard ContinuousClock.now < deadline else { return false }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return true
     }
 
     private func snapshot<V: View>(_ host: NSHostingView<V>) throws -> NSImage {

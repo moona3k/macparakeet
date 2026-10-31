@@ -23,6 +23,7 @@ final class AppEnvironmentConfigurer {
         let hotkeyCoordinator: AppHotkeyCoordinator
         let meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
         let meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+        let meetingActivityDetectionCoordinator: MeetingActivityDetectionCoordinator?
     }
 
     struct Callbacks {
@@ -364,6 +365,7 @@ final class AppEnvironmentConfigurer {
         coordinatorRefs.dictation = dictationCoordinator
 
         var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+        var meetingActivityDetectionCoordinator: MeetingActivityDetectionCoordinator?
         var calendarCoordinator: MeetingAutoStartCoordinator?
         var isMeetingAutoStopObservingRecording = false
         let endMeetingAutoStopObservation = {
@@ -431,12 +433,14 @@ final class AppEnvironmentConfigurer {
                 coordinatorRefs.dictation?.hideIdlePill()
                 isMeetingAutoStopObservingRecording = true
                 meetingAutoStopCoordinator?.recordingDidStart()
+                meetingActivityDetectionCoordinator?.recordingDidBegin()
             },
             onRecordingStopping: {
                 endMeetingAutoStopObservation()
             },
             onFlowReturnedToIdle: {
                 endMeetingAutoStopObservation()
+                meetingActivityDetectionCoordinator?.recordingFlowDidReturnToIdle()
                 callbacks.onMenuBarIconUpdate()
                 guard coordinatorRefs.dictation?.isDictationActive != true else { return }
                 coordinatorRefs.dictation?.showIdlePill()
@@ -576,12 +580,33 @@ final class AppEnvironmentConfigurer {
             meetingAutoStopCoordinator = coordinator
         }
 
+        if AppFeatures.meetingRecordingEnabled, AppFeatures.meetingActivityDetectionEnabled {
+            let coordinator = MeetingActivityDetectionCoordinator(
+                settingsViewModel: settingsViewModel,
+                isRecordingActive: { [weak meetingCoordinator] in
+                    meetingCoordinator?.isCapturingMeetingAudioForAutoStop == true
+                },
+                isMeetingFlowBusy: { [weak meetingCoordinator] in
+                    meetingCoordinator?.canStartMeetingRecording == false
+                },
+                isDictationActive: { [weak dictationCoordinator] in
+                    dictationCoordinator?.isBusyForMeetingRecording == true
+                },
+                onRecordingConfirmed: { [weak meetingCoordinator] in
+                    meetingCoordinator?.startRecording(trigger: .activityDetection, presentLivePanelWhenReady: true)
+                }
+            )
+            coordinator.start()
+            meetingActivityDetectionCoordinator = coordinator
+        }
+
         return Runtime(
             dictationFlowCoordinator: dictationCoordinator,
             meetingRecordingFlowCoordinator: meetingCoordinator,
             hotkeyCoordinator: hotkeyCoordinator,
             meetingAutoStartCoordinator: calendarCoordinator,
-            meetingAutoStopCoordinator: meetingAutoStopCoordinator
+            meetingAutoStopCoordinator: meetingAutoStopCoordinator,
+            meetingActivityDetectionCoordinator: meetingActivityDetectionCoordinator
         )
     }
 

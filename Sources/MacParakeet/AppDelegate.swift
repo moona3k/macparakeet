@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+    private var meetingActivityDetectionCoordinator: MeetingActivityDetectionCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
     /// `TransformsHotkeyRegistry` + dispatch from registered hotkeys to the
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
@@ -448,6 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
         meetingAutoStopCoordinator?.stop()
+        meetingActivityDetectionCoordinator?.stop()
         transformsCoordinator?.stop()
         voiceControlCoordinator?.shutdown()
         settingsObserverCoordinator.stopObserving()
@@ -692,6 +694,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
         meetingAutoStopCoordinator = runtime.meetingAutoStopCoordinator
+        meetingActivityDetectionCoordinator = runtime.meetingActivityDetectionCoordinator
         applyInstantDictationPreference(refreshWarmCapture: false)
 
         // Shared resolver for the user's LLM provider — returns the live
@@ -761,11 +764,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictingHotkeys: { [weak self] in
                     guard let self else { return [] }
                     let transforms = (try? env.promptRepo.fetchVisible(category: .transform)) ?? []
-                    return [self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
-                            self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
-                            self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
-                            self.settingsViewModel.meetingHotkeyTrigger, self.settingsViewModel.fileTranscriptionHotkeyTrigger,
-                            self.settingsViewModel.youtubeTranscriptionHotkeyTrigger]
+                    return [
+                        self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
+                        self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                        self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                        self.settingsViewModel.meetingHotkeyTrigger,
+                        self.settingsViewModel.fileTranscriptionHotkeyTrigger,
+                        self.settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                    ]
                         + transforms.compactMap { $0.shortcut?.hotkeyTrigger }
                 }
             )

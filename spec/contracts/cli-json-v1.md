@@ -368,6 +368,8 @@ still apply.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
+  `triggerKind` may be `manual`, `hotkey`, `calendar_auto_start`, or
+  `activity_detection` (the user accepted a detected-call recording prompt).
 - Meeting list/show/export/transcript JSON can include additive optional
   `meetingType` and `meetingLabels`. A meeting type object has `id`, `name`,
   optional `colorToken`, optional `iconName`, `sortOrder`, and `isArchived`;

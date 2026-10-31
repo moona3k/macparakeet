@@ -54,6 +54,16 @@ final class DictationFlowCoordinator {
     /// instead.
     var isDictationActive: Bool { overlayController != nil }
 
+    /// Meeting prompts must also defer during entitlement checks before the
+    /// overlay exists, and until the dictation result has finished pasting.
+    var isBusyForMeetingRecording: Bool {
+        Self.isBusyForMeetingRecording(for: stateMachine.state)
+    }
+
+    static func isBusyForMeetingRecording(for state: DictationFlowState) -> Bool {
+        state != .idle
+    }
+
     /// Preferred menu bar icon state for dictation, derived from flow state.
     /// Returns nil when dictation has no visual preference and global resolver
     /// should fall through to other subsystems (e.g. file transcription).

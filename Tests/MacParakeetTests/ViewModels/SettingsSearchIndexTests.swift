@@ -137,7 +137,7 @@ final class SettingsSearchIndexTests: XCTestCase {
 
         for query in [
             "recordings", "files engine", "accuracy", "slower",
-            "separate engine", "final transcript", "same as live", "advanced"
+            "separate engine", "final transcript", "same as live", "advanced",
         ] {
             let results = SettingsSearchIndex.matches(query)
             XCTAssertTrue(
@@ -173,7 +173,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             for query in [
                 "meeting hotkey", "meeting shortcut", "change hotkey",
                 "remove shortcut", "disable hotkey", "CMD+Shift+M",
-                "Command Shift M", "⌘⇧M"
+                "Command Shift M", "⌘⇧M",
             ] {
                 let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
                 XCTAssertTrue(ids.contains("meeting.hotkey"), "Query \(query) should find the meeting hotkey")
@@ -215,7 +215,7 @@ final class SettingsSearchIndexTests: XCTestCase {
     func testMeetingPillQueriesFindFloatingControlsSetting() {
         let queries = [
             "floating", "pill", "meeting controls", "floating controls",
-            "meeting pill", "hide meeting", "recording ui"
+            "meeting pill", "hide meeting", "recording ui",
         ]
 
         for query in queries {
@@ -370,7 +370,10 @@ final class SettingsSearchIndexTests: XCTestCase {
         let entry = try XCTUnwrap(SettingsSearchIndex.entries.first { $0.id == "ai.meetingLanguage" })
         XCTAssertEqual(entry.cardAnchor, "ai.meetingLanguage")
 
-        for query in ["ai result language", "meeting ai language", "follow transcript", "summary language", "output language", "korean"] {
+        for query in [
+            "ai result language", "meeting ai language", "follow transcript", "summary language", "output language",
+            "korean",
+        ] {
             let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
             XCTAssertTrue(ids.contains("ai.meetingLanguage"), "Query \(query) should find Language of AI Results")
         }
@@ -438,8 +441,9 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.startMuted",
             "meeting.urlControl",
             "meeting.autoStop",
+            "meeting.activityDetection",
             "meeting.calendar",
-            "system.permissions.screen"
+            "system.permissions.screen",
         ]
         let calendarGatedIds: Set<String> = ["meeting.calendar"]
         let autoStopGatedIds: Set<String> = ["meeting.autoStop"]
@@ -457,7 +461,8 @@ final class SettingsSearchIndexTests: XCTestCase {
                 : expected.subtracting(autoStopGatedIds)
             XCTAssertEqual(
                 intersection,
-                expectedWithAutoStop,
+                AppFeatures.meetingActivityDetectionEnabled
+                    ? expectedWithAutoStop : expectedWithAutoStop.subtracting(["meeting.activityDetection"]),
                 "Meeting-gated entries should match the active flag combination"
             )
         } else {

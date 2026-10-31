@@ -48,6 +48,9 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    /// Includes permission checks, startup, stopping, and finalization.
+    var canStartMeetingRecording: Bool { stateMachine.state == .idle }
+
     var canPresentLiveMeetingPanel: Bool {
         guard panelController != nil else { return false }
         switch stateMachine.state {
