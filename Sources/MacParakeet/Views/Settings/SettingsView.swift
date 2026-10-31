@@ -232,24 +232,16 @@ struct SettingsView: View {
 
     // MARK: - Tabbed Shell
 
-    /// Top-of-panel header: tab bar on the left, search field on the right.
     /// Tab badges roll up the worst per-card status the user can act on.
     /// `.ok` / `.info` are intentionally silent on the badges — a
     /// permanent green dot would just be visual debt.
     private var settingsHeaderShell: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
+        SettingsHeaderLayout {
             SettingsTabBar(
                 activeTab: tabBindingExitingSearch,
                 tabBadges: tabBadges
             )
 
-            // The search field reserves a clickable width first; the tab bar —
-            // whose per-button `.fixedSize` already keeps its labels from
-            // wrapping — fills whatever remains. The previous arrangement gave
-            // the *tab bar* layout priority, so its `maxWidth: .infinity`
-            // segments ate the entire row even in wide windows, collapsing the
-            // search field to an icon-only stub with no hittable text area.
-            // Reserving the field's width keeps it usable at every size.
             SettingsSearchField(
                 query: $rootViewModel.searchQuery,
                 isFocused: $searchFieldFocused
@@ -767,36 +759,10 @@ struct SettingsView: View {
 
     private var captureMicrophoneStrip: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-                Image(systemName: "mic")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(DesignSystem.Colors.accent.opacity(0.12))
-                    )
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        Text("Microphone")
-                            .font(DesignSystem.Typography.body.weight(.semibold))
-                        SettingsStatusChip(
-                            status: viewModel.microphoneGranted ? .ok : .required,
-                            label: viewModel.microphoneGranted ? "Granted" : "Permission required"
-                        )
-                    }
-                    Text(viewModel.selectedMicrophoneStatusText)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .layoutPriority(1)
-
-                Spacer(minLength: DesignSystem.Spacing.md)
-
+            SettingsMicrophoneHeader(
+                microphoneGranted: viewModel.microphoneGranted,
+                statusText: viewModel.selectedMicrophoneStatusText
+            ) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     if !viewModel.microphoneGranted {
                         microphonePermissionActionButton
@@ -4394,5 +4360,81 @@ struct SettingsView: View {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+}
+
+struct SettingsMicrophoneHeader<Controls: View>: View {
+    let microphoneGranted: Bool
+    let statusText: String
+    @ViewBuilder var controls: () -> Controls
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    heading
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    controls()
+                }
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    heading
+                    controls()
+                }
+            }
+            Text(statusText)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var heading: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "mic")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                )
+                .accessibilityHidden(true)
+            Text("Microphone")
+                .font(DesignSystem.Typography.body.weight(.semibold))
+            SettingsStatusChip(
+                status: microphoneGranted ? .ok : .required,
+                label: microphoneGranted ? "Granted" : "Permission required"
+            )
+        }
+        .fixedSize()
+    }
+}
+
+/// Changes the arrangement without remounting the search field, so resizing
+/// preserves its focus and does not run its initial-focus blocker again.
+struct SettingsHeaderLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let layout = arrangement(for: proposal.width, subviews: subviews)
+        var layoutCache = layout.makeCache(subviews: subviews)
+        return layout.sizeThatFits(proposal: proposal, subviews: subviews, cache: &layoutCache)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrangement(for: bounds.width, subviews: subviews)
+        var layoutCache = layout.makeCache(subviews: subviews)
+        layout.placeSubviews(in: bounds, proposal: proposal, subviews: subviews, cache: &layoutCache)
+    }
+
+    private func arrangement(for width: CGFloat?, subviews: Subviews) -> AnyLayout {
+        let row = AnyLayout(HStackLayout(spacing: DesignSystem.Spacing.md))
+        var rowCache = row.makeCache(subviews: subviews)
+        let minimum = row.sizeThatFits(
+            proposal: ProposedViewSize(width: 0, height: nil), subviews: subviews, cache: &rowCache
+        )
+        if let width, width < minimum.width {
+            return AnyLayout(VStackLayout(alignment: .leading, spacing: DesignSystem.Spacing.sm))
+        }
+        return row
     }
 }
