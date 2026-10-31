@@ -46,7 +46,8 @@ also exceed the required authority.
    an `incomplete` assistant placeholder before starting the helper and retain
    separate complete, failed, and cancelled outcomes.
 6. Freeze the selected analysis provider for each run. Ask uses direct model
-   providers only and rejects Local CLI. In-process/Apple Intelligence and
+   providers only and rejects Local CLI and cleanup-only Apple Intelligence
+   (ADR-011 amendment, 2026-09-27). In-process MLX and
    Ollama/LM Studio loopback routes need no remote consent; other endpoints,
    including generic OpenAI-compatible loopback endpoints, require explicit
    approval in both GUI and CLI. No provider fallback occurs. Expose the same

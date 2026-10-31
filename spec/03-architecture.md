@@ -29,7 +29,7 @@ flowchart TD
     Speech --> Fluid[FluidAudio: Parakeet, Nemotron, Cohere]
     Speech --> Whisper[WhisperKit]
     Core --> AI[RoutingLLMClient: configured HTTP or Local CLI]
-    AI --> AppleAI[Apple Intelligence: on-device Foundation Models when selected]
+    AI --> AppleAI[Apple Intelligence: on-device Foundation Models, dictation cleanup only]
     App -. opt-in build and developer gate .-> MLX[MacParakeetLocalLLM]
 ```
 

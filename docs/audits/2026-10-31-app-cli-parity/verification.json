@@ -1,13 +1,13 @@
 {
   "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
   "local_link_check": {
-    "count": 369,
-    "markdownDocuments": 30,
+    "count": 422,
+    "markdownDocuments": 33,
     "missing": [],
     "outsideRepository": [],
-    "scope": "All tracked changed and untracked Markdown at this snapshot. Local file/directory targets only; code fences, indented code, inline code, HTML comments, remote/schemed targets and anchor-only targets excluded. Fragment existence is not checked.",
+    "scope": "All Markdown files changed between the baseline and the working tree that becomes the committed head; no untracked files. Local file/directory targets only; code fences, indented code, inline code, HTML comments, remote/schemed targets and anchor-only targets excluded. Fragment existence is not checked. Remote targets are counted once per distinct URL.",
     "excludedTargets": {
-      "remote_or_other_scheme": 51,
+      "remote_or_other_scheme": 53,
       "anchor_only_or_empty": 3
     },
     "documents": [
@@ -35,26 +35,29 @@
       "plans/active/2026-10-30-1291-capture-finalization.md",
       "spec/00-vision.md",
       "spec/02-features.md",
+      "spec/03-architecture.md",
       "spec/04-ui-patterns.md",
+      "spec/11-llm-integration.md",
       "spec/README.md",
       "spec/adr/002-local-only.md",
       "spec/adr/027-product-north-star.md",
+      "spec/adr/034-meeting-ask-workspace.md",
       "spec/contracts/README.md",
       "spec/contracts/cli-json-v1.md"
     ],
     "documentSha256": {
-      "README.md": "c4d808c7ff608fe926baa953e0dc612100276640ccca7808f994150355da8257",
+      "README.md": "6b4f3086eabdf52452538d2dd0a2fb4d6a5ca8d9653e38ac3273d4596d3cbbe0",
       "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
       "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
-      "docs/audits/2026-10-31-app-cli-parity/README.md": "dade2faa91f6d27115fcb6710b8da0d074b97c833a60e12bc405b904aad52ee1",
+      "docs/audits/2026-10-31-app-cli-parity/README.md": "d9acc93dc3576972d728fe2762d50e0bdc9cfb74d5727b5d597dd6b4ae638e1f",
       "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "20aee2207785b12c6fa7678864f974411900577ccfc3fa63fd5a853bbe5f18be",
-      "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "4235352292877dff35a63557c2dd609f9845e35497fbe386679ef6c4faba6c67",
+      "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "cfc28a9969db2e1c56ca3db58eccd76c5be0f7ed76852d3b05a657e584536a83",
       "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "efe58974146ef16aa661cd8daad70f828dac88e2bcaf1b1a4c3245f8e6201504",
       "docs/cli-testing.md": "966fa5f2b01facd84c2c415acd78cb2c4764558a178cdcbf293796de89ec92b2",
       "docs/distribution.md": "54d3d5310a11b2cf9bccb3a40e7cd3af6be5d2883c6a489e9a9339045f76ba59",
       "docs/plans/2026-09-17-issue-449-streaming-cursor.md": "5143137164842e34cfcfab146f06f5b2bc5b87b97b7cd50d81b42345dade82c2",
       "docs/releases/0.8.10/README.md": "f4b9ed328da5b00ccf38b194d17d8613c40a840f308c1b57d8165eb14551ba8e",
-      "integrations/README.md": "301e95460534b5a1c7554ca06b3263ad34a59069ff54a8b883e6d6622d9a31f0",
+      "integrations/README.md": "6e0863621a54a1d877f5ddde93916328db31e186c299be1914b2181305b68a3c",
       "integrations/capabilities.md": "811049249bd55f4987f5adccb47aaad7f3cf7fc2632b30c36b20f6ac698099b0",
       "integrations/skill/macparakeet-stt/SKILL.md": "2634ce08a4b759a4e338aa869300c789355652d19b53e63d6f36469c998b4e8c",
       "plans/README.md": "42adb57987a366af14e87531e962d2c51b77f170162741cbd04cdc1c8457c102",
@@ -67,10 +70,13 @@
       "plans/active/2026-10-30-1291-capture-finalization.md": "8f43b4ad74c481b746c0eb9e0a218f4cc5dfb7b3ac69e93801e6bcb75dbd7f0b",
       "spec/00-vision.md": "c824360c5cb7512bb689bca17c8bd3afaf04801ee495658d49cd860d5336743f",
       "spec/02-features.md": "a8064c8d03eb0311f1f6306ea2a6e7b45e78e00aa6580b83480e2fc2158eb80b",
+      "spec/03-architecture.md": "0e035e799ff6ba69d80e831a033dc8c8954dc45b1ae1d8efec6c703d02eb83be",
       "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
+      "spec/11-llm-integration.md": "96eaa635c799c18a1fd09e1f1dfffcfd071ea421c430991ae785d5cef5abf59c",
       "spec/README.md": "6fab2db86552f3f40b7816e32bfd1ff6585edc30a1035752ac73b59373bce9c2",
       "spec/adr/002-local-only.md": "a30f450d27c5ae5a7b5d091db3c171c1056b08a7011d9e096071c594c2abfb7b",
       "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
+      "spec/adr/034-meeting-ask-workspace.md": "9fc2fdf7239dad366f3ea38051cb075f20347e180bef94af8543032a703a12ec",
       "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
       "spec/contracts/cli-json-v1.md": "38619ae3bc2ded13bace2cb673ef13dffe825c8a1d7851f3e3aba3e95614fded"
     },
@@ -1241,6 +1247,216 @@
         "resolved": "spec/03-architecture.md"
       },
       {
+        "document": "spec/03-architecture.md",
+        "target": "README.md#release-channels-and-feature-flags",
+        "resolved": "spec/README.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Package.swift",
+        "resolved": "Package.swift"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Sources/MacParakeet/App/AppEnvironment.swift",
+        "resolved": "Sources/MacParakeet/App/AppEnvironment.swift"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/033-explicit-voice-control.md",
+        "resolved": "spec/adr/033-explicit-voice-control.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Sources/MacParakeetCore/Audio/README.md",
+        "resolved": "Sources/MacParakeetCore/Audio/README.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "05-audio-pipeline.md",
+        "resolved": "spec/05-audio-pipeline.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/015-concurrent-dictation-meeting.md",
+        "resolved": "spec/adr/015-concurrent-dictation-meeting.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/025-meeting-capture-reliability.md",
+        "resolved": "spec/adr/025-meeting-capture-reliability.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/010-speaker-diarization.md",
+        "resolved": "spec/adr/010-speaker-diarization.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "06-stt-engine.md",
+        "resolved": "spec/06-stt-engine.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Sources/MacParakeetCore/STT/README.md",
+        "resolved": "Sources/MacParakeetCore/STT/README.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/026-asr-engine-strategy.md",
+        "resolved": "spec/adr/026-asr-engine-strategy.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../benchmarks/asr/",
+        "resolved": "benchmarks/asr"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "07-text-processing.md",
+        "resolved": "spec/07-text-processing.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/004-deterministic-pipeline.md",
+        "resolved": "spec/adr/004-deterministic-pipeline.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Sources/MacParakeetCore/Database/README.md",
+        "resolved": "Sources/MacParakeetCore/Database/README.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/file-transcription-audio-tracks.md",
+        "resolved": "spec/contracts/file-transcription-audio-tracks.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/010-speaker-diarization.md#cancellation-boundary-amendment-2026-10-02",
+        "resolved": "spec/adr/010-speaker-diarization.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/030-external-meeting-import.md",
+        "resolved": "spec/adr/030-external-meeting-import.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/meeting-import-v1.md",
+        "resolved": "spec/contracts/meeting-import-v1.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/meeting-recovery-retention.md",
+        "resolved": "spec/contracts/meeting-recovery-retention.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/meeting-artifacts-v1.md",
+        "resolved": "spec/contracts/meeting-artifacts-v1.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/028-meeting-echo-cancellation.md",
+        "resolved": "spec/adr/028-meeting-echo-cancellation.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/010-speaker-diarization.md",
+        "resolved": "spec/adr/010-speaker-diarization.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "01-data-model.md#speaker_corrections--speaker_correction_states-v032",
+        "resolved": "spec/01-data-model.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/034-meeting-ask-workspace.md",
+        "resolved": "spec/adr/034-meeting-ask-workspace.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/020-live-meeting-notepad-and-memo-summaries.md",
+        "resolved": "spec/adr/020-live-meeting-notepad-and-memo-summaries.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "14-per-prompt-inference-settings.md",
+        "resolved": "spec/14-per-prompt-inference-settings.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "11-llm-integration.md",
+        "resolved": "spec/11-llm-integration.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/022-transforms-system-wide-rewrite.md",
+        "resolved": "spec/adr/022-transforms-system-wide-rewrite.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "04-ui-patterns.md#llm-markdown-content",
+        "resolved": "spec/04-ui-patterns.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "contracts/dapt-export-v1.md",
+        "resolved": "spec/contracts/dapt-export-v1.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "01-data-model.md",
+        "resolved": "spec/01-data-model.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../Sources/MacParakeetCore/Services/AppPaths.swift",
+        "resolved": "Sources/MacParakeetCore/Services/AppPaths.swift"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/006-trial-and-license-activation.md",
+        "resolved": "spec/adr/006-trial-and-license-activation.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/002-local-only.md",
+        "resolved": "spec/adr/002-local-only.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../docs/distribution.md",
+        "resolved": "docs/distribution.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "adr/005-onboarding-first-run.md",
+        "resolved": "spec/adr/005-onboarding-first-run.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "09-testing.md",
+        "resolved": "spec/09-testing.md"
+      },
+      {
+        "document": "spec/03-architecture.md",
+        "target": "../docs/testing/native-library-e2e.md",
+        "resolved": "docs/testing/native-library-e2e.md"
+      },
+      {
         "document": "spec/04-ui-patterns.md",
         "target": "../docs/design/2026-09-15-cover-geometry/philosophy.md",
         "resolved": "docs/design/2026-09-15-cover-geometry/philosophy.md"
@@ -1274,6 +1490,61 @@
         "document": "spec/04-ui-patterns.md",
         "target": "contracts/ask-workspace.md",
         "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "adr/032-llm-task-group-routing.md",
+        "resolved": "spec/adr/032-llm-task-group-routing.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "07-text-processing.md#optional-ai-formatting",
+        "resolved": "spec/07-text-processing.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "contracts/ask-workspace.md",
+        "resolved": "spec/contracts/ask-workspace.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "contracts/credential-access.md",
+        "resolved": "spec/contracts/credential-access.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "01-data-model.md",
+        "resolved": "spec/01-data-model.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
+      },
+      {
+        "document": "spec/11-llm-integration.md",
+        "target": "12-processing-layer.md",
+        "resolved": "spec/12-processing-layer.md"
       },
       {
         "document": "spec/README.md",
@@ -3111,7 +3382,8 @@
       ],
       "exit": 0,
       "stdout": "",
-      "stderr": ""
+      "stderr": "",
+      "limit": "First-capture observation of the then-tracked working-tree diff; audit files that were untracked at the time were not covered. See followUp2026-10-31ReviewFixes.committedRangeDiffCheck for the baseline-to-head range."
     }
   },
   "installed_app": {
@@ -3217,5 +3489,108 @@
       "verification.json (self hash)",
       "narrative Markdown"
     ]
+  },
+  "followUp2026-10-31ReviewFixes": {
+    "capturedAtUTC": "2026-10-31T22:38:46.514135+00:00",
+    "scope": "Review-fix receipt refresh for documentation only; no builds, downloads, tests, user data access, merge or deploy.",
+    "findingsAddressed": [
+      "README download links restored to the canonical downloads.macparakeet.com/MacParakeet.dmg host; published 0.8.10 wording and GitHub publication evidence retained.",
+      "Trailing blank line removed from data-agent-review.md.",
+      "Remaining current-behavior Apple Intelligence statements reworded to cleanup-only in README.md, spec/11-llm-integration.md, spec/03-architecture.md, spec/adr/034-meeting-ask-workspace.md and integrations/README.md. Dated ADR-011 amendments and dated plans were not rewritten."
+    ],
+    "committedRangeDiffCheck": {
+      "before": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "79cf1ca928b53c3853a99f6832c197d664dcdd78",
+          "3edab015f9e0e07803932606ecfd59c640b5b818"
+        ],
+        "head": "3edab015f9e0e07803932606ecfd59c640b5b818",
+        "exit": 2,
+        "stdout": "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md:430: new blank line at EOF.",
+        "stderr": "",
+        "note": "Run against the previously committed head; reproduces the failure the first receipt missed."
+      },
+      "after": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "79cf1ca928b53c3853a99f6832c197d664dcdd78"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "note": "Baseline against the working tree after the fixes. Every changed file is tracked, so the result equals the baseline-to-head range once these edits are committed."
+      }
+    },
+    "sourceReadmeReferences": {
+      "command": [
+        "bash",
+        "scripts/check-readme-references.sh"
+      ],
+      "exit": 0,
+      "stdout": "All Sources/**/README.md backticked .swift references resolve.",
+      "stderr": ""
+    },
+    "localLinkRefresh": {
+      "previous": {
+        "count": 369,
+        "markdownDocuments": 30,
+        "excludedTargets": {
+          "remote_or_other_scheme": 51,
+          "anchor_only_or_empty": 3
+        },
+        "scope": "All tracked changed and untracked Markdown at this snapshot. Local file/directory targets only; code fences, indented code, inline code, HTML comments, remote/schemed targets and anchor-only targets excluded. Fragment existence is not checked."
+      },
+      "current": {
+        "count": 422,
+        "markdownDocuments": 33,
+        "excludedTargets": {
+          "remote_or_other_scheme": 53,
+          "anchor_only_or_empty": 3
+        }
+      },
+      "documentsAddedToScope": [
+        "spec/03-architecture.md",
+        "spec/11-llm-integration.md",
+        "spec/adr/034-meeting-ask-workspace.md"
+      ],
+      "documentsWithChangedHash": [
+        "README.md",
+        "docs/audits/2026-10-31-app-cli-parity/README.md",
+        "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md",
+        "integrations/README.md",
+        "spec/03-architecture.md",
+        "spec/11-llm-integration.md",
+        "spec/adr/034-meeting-ask-workspace.md"
+      ],
+      "method": "Same extraction rules as the first receipt. Applied to the first-receipt committed Markdown set, the rules reproduced its 369 targets, exclusion counts and document hashes exactly before they were applied to the refreshed set."
+    },
+    "relatedPullRequests": [
+      {
+        "number": 1304,
+        "branch": "fix/history-effective-projection",
+        "url": "https://github.com/moona3k/macparakeet/pull/1304",
+        "stateWhenObserved": "OPEN",
+        "scope": "History JSON effective-correction projection fix"
+      },
+      {
+        "number": 1305,
+        "branch": "fix/vocabulary-literal-boundaries",
+        "url": "https://github.com/moona3k/macparakeet/pull/1305",
+        "stateWhenObserved": "OPEN",
+        "scope": "Punctuation-bearing vocabulary and snippet literal boundaries"
+      }
+    ],
+    "preservedInitialEvidence": {
+      "rawArtifactHashesRechecked": true,
+      "artifactsSha256Unchanged": true,
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false
+    }
   }
 }

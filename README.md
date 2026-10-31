@@ -85,7 +85,7 @@ surfaces are called out in the [canonical status table](spec/README.md#release-c
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect a cloud provider (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtime (Ollama, LM Studio), Apple Intelligence on macOS 26 when the Mac is eligible, an OpenAI-compatible endpoint, or a CLI tool (Claude Code, Codex). Entirely opt-in.
+**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect a cloud provider (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtime (Ollama, LM Studio), an OpenAI-compatible endpoint, or a CLI tool (Claude Code, Codex). Apple Intelligence on macOS 26 serves dictation cleanup only, on eligible Macs. Entirely opt-in.
 
 ### Limitations
 

@@ -60,6 +60,7 @@ claims belong to each PR's actual CI head, not this earlier discovery receipt.
 | 0.8.10 preparation notes lacked publication closeout | Added observed GitHub metadata and installed version checks; retained historical preparation and unverified qualification boundaries. |
 | Reusable agent skill said the state override was Debug-only | It now agrees with `AppPaths`: explicit absolute `MACPARAKEET_DEBUG_APP_STATE_DIR` works in both configurations but does not isolate defaults, Keychain or existing row paths. |
 | Agent overview listed Apple Intelligence under summarization | Corrected to cleanup-only, matching `LLMExecutionContext` and ADR-011. |
+| README, LLM spec, architecture diagram, Ask ADR and integration guide still presented Apple Intelligence as serving summaries, chat, Ask or Transforms | Reworded to cleanup-only, matching `LLMProviderID.canServe(_:)` and the Ask contract. Dated ADR-011 amendments and dated plans remain unchanged. |
 | Integration scope treated all settings/sounds as having no automation counterpart | Distinguished GUI presentation from supported shared preferences and opt-in app URL control. |
 | Settings spec described Modes and simultaneous capture cards | Updated current UI description to Capture, shared mic strip and selected workflow card. Historical UI roadmap retained. |
 | Voice Control privacy boundary was hard to discover from ADR-002 | Added the separate Jev context/consent cross-reference; audio and pixels remain local. |
@@ -150,7 +151,8 @@ launch success cannot certify recording success.
 
 The [data/agent review](data-agent-review.md) reproduces Foundation matching
 failures for standalone `C++`, `C#`, and `.NET`, plus false matches inside
-larger identifiers. A separate fix branch, `fix/vocabulary-literal-boundaries`,
+larger identifiers. A separate fix branch, `fix/vocabulary-literal-boundaries`
+([PR #1305](https://github.com/moona3k/macparakeet/pull/1305)),
 shares Unicode-aware literal boundaries across custom words and plain snippets.
 Its regression cases cover punctuation, Unicode, literal expansion, empty rules
 and meeting token metadata. Trailing actions retain their existing contract.
@@ -172,9 +174,17 @@ alone shifts orphan risk; no speculative deletion change is included.
   `MACPARAKEET_TELEMETRY=0`; these discovery commands do not open the library.
 - [Verification receipt](verification.json): all 139 catalog command paths
   resolve through installed `--help`; all 16 documented feature flags match
-  source; local Markdown file links resolve (the receipt records the final count). The source README reference
-  checker and `git diff --check` pass. An unknown-option probe returns exit 2,
-  empty stdout and a stderr diagnostic, as documented.
+  source; local Markdown file links resolve (the receipt records the final count).
+  The source README reference checker passes. An unknown-option probe returns
+  exit 2, empty stdout and a stderr diagnostic, as documented.
+- Review-fix follow-up: the first receipt ran `git diff --check` before the audit
+  files were tracked, so it did not cover the committed range. Over the committed
+  baseline-to-head range it reported a trailing blank line at the end of
+  `data-agent-review.md`. The line was removed and the range check was re-run.
+  The receipt's `followUp2026-10-31ReviewFixes` section records the re-derived
+  Markdown link scope and document hashes for every Markdown file changed since
+  the baseline. The original 139-command, 16-flag, installed-binary and raw
+  artifact receipts are unchanged.
 - Referenced merge commits in reconciled plans were checked as ancestors of
   the review baseline. That establishes integration, not current CI or release.
 
