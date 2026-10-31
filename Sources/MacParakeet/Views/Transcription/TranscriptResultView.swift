@@ -505,9 +505,29 @@ struct MeetingTranscriptProcessingPresentation: Equatable {
             return nil
         }
         return MeetingTranscriptProcessingPresentation(
-            title: "Transcribing meeting",
+            title: "Processing meeting",
             message:
-                "Your audio is saved. Final transcription is continuing in the background. You can leave this page and return later."
+                "Your audio is saved. Playback and transcription will be prepared in the background. You can leave this page and return later."
+        )
+    }
+}
+
+struct MeetingTranscriptRecoveryPresentation: Equatable {
+    let title: String
+    let message: String
+
+    static func make(
+        sourceType: Transcription.SourceType,
+        status: Transcription.TranscriptionStatus,
+        audioState: MeetingAudioFile.State
+    ) -> MeetingTranscriptRecoveryPresentation? {
+        guard sourceType == .meeting,
+            status == .error || status == .cancelled,
+            audioState == .sourcesSaved
+        else { return nil }
+        return MeetingTranscriptRecoveryPresentation(
+            title: status == .cancelled ? "Meeting processing stopped" : "Meeting processing failed",
+            message: "Your audio is saved. Retry to prepare playback and finish transcription."
         )
     }
 }
@@ -1545,8 +1565,12 @@ struct TranscriptResultView: View {
     }
 
     private var activeTranscription: Transcription {
-        guard let current = viewModel.effectiveCurrentTranscription, current.id == transcription.id else {
-            return transcription
+        var current = viewModel.effectiveCurrentTranscription.flatMap { $0.id == transcription.id ? $0 : nil }
+            ?? transcription
+        // Queue admission can precede the persisted processing status. Apply
+        // that pending state to both the banner and conflicting detail actions.
+        if viewModel.isRetryingMeetingFinalization(id: current.id) {
+            current.status = .processing
         }
         return current
     }
@@ -2128,6 +2152,14 @@ struct TranscriptResultView: View {
 
                     if let presentation = meetingTranscriptProcessingPresentation {
                         meetingTranscriptProcessingState(presentation)
+                    } else if let presentation = meetingTranscriptRecoveryPresentation {
+                        meetingTranscriptRecoveryState(presentation)
+                    }
+                    if let error = viewModel.meetingFinalizationRetryErrors[activeTranscription.id] {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     transcriptDocumentBody
@@ -2755,7 +2787,9 @@ struct TranscriptResultView: View {
                     Label("Save", systemImage: "checkmark")
                 }
                 .parakeetAction(.primaryProminent)
-                .disabled(transcriptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(
+                    transcriptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || !TranscriptDetailActionAvailability.canEdit(status: activeTranscription.status))
             } else {
                 if speakerEditingAvailable, !editingSpeakers {
                     Button(action: beginSpeakerEditing) {
@@ -2792,6 +2826,7 @@ struct TranscriptResultView: View {
                         )
                     )
                     .help(transcriptEditHelp)
+                    .accessibilityIdentifier("transcript-detail-edit")
                 }
             }
         }
@@ -2851,6 +2886,43 @@ struct TranscriptResultView: View {
         MeetingTranscriptProcessingPresentation.make(
             sourceType: activeTranscription.sourceType,
             status: activeTranscription.status
+        )
+    }
+
+    private var meetingTranscriptRecoveryPresentation: MeetingTranscriptRecoveryPresentation? {
+        MeetingTranscriptRecoveryPresentation.make(
+            sourceType: activeTranscription.sourceType,
+            status: activeTranscription.status,
+            audioState: MeetingAudioFile.state(for: activeTranscription)
+        )
+    }
+
+    private func meetingTranscriptRecoveryState(
+        _ presentation: MeetingTranscriptRecoveryPresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Label(presentation.title, systemImage: "exclamationmark.triangle")
+                .font(DesignSystem.Typography.body.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+            Text(presentation.message)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Retry") {
+                let transcription = activeTranscription
+                Task { await viewModel.retryMeetingFinalization(transcription) }
+            }
+            .parakeetAction(.secondary)
+            .disabled(viewModel.onRetryMeetingFinalization == nil || editingTranscript || editingReadingTranscript)
+            .help(editingTranscript || editingReadingTranscript ? "Finish editing before retrying this meeting" : "Retry from saved meeting audio")
+            .accessibilityLabel("Retry meeting processing")
+            .accessibilityIdentifier("meeting-detail-retry")
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
         )
     }
 
@@ -2925,7 +2997,7 @@ struct TranscriptResultView: View {
             timestampedView(words: timestamps)
         } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             transcriptTextBlock
-        } else if meetingTranscriptProcessingPresentation == nil {
+        } else if meetingTranscriptProcessingPresentation == nil && meetingTranscriptRecoveryPresentation == nil {
             Text("No transcript available")
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
         }
@@ -5300,6 +5372,7 @@ struct TranscriptResultView: View {
         let speakerStats = viewModel.speakerAttribution?.statistics
             ?? cachedSpeakerStats
         let mutationsDisabled = viewModel.speakerAttribution == nil || viewModel.isApplyingSpeakerCorrection
+            || viewModel.isRetryingMeetingFinalization(id: activeTranscription.id)
 
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             Button {
