@@ -189,6 +189,58 @@ final class TranscriptDocumentLayoutTests: XCTestCase {
         XCTAssertEqual(content.width, 1_100, accuracy: 1)
     }
 
+    func testSourceOnlyFailedMeetingDetailShowsRecoveryInsteadOfEmptyTranscript() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data([1, 2, 3]).write(to: folder.appendingPathComponent("microphone-raw.m4a"))
+        let suite = makeIsolatedDefaultsSuite("TranscriptDocumentLayoutTests.meeting-retry.")
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let transcription = Transcription(
+            fileName: "Saved meeting",
+            filePath: folder.appendingPathComponent("meeting-playback.m4a").path,
+            meetingArtifactFolderPath: folder.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        let model = TranscriptionViewModel(defaults: defaults)
+        model.currentTranscription = transcription
+        model.onRetryMeetingFinalization = { _ in }
+        let host = Host(
+            rootView: TranscriptResultView(
+                transcription: transcription, viewModel: model,
+                chatViewModel: TranscriptChatViewModel(), promptResultsViewModel: PromptResultsViewModel(),
+                promptsViewModel: PromptsViewModel()
+            ).defaultAppStorage(defaults))
+        let window = LayoutWindow(
+            contentRect: NSRect(x: -20_000, y: -20_000, width: 1_100, height: 650),
+            styleMask: [.titled, .resizable], backing: .buffered, defer: false
+        )
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        let text = renderedText(in: host)
+        XCTAssertTrue(text.contains("Meeting processing failed"), text)
+        XCTAssertTrue(text.contains("Your audio is saved"), text)
+        XCTAssertTrue(text.contains("Retry"), text)
+        XCTAssertFalse(text.contains("No transcript available"), text)
+        assertResultWindowStaysAtOfferedSize(window)
+
+        // A queued retry can leave the persisted snapshot in .error. All detail
+        // actions must nevertheless treat it as processing, not just the banner.
+        Task { await model.retryMeetingFinalization(transcription) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        host.layoutSubtreeIfNeeded()
+        let pendingText = renderedText(in: host)
+        XCTAssertTrue(model.isRetryingMeetingFinalization(id: transcription.id))
+        XCTAssertTrue(pendingText.contains("Processing meeting"), pendingText)
+        XCTAssertFalse(pendingText.contains("Meeting processing failed"), pendingText)
+        XCTAssertFalse(pendingText.components(separatedBy: .newlines).contains("Edit"), pendingText)
+    }
+
     private func renderMeetingResult(
         currentNotes: String?,
         includeMeetingNotesSnapshot: Bool,

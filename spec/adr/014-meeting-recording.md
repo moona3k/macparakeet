@@ -96,19 +96,25 @@ idle → checkingPermissions → starting → recording(elapsedSeconds)
   → stopping → queued(transcriptionID) → idle | error
 ```
 
-2026-06 amendment: `queued(transcriptionID)` is not a long-lived UI state.
-It marks the durable stop boundary: source audio, `meeting-playback.m4a`,
+2026-10 amendment: `queued(transcriptionID)` is not a long-lived UI state.
+It marks the durable stop boundary: source audio, capture metadata,
 `recording.lock(state=awaitingTranscription)`, and the processing Library row
 exist on disk, so the recorder returns to idle and another meeting can start.
-Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
+`MeetingTranscriptionQueue` prepares `meeting-playback.m4a` and runs final STT,
+updating that same row later. Playback need not exist at queue admission.
 The green completion check and "Saved to Library" copy acknowledge this
 durable boundary, not transcript completion. Opening the processing row shows
-an indeterminate transcription state that explicitly says the audio is saved
+an indeterminate processing state that explicitly says the audio is saved
 and background work is continuing. Transcript editing and manual
 retranscription stay unavailable until that queued finalization reaches a
 terminal state. If the detail is already open, both completion and terminal
 failure refresh that same row in place without navigating or stealing focus.
 Recorder-idle queued completion may still present the finished meeting.
+If playback preparation fails while source audio remains, both the Library
+and meeting detail offer Retry through the existing finalization queue. Detail
+keeps the accepted retry visibly processing while it waits in that queue;
+admission errors remain attached to the initiating meeting. This retry reuses
+the same row and is distinct from a manual Retranscribe run.
 Manual retry and crash recovery claim the session lock with the current PID and
 a unique lease before admission; startup reconciliation shares the same
 per-folder mutex so it cannot mark newly claimed work as interrupted.

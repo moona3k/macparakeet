@@ -488,6 +488,18 @@ also fails, source data stays retained and restart recovery remains available.
 A failed prepared job restores its previous ownership and marks its existing
 row retryable. Retry rebuilds absent/undecodable playback before STT.
 
+The meeting detail offers the same finalization Retry as the Library when an
+error/cancelled row retains source audio but has no playback. It reuses the
+canonical row, rather than starting a generic Retranscribe run. An accepted
+detail retry stays visibly processing until the queue reports completion or
+failure, including time spent behind another meeting. Admission errors are
+shown for the initiating meeting; completion clears its pending state even
+when another detail is selected. Processing copy covers playback preparation
+and transcription without implying that either has already started. Pending
+detail retries disable transcript editing and generic retranscription, including
+saving a draft opened before admission. Their completion refreshes the same
+meeting quietly without switching to it after the user navigates elsewhere.
+
 Cleaned-microphone rendering starts only when final STT consumes its readiness
 handle, after entitlement preflight and row persistence, under queue ownership.
 Capture settlement and playback preparation snapshot its dependencies without
