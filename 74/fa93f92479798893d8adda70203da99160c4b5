@@ -1,0 +1,67 @@
+Sources/MacParakeetCore/Services/System/AppGeneratedKeyboardEvents.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-41
+spec/02-features.md
+  s_6f26576d2ce855::t_32941ccffd4a4d 193-196,199-206,307
+Sources/MacParakeetCore/Services/System/ClipboardService.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 45-47,50,54,61-62,66-67,72,76,80-81,85-86
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 878,885
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 38-62,128-148,153-154,158,163,165,235-333
+  s_6f26576d2ce855::t_d5fa001a5011f7 334
+scripts/dev/voice-control/run_ax_flights_probe.py
+  s_6f26576d2ce855::t_32941ccffd4a4d 29,34
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 557
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 90-92,95-101,136,574-584,588-597,1071,1301,1528,1557-1560,1606
+Sources/MacParakeet/Hotkey/TransformsHotkeyRegistry.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 174
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 30,42-53,58,65-66,73-74,138-140,200-204,231,237,257-265,276,294-297,306-309
+Sources/MacParakeetCore/Services/System/SelectionReplacementService.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 401,408-409,412-413
+.github/workflows/quartz-key-state-probe.yml
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-76
+Sources/MacParakeetCore/Services/System/SelectionCaptureService.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 500,507-508,511-512
+spec/adr/009-custom-hotkey.md
+  s_6f26576d2ce855::t_32941ccffd4a4d 151-172
+Tests/MacParakeetTests/Hotkey/SyntheticPasteHotkeyTests.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-198
+scripts/dev/voice-control/run_ax_browser_probe.py
+  s_6f26576d2ce855::t_32941ccffd4a4d 29,34
+Tests/MacParakeetTests/Services/System/AppGeneratedKeyboardEventsTests.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-106
+spec/contracts/dictation-shortcuts.md
+  s_6f26576d2ce855::t_32941ccffd4a4d 138-171
+scripts/ci/quartz-paste-probe.m
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-88
+Sources/MacParakeet/Hotkey/GlobalShortcutManager.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 74,81
+Sources/MacParakeetCore/Services/System/README.md
+  s_6f26576d2ce855::t_32941ccffd4a4d 19-20,64-88
+  s_6f26576d2ce855::t_528a68ccf21551 89
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 137,139
+scripts/ci/quartz-key-state-probe.c
+  s_6f26576d2ce855::t_32941ccffd4a4d 1-218
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_6f26576d2ce855::t_32941ccffd4a4d 668,673,681-682,688-689
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74fa93f92479798893d8adda70203da99160c4b5",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
