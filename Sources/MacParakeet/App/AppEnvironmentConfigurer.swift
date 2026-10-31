@@ -44,7 +44,7 @@ final class AppEnvironmentConfigurer {
         /// whose taps are armed) can never start a model-less dictation, while
         /// the practice box can still run a real one.
         let isOnboardingBlockingDictation: () -> Bool
-        let isActivityRecordingSuppressed: () -> Bool
+        let isActivityRecordingSuppressed: @MainActor () -> Bool
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
