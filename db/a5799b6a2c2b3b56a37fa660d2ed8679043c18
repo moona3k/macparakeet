@@ -1,0 +1,23 @@
+spec/07-text-processing.md
+  s_03ba9026f08bf6::t_bb5fc13a99836b 29
+README.md
+  s_03ba9026f08bf6::t_421e7580999cde 271
+spec/06-stt-engine.md
+  s_03ba9026f08bf6::t_6dfbfbb8f056bf 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dba5799b6a2c2b3b56a37fa660d2ed8679043c18",
+  "prompts": {},
+  "sessions": {
+    "s_03ba9026f08bf6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f848101-1309-4fb1-8960-85f0e88432b2",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
