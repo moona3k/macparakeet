@@ -702,7 +702,7 @@ struct TranscriptResultView: View {
             }
     }
 
-    private var contextObservationContent: some View {
+    private var correctionObservationContent: some View {
         transcriptObservationContent
             .onChange(of: viewModel.speakerAttribution?.correctionRevision) {
                 if let attribution = viewModel.speakerAttribution {
@@ -725,6 +725,10 @@ struct TranscriptResultView: View {
                 // translation was made from; re-fingerprint to flag it stale.
                 viewModel.translationViewModel.load(transcription: activeTranscription)
             }
+    }
+
+    private var aiContextObservationContent: some View {
+        correctionObservationContent
             .onChange(of: viewModel.currentTranscriptionRevision) {
                 guard viewModel.currentTranscription?.id == transcription.id else {
                     richContextLoader.invalidate()
@@ -736,6 +740,10 @@ struct TranscriptResultView: View {
             .onChange(of: transcriptAIContextModeRaw) {
                 scheduleRichAIContextLoad()
             }
+    }
+
+    private var contextObservationContent: some View {
+        aiContextObservationContent
             .onChange(of: viewModel.selectedTab) {
                 if case .result(let id) = viewModel.selectedTab {
                     promptResultsViewModel.markPromptResultViewed(id)
