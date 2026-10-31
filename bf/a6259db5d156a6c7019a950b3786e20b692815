@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Views/SettingsCaptureLayoutTests.swift
+  s_46b66fa7ad2e95::t_1efc63509d4544 52,129,132,192
+  s_46b66fa7ad2e95::t_b35b96ad74f5c4 38-51,53-128,130-131,133-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bfa6259db5d156a6c7019a950b3786e20b692815",
+  "prompts": {},
+  "sessions": {
+    "s_46b66fa7ad2e95": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193c9-6984-7ff3-9ae9-3aabff7c60ea",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
