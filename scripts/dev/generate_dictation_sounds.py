@@ -155,7 +155,7 @@ def main():
     manifest_path = ROOT / "docs/assets/dictation-sounds/manifest.json"
     encoded = (json.dumps(manifest, indent=2) + "\n").encode()
     # Alternate outputs are for authoring experiments, not the committed manifest.
-    if args.output_dir == ROOT / "Sources/MacParakeet/Resources":
+    if args.output_dir.resolve() == (ROOT / "Sources/MacParakeet/Resources").resolve():
         if args.check:
             if not manifest_path.is_file() or manifest_path.read_bytes() != encoded:
                 failures.append(str(manifest_path))
