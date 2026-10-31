@@ -1,6 +1,25 @@
 # MacParakeet 0.8.10
 
-Preparation record for the 0.8.10 candidate. This is not a publication record. The stable download remains [0.8.9](../0.8.9/README.md) until the signed DMG, appcast, and GitHub release exist.
+## Publication update (verified 2026-10-31)
+
+[0.8.10 was published on GitHub](https://github.com/moona3k/macparakeet/releases/tag/v0.8.10)
+on October 14, 2026 at 04:30 UTC, targeting
+`394e630b4af70c814f1176902337a95c99b84f0c`. The release lists
+`MacParakeet.dmg` (181,247,157 bytes). The locally installed app reports 0.8.10
+and its bundled CLI reports 5.1.0. Source has since advanced; see the
+[canonical release table](../../../spec/README.md#release-channels-and-feature-flags).
+
+These are publication/version observations, not a new artifact-signature or
+hardware qualification. The October 31 review could not read the live Sparkle
+feed (HTTP 403) and did not repeat notarization, an upgrade, or a DMG mount.
+The [review evidence](../../audits/2026-10-31-app-cli-parity/README.md) records
+that limit. No DMG hash or unobserved validation receipt is inferred here.
+
+## Historical preparation record
+
+The remainder records the candidate preparation and its then-outstanding
+checks. Publication above supersedes the old “not yet published” status; it
+does not retroactively turn every preparation gate into verified evidence.
 
 - [GitHub release body](github.md): changes since 0.8.9, the CLI 5.1.0 default-model note, and a link to 0.8.9 for people skipping that release.
 - [Sparkle description](sparkle.html): 0.8.10 changes plus a short 0.8.9 recap. Sparkle shows only the newest item, so the recap has to stand alone. The feed should keep previous entries.
@@ -31,6 +50,6 @@ Voice Control, cross-recording Ask, voice profiles, encrypted share links, and i
 
 The app and CLI both default Anthropic to `claude-sonnet-5-5` and OpenRouter to `anthropic/claude-sonnet-5.5`. New Summary prompts include meeting notes in both surfaces; existing libraries keep their saved preference. Meeting URL controls default off in the app and are not a CLI command. Diarized meetings label unclaimed system words Unattributed and leave them out of `speakerCount` in both surfaces.
 
-## Not yet verified
+## Preparation-time verification limits
 
 Signed app and DMG notarization, stapling, Gatekeeper, the mounted CLI version, a Sparkle upgrade, website changelog deployment, and physical microphone, Bluetooth, or 16 GB capture. Those belong to the publication steps in [distribution](../../distribution.md).

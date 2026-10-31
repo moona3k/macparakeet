@@ -1618,7 +1618,7 @@ are unaffected.
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
 
-**Reading-view additions (text editing shipped in 0.8.8; find and replace is in the 0.8.10 candidate):**
+**Reading-view additions (text editing shipped in 0.8.8; find and replace shipped in 0.8.10):**
 
 - The Text view of a timed transcript has **Edit**. It opens the same passages
   for rewriting or removal, then **Done** saves them as one `reviseText`
@@ -2354,7 +2354,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Pending gestures that have not started a take still clear. | [F1](02-features.md#f1-system-wide-dictation) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
 | Keep failed dictation audio | When recorded-file STT fails after a normal stop, the recording is kept in History as a failed row with Retry instead of being deleted (#1131). Requires Save dictation history. Paste surfaces and voice stats stay completed-only until a retry succeeds. | [F4](02-features.md#f4-dictation-history) |
-| Dictation capture sounds | Default-off Dictation setting (`playDictationCaptureSounds`). A quiet system cue once capture is live and one when that capture ends, including cancel. Takes that never went live stay silent. Toggling it on previews the start cue. | [F1](02-features.md#f1-system-wide-dictation) |
+| Dictation capture sounds | Default-off Dictation setting (`playDictationCaptureSounds`). Independent start/stop presets, custom sounds or silence, with per-cue volume in current source. Cues follow actual capture start/end, including cancel; takes that never went live stay silent. The CLI exposes the master switch only. See [sound behavior](../docs/dictation-sounds.md). | [F1](02-features.md#f1-system-wide-dictation) |
 | Skip-microphone onboarding | The microphone row on the first-run Permissions page stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
 | Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |

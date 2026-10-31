@@ -44,6 +44,13 @@ LLM-powered features (summaries, chat/Meeting Ask, AI Formatter, and Transforms)
   - No default provider — user must explicitly opt in
   - Features work without any provider configured (they're just unavailable)
 
+- **Voice Control decisions (implemented, release-gated)**: explicit command
+  consent permits Jev to receive command text and bounded visible UI/browser or
+  OCR text under [ADR-033](033-explicit-voice-control.md). Captured audio and
+  screen pixels stay local. Writing-provider consent is separate; configuring
+  a summary provider does not authorize this control/context-disclosure path.
+  See the [Voice Control contract](../contracts/voice-control.md).
+
 ### Other network surfaces
 
 - **Media imports**: User-requested public media downloads through yt-dlp and

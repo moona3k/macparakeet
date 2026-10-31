@@ -93,6 +93,14 @@ Each command is a `ParsableCommand` / `AsyncParsableCommand`. Command families
    meaning, update [`spec/contracts/cli-json-v1.md`](../../spec/contracts/cli-json-v1.md)
    in the same change.
 
+## Reviewing GUI and agent parity
+
+Use the [capability map](../../integrations/capabilities.md) to check the
+workflow, shared Core owner, intentional boundary, and known gaps. In particular,
+a read command returning transcript text must use the effective correction
+projection where promised; a search hit alone does not establish output parity.
+Update the map when a gap closes or a new deliberate boundary is introduced.
+
 ## Testing
 
 ```bash

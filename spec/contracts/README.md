@@ -49,6 +49,9 @@ Planned contracts are listed separately below; they do not describe available pa
 - [Meeting Artifacts v1](meeting-artifacts-v1.md)
 - [Meeting Recovery and Retention Safety](meeting-recovery-retention.md)
 - [CLI JSON v1](cli-json-v1.md)
+- [Ask Workspace](ask-workspace.md) — independent conversations and revision-bound evidence; release-gated
+- [Speaker Voiceprints](speaker-voiceprints.md) — local enrollment/storage/export boundary; release-gated
+- [Whole-Transcript Edits](whole-transcript-edits.md) — revision-checked effective text changes
 - [DAPT Export v1](dapt-export-v1.md)
 - [File Transcription Audio Tracks](file-transcription-audio-tracks.md)
 - [YouTube Video Playback](youtube-video-playback.md)

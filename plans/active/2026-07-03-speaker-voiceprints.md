@@ -1,5 +1,11 @@
 # Persistent Speaker Profiles (Voiceprints) — Research Synthesis + Implementation Plan
 
+> Reconciled 2026-10-31 against main `79cf1ca92`: experimental consent,
+> enrollment, suggestions, manual assignment, and administration are implemented,
+> including #1044 (`5eb2b1e19`). The release flag remains off. The dated design
+> and calibration evidence below is retained; held-out real-meeting evaluation
+> and native qualification remain release gates, not missing foundation code.
+
 - **Date:** 2026-07-03 (amended 2026-09-09; integration and release decision
   2026-09-10 — see [Release gates](#integration-and-release-gates-2026-09-10))
 - **Status:** EXPERIMENTAL IMPLEMENTATION, DISABLED BY DEFAULT. Phase 0: NO-GO on the July meeting corpus

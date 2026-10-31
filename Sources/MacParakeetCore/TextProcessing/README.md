@@ -44,11 +44,11 @@ mode.
 - `spec/07-text-processing.md` — narrative spec.
 - ADR-011 — the LLM provider model that the separate AI formatter
   rides on.
-- ADR-032 — if cleanup and meeting AI later use different models, select
-  per task (inherit / general route / specialist recipe), not per feature.
-  Not implemented; formatter enablement toggles stay independent of that
-  policy. S1-mini-class normalizers are cleanup recipes, not the default
-  LLM.
+- [ADR-032](../../../spec/adr/032-llm-task-group-routing.md) — implemented
+  cleanup/analysis task routes inherit Default AI or select a general provider;
+  Transforms inherit Default AI. Formatter enablement stays independent of
+  routing. Apple Intelligence serves cleanup only. Specialist recipes are
+  not shipped; do not treat the earlier proposal as the current provider UI.
 
 ## What to know before editing
 

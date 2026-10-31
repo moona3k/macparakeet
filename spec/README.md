@@ -93,19 +93,29 @@ These decisions are final. Do not second-guess them.
 > Canonical release-status block for agents and docs. Update this section when
 > release channel framing changes or an `AppFeatures` flag flips.
 
-The current stable app release is **0.8.10**, [published October 14,
-2026](https://github.com/moona3k/macparakeet/releases/tag/v0.8.10), and it bundles
-CLI **5.1.0**. This revision adds opt-in **Beta** meeting recording reminders
-for the next app release; that feature is absent from the published 0.8.10 DMG.
-The feature flag is unconditional, so Release builds of this source include the
-Beta setting; it is not a DEBUG-only surface. **0.9.0** remains reserved for
-qualified, publicly enabled Jev Voice Control; its release gate stays off. The
-standalone Homebrew CLI remains a separate release channel.
+The published stable app release is **0.8.10**, with bundled CLI **5.1.0**.
+The [GitHub release](https://github.com/moona3k/macparakeet/releases/tag/v0.8.10)
+was published on October 14, 2026 from `394e630b4af70c814f1176902337a95c99b84f0c`.
+The standalone CLI is versioned separately; its published release is
+[CLI 5.1.0](https://github.com/moona3k/macparakeet/releases/tag/cli-v5.1.0).
+Source still reports CLI 5.1.0 while later fixes accumulate under
+[Unreleased](../Sources/CLI/CHANGELOG.md#unreleased); promote that section and
+bump the CLI version before distributing those fixes.
+This revision also adds opt-in **Beta** meeting recording reminders for the next
+app release; that feature is absent from the published 0.8.10 DMG. The feature
+flag is unconditional, so Release builds of this source include the Beta
+setting; it is not a DEBUG-only surface.
+**0.9.0** remains reserved for qualified, publicly enabled Jev Voice Control.
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| Stable DMG `0.8.10` | User-facing release, recommended for normal use | Includes speaker-count selection, transcript find and replace, additional dictation shortcuts, meeting-capture recovery improvements, and bundled CLI 5.1.0. See the [0.8.10 release notes](../docs/releases/0.8.10/github.md). |
-| Development source (this revision) | Advances beyond the stable download; reminder feature targets the next app release | Adds opt-in Beta meeting recording reminders, default off, in both Debug and Release builds. Automatic activity-based recording remains unavailable. Ask and Voice Control remain disabled in release builds; voice profiles, encrypted share links and in-process MLX remain gated off. Check branch/commit identity and the [CLI changelog](../Sources/CLI/CHANGELOG.md) before attributing changes to the published app. |
+| Stable DMG `0.8.10` | Published user-facing release | Includes speaker count before transcription, Unattributed leftovers, transcript find and replace, a second dictation shortcut, exact chord matching, opt-in meeting URL controls, meeting-microphone recovery, bounded live-preview/cleaned-mic memory, and CLI 5.1.0. Apple Intelligence is cleanup-only. See [release notes](../docs/releases/0.8.10/github.md) and the [publication/preparation record](../docs/releases/0.8.10/README.md). |
+| Development source | `main` advances beyond the stable download | Since 0.8.10: opt-in Beta meeting recording reminders (default off, Debug and Release builds; no automatic activity-based recording), opt-in dictation URL controls, configurable dictation start/stop sounds, saved-meeting capture settlement and retry, AEC reference lookahead, split-stream YouTube playback, synthetic keyboard-event isolation, knowledge-card recovery, and Settings/vocabulary fixes. The audit reviewed `79cf1ca92` on October 31, before the reminders landed; see the [audit](../docs/audits/2026-10-31-app-cli-parity/README.md). Ask, Voice Control, voice profiles, encrypted share links and in-process MLX remain release-gated. |
+
+Publication metadata and installed version checks do not establish a fresh
+notarization, Sparkle-upgrade, hardware-capture, or native-UI qualification.
+The [GUI/CLI/agent capability map](../integrations/capabilities.md) records
+supported workflows, intentional differences, and remaining parity gaps.
 
 Feature gates in the current source (`Sources/MacParakeetCore/AppFeatures.swift`); an implemented gated surface is not a shipped feature:
 
@@ -193,7 +203,7 @@ The [meeting import v1 contract](contracts/meeting-import-v1.md) defines the sha
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
 | v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023, per-user default off), meeting reliability (ADR-025 Phase A behind a default-on kill switch), activity-based detection groundwork (ADR-024 Phases A+B behind a default-off flag), optional Cohere Transcribe, display-only live dictation transcript preview, meeting echo-cancellation/cleaned-mic artifacts, meeting audio N-day retention, System Default microphone-routing repair, split live/final speech-engine routes, bounded meeting-capture lifecycle, CLI 3.0, developer-gated local MLX groundwork, and follow-up polish | **Implemented** |
-| v0.8 | Library, meetings, and transcript workflow | Meeting import and split, timed transcript corrections, live transcription toggle, independent capture-source startup, per-event calendar skip, start-meetings-muted, Microsoft 365/Exchange calendar setup, labels and Library layouts, Seed of Life covers, Clean English “um” stripping, optional preserved discarded dictations, skip-microphone onboarding, AI Formatter default-off with split prompts, optional streaming-cursor insert, China-lab LLM providers, Sonoma encoder off ANE, hold-to-talk restore, Caps Lock+Fn, overlay inset split, DAPT export, CLI 5.1.0 bundled with 0.8.10, and capture/recovery hardening | **Stable download 0.8.10; next-release reminders in opt-in Beta** |
+| v0.8 | Library, meetings, and transcript workflow | Meeting import and split, timed transcript corrections, live transcription toggle, independent capture-source startup, per-event calendar skip, start-meetings-muted, Microsoft 365/Exchange calendar setup, labels and Library layouts, Seed of Life covers, Clean English “um” stripping, optional preserved discarded dictations, skip-microphone onboarding, AI Formatter default-off with split prompts, optional streaming-cursor insert, China-lab LLM providers, Sonoma encoder off ANE, hold-to-talk restore, Caps Lock+Fn, overlay inset split, DAPT export, CLI 5.1.0 in 0.8.10, and capture/recovery hardening | **Stable download 0.8.10; later source changes, including opt-in Beta reminders, remain unreleased** |
 
 ## Version Progress
 

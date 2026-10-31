@@ -1,6 +1,10 @@
 # Timed Transcript Text Editing and Line Merge
 
-> Status: **IMPLEMENTED ON FEATURE BRANCH**
+> Status: **IMPLEMENTED ON MAIN**
+> Reconciled 2026-10-31: #1029 merged as `45a303795` and is present in
+> reviewed main `79cf1ca92`. Branch, checklist, and test evidence below describe
+> the original implementation; they do not certify later native interaction.
+> [ADR-031](../../spec/adr/031-timed-transcript-corrections.md) governs current behavior.
 > Date: 2026-09-13
 > Issue: [#893](https://github.com/moona3k/macparakeet/issues/893)
 > Governing decision: [ADR-031](../../spec/adr/031-timed-transcript-corrections.md)

@@ -1,6 +1,11 @@
 # Keyboard event taps off the main run loop (#1142)
 
-Status: **PR OPEN** (branch `fix/event-taps-off-main`)
+Status: **IMPLEMENTED ON MAIN / QA REMAINDER**
+
+> Current status (2026-10-31): #1143 merged as `d4932a793`; the implementation
+> is present in reviewed main `79cf1ca92`. The original branch and validation
+> narrative below are historical. Manual typing/stall qualification remains
+> distinct from integration and is not claimed by this documentation review.
 
 ## Problem
 

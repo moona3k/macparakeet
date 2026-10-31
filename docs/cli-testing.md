@@ -16,6 +16,15 @@ before exiting one so verification does not create a duplicate by importing agai
 
 Use `macparakeet-cli` for fast, repeatable testing of core transcription and text-processing flows.
 
+## Parity review
+
+The [capability map](../integrations/capabilities.md) identifies shared workflows
+and intentional differences. A source/docs audit or installed-binary help probe
+is not a fresh build or native qualification of development source. Use
+projection-aware transcript reads while the documented history JSON correction
+gap remains open. Keep synthetic test state separate from user data; the state
+root override does not isolate shared preferences or Keychain.
+
 ## Build Once
 
 ```bash

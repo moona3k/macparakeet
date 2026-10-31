@@ -263,7 +263,9 @@ must report the promoted semver from `Sources/CLI/CHANGELOG.md`.
 
 ### Version bumping
 
-The current app release is **0.8.9**, continuing the 0.8.x release train.
+The app continues the 0.8.x release train. Read the
+[canonical release-channel table](../spec/README.md#release-channels-and-feature-flags)
+and live publication metadata for the current version before preparing a release.
 **0.9.0 is reserved for qualified, publicly enabled Jev Voice Control.**
 This deliberate milestone policy takes precedence over the generic guidance
 below. Voice Control remains release-gated; additive improvements to the

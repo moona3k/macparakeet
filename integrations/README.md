@@ -49,18 +49,25 @@ testing.
 
 - **Interactive dictation** -- live mic capture, push-to-talk, the global
   hotkey, and the dictation overlay are GUI surfaces. The CLI does not record
-  from the microphone.
+  from the microphone. Explicit, opt-in [dictation URL controls](#dictation-url-controls)
+  invoke the app; they do not add headless capture or a completion receipt.
 - **Live meeting UI** -- the Notes / Transcript / Ask three-tab live panel,
   the floating meeting pill, live recording controls, and in-flight
   post-stop transcription abort/delete confirmation belong to the GUI. The CLI
   inspects meeting artifacts after the fact. The app also offers the opt-in
   [meeting URL controls](#meeting-url-controls) below.
-- **Onboarding, settings UI, library grids, sounds, overlays** -- none of these
-  have automation analogues; they remain in the .app.
+- **Interactive presentation and system consent** -- onboarding, permission
+  prompts, grids, playback, and overlays remain in the app. Supported shared
+  preferences are scriptable through `config`; this includes the dictation
+  sound master switch, but not every GUI preference or per-cue sound setting.
 
 The principle: if a use case can be automated, scripted, or driven by an agent,
 the CLI should support it through a stable contract. If it requires a user
 sitting at a keyboard, it lives in the .app.
+
+See the [capability and parity map](capabilities.md) for workflow coverage,
+known gaps, and safe alternatives. Command discovery describes syntax; it does
+not certify complete parity or permission to execute a write.
 
 ## What `macparakeet-cli` gives your agent
 
@@ -84,9 +91,10 @@ sitting at a keyboard, it lives in the .app.
   telemetry without driving the GUI.
 - **Prompt library + LLM-backed summarization** -- bring your own provider
   (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI,
-  MiniMax, Ollama, LM Studio, Apple Intelligence on macOS 26+,
-  OpenAI-compatible, or a configured CLI subprocess), or skip the LLM entirely
-  and consume raw transcripts.
+  MiniMax, Ollama, LM Studio, OpenAI-compatible, or a configured CLI subprocess),
+  or skip the LLM entirely and consume raw transcripts. Apple Intelligence on
+  macOS 26+ is a separate cleanup-only option; it cannot run summaries, chat,
+  knowledge cards, or Transforms.
 - **Machine-readable output** -- read-only query commands use `--json`,
   format-selecting commands use `--format json`, and LLM/prompt commands use
   `--json` for structured envelopes (see

@@ -1,0 +1,5490 @@
+{
+  "cliVersion" : "5.1.0",
+  "commandName" : "macparakeet-cli",
+  "commands" : [
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        }
+      ],
+      "output" : "Array of AskConversation objects, including revision, sections, messages and draft.",
+      "path" : [
+        "ask",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List independent saved Ask conversations. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Full recording UUIDs.",
+          "valueName" : "UUID..."
+        }
+      ],
+      "output" : "AskConversation object.",
+      "path" : [
+        "ask",
+        "new"
+      ],
+      "readOnly" : false,
+      "summary" : "Create a conversation with up to 32 explicitly selected recordings. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full conversation UUID."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        }
+      ],
+      "output" : "AskConversation object.",
+      "path" : [
+        "ask",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Read a saved conversation. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full UUID."
+        },
+        {
+          "name" : "title",
+          "required" : true,
+          "summary" : "New title."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--revision",
+          "required" : true,
+          "summary" : "Expected revision.",
+          "valueName" : "N"
+        }
+      ],
+      "output" : "Updated AskConversation object.",
+      "path" : [
+        "ask",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename a conversation with optimistic concurrency. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full UUID."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        }
+      ],
+      "output" : "Object containing deleted UUID.",
+      "path" : [
+        "ask",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete an Ask conversation while preserving recordings. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--search",
+          "required" : false,
+          "summary" : "Title search.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--type",
+          "required" : false,
+          "summary" : "meeting, file, youtube, podcast.",
+          "valueName" : "KIND"
+        },
+        {
+          "name" : "--since",
+          "required" : false,
+          "summary" : "Inclusive start date.",
+          "valueName" : "DATE"
+        },
+        {
+          "name" : "--until",
+          "required" : false,
+          "summary" : "Inclusive end date.",
+          "valueName" : "DATE"
+        },
+        {
+          "name" : "--label",
+          "required" : false,
+          "summary" : "Match any selected label.",
+          "valueName" : "UUID..."
+        },
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "1...100; defaults to 50.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--offset",
+          "required" : false,
+          "summary" : "Page offset, defaults to zero.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--labels",
+          "required" : false,
+          "summary" : "List labels instead of recordings."
+        }
+      ],
+      "output" : "Array of AskSourceDescriptor or MeetingLabel objects.",
+      "path" : [
+        "ask",
+        "sources"
+      ],
+      "readOnly" : true,
+      "summary" : "Search\/filter recording metadata or list labels. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full conversation UUID."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--revision",
+          "required" : true,
+          "summary" : "Expected revision.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Full recording UUIDs; omission clears selection.",
+          "valueName" : "UUID..."
+        }
+      ],
+      "output" : "Updated AskConversation object.",
+      "path" : [
+        "ask",
+        "select"
+      ],
+      "readOnly" : false,
+      "summary" : "Replace the selected sources; starts a fresh context section. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full UUID."
+        },
+        {
+          "name" : "text",
+          "required" : true,
+          "summary" : "Draft text."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--revision",
+          "required" : true,
+          "summary" : "Expected revision.",
+          "valueName" : "N"
+        }
+      ],
+      "output" : "Updated AskConversation object.",
+      "path" : [
+        "ask",
+        "draft"
+      ],
+      "readOnly" : false,
+      "summary" : "Persist an unsent question. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full UUID."
+        }
+      ],
+      "jsonMode" : "default; --stream for NDJSON",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--revision",
+          "required" : true,
+          "summary" : "Expected revision.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--question",
+          "required" : true,
+          "summary" : "Question to investigate.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--allow-remote",
+          "required" : false,
+          "summary" : "Permit sending selected context to this remote provider."
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Emit activity\/phase\/step\/text\/final conversation events as NDJSON. Ignore unknown event types."
+        },
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        }
+      ],
+      "output" : "Updated AskConversation; terminal message status complete, failed, cancelled, or incomplete. Any non-complete answer exits 1.",
+      "path" : [
+        "ask",
+        "send"
+      ],
+      "readOnly" : false,
+      "summary" : "Investigate selected recordings through Pi and an explicit direct model provider. The cli provider is unsupported. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "source",
+          "required" : true,
+          "summary" : "Full recording UUID."
+        }
+      ],
+      "jsonMode" : "default",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--enable-ask-workspace",
+          "required" : false,
+          "summary" : "Opt in to experimental Ask in a Debug build. Release builds always reject Ask."
+        },
+        {
+          "name" : "--source-revision",
+          "required" : true,
+          "summary" : "Revision from citation.",
+          "valueName" : "HASH"
+        },
+        {
+          "name" : "--segment",
+          "required" : true,
+          "summary" : "Zero-based passage index.",
+          "valueName" : "N"
+        }
+      ],
+      "output" : "AskEvidence object: status plus available source\/passage; missing optional fields are omitted.",
+      "path" : [
+        "ask",
+        "evidence"
+      ],
+      "readOnly" : true,
+      "summary" : "Resolve a citation against the current transcript revision. Experimental Ask is disabled by default. Debug builds require --enable-ask-workspace; Release builds reject Ask even with that flag, before database or provider access."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "CLISpec object.",
+      "path" : [
+        "spec"
+      ],
+      "readOnly" : true,
+      "summary" : "Print this machine-readable CLI contract."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "session",
+          "required" : true,
+          "summary" : "Path to latest.json or sessions\/*.json."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--goal",
+          "required" : false,
+          "summary" : "Instruction to route; defaults to the recorded one.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--observation",
+          "required" : false,
+          "summary" : "0-based observation index; defaults to the last.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--history",
+          "required" : false,
+          "summary" : "Comma-separated op:targetID[:receipt] executed history.",
+          "valueName" : "LIST"
+        },
+        {
+          "name" : "--jev",
+          "required" : false,
+          "summary" : "Call Jev on router fall-through; requires JEV_API_KEY."
+        }
+      ],
+      "output" : "VoiceControlReplayReport object: decision, jevRequest, jevDecision.",
+      "path" : [
+        "voice-control",
+        "replay"
+      ],
+      "readOnly" : true,
+      "summary" : "Experimental: route an instruction against a saved Voice Control observation offline; executes nothing."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--repair-models",
+          "required" : false,
+          "summary" : "Mutating: attempt to prepare local speech models."
+        },
+        {
+          "name" : "--repair-attempts",
+          "required" : false,
+          "summary" : "Maximum repair attempts when --repair-models is set.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--repair-binaries",
+          "required" : false,
+          "summary" : "Mutating: install or update helper binaries such as yt-dlp."
+        }
+      ],
+      "output" : "HealthReport object.",
+      "path" : [
+        "health"
+      ],
+      "readOnly" : false,
+      "summary" : "Check database, speech stack, helper binaries, and local runtime readiness; repair flags mutate local caches."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "input...",
+          "required" : false,
+          "summary" : "Zero or more file paths, folders, Apple Podcasts links, or HTTP(S) media URLs supported by yt-dlp. Omit when using --podcast."
+        }
+      ],
+      "jsonMode" : "--format json",
+      "options" : [
+        {
+          "name" : "--podcast",
+          "required" : false,
+          "summary" : "Search Apple Podcasts by show\/episode text and transcribe the selected episode.",
+          "valueName" : "QUERY"
+        },
+        {
+          "name" : "--audio-track",
+          "required" : false,
+          "summary" : "Select a one-based embedded audio track for local files and folders.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--output-dir",
+          "required" : false,
+          "summary" : "Write one transcript file per input to this directory; implies batch mode.",
+          "valueName" : "DIR"
+        },
+        {
+          "name" : "--format",
+          "required" : false,
+          "summary" : "Output format for stdout or written transcript files.",
+          "valueName" : "text|transcript|json|srt|vtt|dapt"
+        },
+        {
+          "name" : "--mode",
+          "required" : false,
+          "summary" : "Text processing mode for this run.",
+          "valueName" : "raw|clean|app-default"
+        },
+        {
+          "name" : "--engine",
+          "required" : false,
+          "summary" : "Speech engine for this run.",
+          "valueName" : "parakeet|nemotron|whisper|cohere|app-default"
+        },
+        {
+          "name" : "--language",
+          "required" : false,
+          "summary" : "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect.",
+          "valueName" : "CODE"
+        },
+        {
+          "name" : "--parakeet-model",
+          "required" : false,
+          "summary" : "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview).",
+          "valueName" : "app-default|v3|v2|unified|orukeet"
+        },
+        {
+          "name" : "--nemotron-model",
+          "required" : false,
+          "summary" : "Nemotron Beta build for this run; ignored for Parakeet, Cohere, and Whisper.",
+          "valueName" : "app-default|multilingual-1120ms|english-1120ms"
+        },
+        {
+          "name" : "--downloaded-audio",
+          "required" : false,
+          "summary" : "Downloaded media retention policy.",
+          "valueName" : "app-default|keep|delete"
+        },
+        {
+          "name" : "--speaker-detection",
+          "required" : false,
+          "summary" : "Speaker detection behavior for this run.",
+          "valueName" : "app-default|on|off"
+        },
+        {
+          "name" : "--speaker-count",
+          "required" : false,
+          "summary" : "Exact known speaker count; implies speaker detection unless explicitly disabled.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--speaker-min",
+          "required" : false,
+          "summary" : "Minimum speaker count bound for diarization.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--speaker-max",
+          "required" : false,
+          "summary" : "Maximum speaker count bound for diarization.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--no-diarize",
+          "required" : false,
+          "summary" : "Compatibility alias for --speaker-detection off."
+        },
+        {
+          "name" : "--media-audio-quality",
+          "required" : false,
+          "summary" : "Downloaded media audio quality.",
+          "valueName" : "app-default|m4a|best-available"
+        },
+        {
+          "name" : "--no-history",
+          "required" : false,
+          "summary" : "Do not persist the completed transcription."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Single Transcription object for stdout mode; one transcript file per input in batch\/output-dir mode.",
+      "path" : [
+        "transcribe"
+      ],
+      "readOnly" : false,
+      "summary" : "Transcribe audio\/video files, folders, Apple Podcasts links\/searches, or media URLs."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "record",
+          "required" : true,
+          "summary" : "Saved record UUID, UUID prefix, or exact transcription\/meeting title."
+        }
+      ],
+      "jsonMode" : "--json|--envelope",
+      "options" : [
+        {
+          "name" : "--kind",
+          "required" : false,
+          "summary" : "Constrain record resolution; auto fails on ambiguous matches.",
+          "valueName" : "auto|dictation|transcription|meeting"
+        },
+        {
+          "name" : "--update",
+          "required" : false,
+          "summary" : "Required confirmation that the command updates the existing saved record in place."
+        },
+        {
+          "name" : "--json",
+          "required" : false,
+          "summary" : "Emit the updated record payload as JSON."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Emit a success\/failure envelope."
+        },
+        {
+          "name" : "--mode",
+          "required" : false,
+          "summary" : "Text processing mode for this rerun.",
+          "valueName" : "raw|clean|app-default"
+        },
+        {
+          "name" : "--engine",
+          "required" : false,
+          "summary" : "Speech engine for this rerun.",
+          "valueName" : "parakeet|nemotron|whisper|cohere|app-default"
+        },
+        {
+          "name" : "--language",
+          "required" : false,
+          "summary" : "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect.",
+          "valueName" : "CODE"
+        },
+        {
+          "name" : "--parakeet-model",
+          "required" : false,
+          "summary" : "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview).",
+          "valueName" : "app-default|v3|v2|unified|orukeet"
+        },
+        {
+          "name" : "--nemotron-model",
+          "required" : false,
+          "summary" : "Nemotron Beta build for this rerun; ignored for Parakeet, Cohere, and Whisper.",
+          "valueName" : "app-default|multilingual-1120ms|english-1120ms"
+        },
+        {
+          "name" : "--speaker-detection",
+          "required" : false,
+          "summary" : "Speaker detection for saved transcriptions and meetings; app-default follows the record type's saved preference.",
+          "valueName" : "app-default|on|off"
+        },
+        {
+          "name" : "--speaker-count",
+          "required" : false,
+          "summary" : "Exact known speaker count for saved transcriptions and meetings.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--speaker-min",
+          "required" : false,
+          "summary" : "Minimum speaker count bound for saved transcriptions and meetings.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--speaker-max",
+          "required" : false,
+          "summary" : "Maximum speaker count bound for saved transcriptions and meetings.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--no-diarize",
+          "required" : false,
+          "summary" : "Compatibility alias for --speaker-detection off."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "RetranscribeResult with kind, id, sourcePath, updatedAt, and the updated Dictation or Transcription record.",
+      "path" : [
+        "retranscribe"
+      ],
+      "readOnly" : false,
+      "summary" : "Retranscribe retained source audio for an existing saved dictation, transcription, or meeting in place."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "query",
+          "required" : true,
+          "summary" : "FTS5 query; supports phrases, prefixes, and AND\/OR."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--since",
+          "required" : false,
+          "summary" : "Minimum recording time; date-only values use local start of day.",
+          "valueName" : "ISO-8601"
+        },
+        {
+          "name" : "--until",
+          "required" : false,
+          "summary" : "Maximum recording time; date-only values use local end of day.",
+          "valueName" : "ISO-8601"
+        },
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Recording source filter.",
+          "valueName" : "meeting|file|url"
+        },
+        {
+          "name" : "--speaker",
+          "required" : false,
+          "summary" : "Speaker-label substring filter.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum segment hits.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of segment hits with transcriptionId, title, recordedAt, source, seq, optional startMs\/speaker, snippet, and optional rank.",
+      "path" : [
+        "search"
+      ],
+      "readOnly" : true,
+      "summary" : "Search indexed meeting and file\/URL transcript segments with FTS5 query syntax."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "SegmentReindexResult with transcriptionsIndexed and segmentsIndexed.",
+      "path" : [
+        "search-reindex"
+      ],
+      "readOnly" : false,
+      "summary" : "Deterministically rebuild derived segments and the FTS index from saved transcripts."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--around",
+          "required" : false,
+          "summary" : "Center timestamp.",
+          "valueName" : "hh:mm:ss|ms"
+        },
+        {
+          "name" : "--window",
+          "required" : false,
+          "summary" : "Time on either side of --around.",
+          "valueName" : "DURATION"
+        },
+        {
+          "name" : "--around-seq",
+          "required" : false,
+          "summary" : "Center segment sequence number.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--context",
+          "required" : false,
+          "summary" : "Segments on either side of --around-seq.",
+          "valueName" : "K"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "TranscriptSliceRecord with transcription metadata and ordered segment objects.",
+      "path" : [
+        "transcript"
+      ],
+      "readOnly" : true,
+      "summary" : "Read a segment slice from a saved meeting or file\/URL transcript."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json|--ndjson",
+      "options" : [
+        {
+          "name" : "--since",
+          "required" : false,
+          "summary" : "Minimum recording time; date-only values use local start of day.",
+          "valueName" : "ISO-8601"
+        },
+        {
+          "name" : "--until",
+          "required" : false,
+          "summary" : "Maximum recording time; date-only values use local end of day.",
+          "valueName" : "ISO-8601"
+        },
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Recording source filter.",
+          "valueName" : "meeting|file|url"
+        },
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum cards.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--ndjson",
+          "required" : false,
+          "summary" : "Emit one compact card object per line."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array or NDJSON stream of current, non-stale cards with provenance, extracted fields, and joined title\/date\/duration\/source\/attendees.",
+      "path" : [
+        "cards",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List current knowledge cards with joined recording metadata."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : false,
+          "summary" : "One transcription UUID, UUID prefix, or exact title to regenerate."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--all",
+          "required" : false,
+          "summary" : "Regenerate every completed recording."
+        },
+        {
+          "name" : "--stale",
+          "required" : false,
+          "summary" : "Generate only the SQL-prefiltered missing or stale subset."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Generation report with selected\/processed\/generated\/skipped\/failed counts, token usage, nullable estimatedCostUSD, and failures.",
+      "path" : [
+        "cards",
+        "generate"
+      ],
+      "readOnly" : false,
+      "summary" : "Generate or backfill cards with the configured opted-in LLM provider."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Dictionary of canonical configuration keys to values.",
+      "path" : [
+        "config",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List shared app\/CLI configuration values."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "key",
+          "required" : true,
+          "summary" : "Configuration key, such as speech-engine, parakeet-model, nemotron-model, nemotron-language, whisper-language, cohere-language, voice-return-enabled, voice-return-triggers, meeting-artifacts-folder, or meeting-hook-timeout."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Configuration value.",
+      "path" : [
+        "config",
+        "get"
+      ],
+      "readOnly" : true,
+      "summary" : "Read one shared app\/CLI configuration value."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "key",
+          "required" : true,
+          "summary" : "Configuration key."
+        },
+        {
+          "name" : "value",
+          "required" : true,
+          "summary" : "Configuration value."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Written canonical configuration value.",
+      "path" : [
+        "config",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Write one shared app\/CLI configuration value."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Array of selectable speech model objects.",
+      "path" : [
+        "models",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List selectable local speech models."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "model-id",
+          "required" : true,
+          "summary" : "Model ID from models list."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Selected speech model object.",
+      "path" : [
+        "models",
+        "select"
+      ],
+      "readOnly" : false,
+      "summary" : "Set the shared app\/CLI default speech model."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "SpeechStackPayload object.",
+      "path" : [
+        "models",
+        "status"
+      ],
+      "readOnly" : true,
+      "summary" : "Show local speech and speaker model status without forcing downloads."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "model-id",
+          "required" : true,
+          "summary" : "Model ID from models list."
+        }
+      ],
+      "jsonMode" : "none",
+      "options" : [
+
+      ],
+      "output" : "Human-readable progress and completion lines.",
+      "path" : [
+        "models",
+        "download"
+      ],
+      "readOnly" : false,
+      "summary" : "Download a local speech model without selecting it."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "model-id",
+          "required" : true,
+          "summary" : "Model ID from models list."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--force",
+          "required" : false,
+          "summary" : "Delete even when the model is currently in use."
+        }
+      ],
+      "output" : "ModelDeleteResult for --json; human-readable deletion confirmation or no-op line otherwise.",
+      "path" : [
+        "models",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete one downloaded speech model."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "none",
+      "options" : [
+        {
+          "name" : "--attempts",
+          "required" : false,
+          "summary" : "Maximum attempts.",
+          "valueName" : "N"
+        }
+      ],
+      "output" : "Human-readable warm-up progress.",
+      "path" : [
+        "models",
+        "warm-up"
+      ],
+      "readOnly" : false,
+      "summary" : "Warm up the selected local speech stack."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "none",
+      "options" : [
+        {
+          "name" : "--attempts",
+          "required" : false,
+          "summary" : "Maximum attempts.",
+          "valueName" : "N"
+        }
+      ],
+      "output" : "Human-readable repair progress.",
+      "path" : [
+        "models",
+        "repair"
+      ],
+      "readOnly" : false,
+      "summary" : "Best-effort retry for the selected local speech stack."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "ModelCacheClearResult for --json; human-readable cache clear confirmation otherwise.",
+      "path" : [
+        "models",
+        "clear"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete cached speech and speaker models."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of dictations.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of saved dictation objects.",
+      "path" : [
+        "history",
+        "dictations"
+      ],
+      "readOnly" : true,
+      "summary" : "List saved dictations."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "query",
+          "required" : true,
+          "summary" : "Search query."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of matches.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of matching dictation objects.",
+      "path" : [
+        "history",
+        "search"
+      ],
+      "readOnly" : true,
+      "summary" : "Search saved dictations by transcript text."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of transcriptions.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of saved transcription objects.",
+      "path" : [
+        "history",
+        "transcriptions"
+      ],
+      "readOnly" : true,
+      "summary" : "List saved file, URL, and meeting transcriptions."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "query",
+          "required" : true,
+          "summary" : "Search query."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of matches.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of matching transcription objects.",
+      "path" : [
+        "history",
+        "search-transcriptions"
+      ],
+      "readOnly" : true,
+      "summary" : "Search saved transcriptions by title and transcript text."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Dictation UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result with kind and id for --json; human-readable deletion confirmation otherwise.",
+      "path" : [
+        "history",
+        "delete-dictation"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete one saved dictation and its owned dictation audio."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result with kind and id for --json; human-readable deletion confirmation otherwise.",
+      "path" : [
+        "history",
+        "delete-transcription"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete one saved transcription and owned local assets."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Meeting transcription UUID, UUID prefix, or file name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Meeting audio delete result for --json; human-readable deletion or no-op confirmation otherwise.",
+      "path" : [
+        "history",
+        "delete-meeting-audio"
+      ],
+      "readOnly" : false,
+      "summary" : "Detach and delete stored audio for one meeting transcript while keeping the transcript row; removed audio cannot be used for re-transcription or speaker detection\/backfill."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Meeting audio clear result with deletedCount and ids for --json; human-readable deletion confirmation otherwise.",
+      "path" : [
+        "history",
+        "clear-meeting-audio"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete all managed meeting audio while keeping saved meeting transcripts."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of favorite transcription objects.",
+      "path" : [
+        "history",
+        "favorites"
+      ],
+      "readOnly" : true,
+      "summary" : "List favorite transcriptions."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Favorite result with id and isFavorite for --json; human-readable confirmation otherwise.",
+      "path" : [
+        "history",
+        "favorite"
+      ],
+      "readOnly" : false,
+      "summary" : "Mark a transcription as favorite."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Favorite result with id and isFavorite for --json; human-readable confirmation otherwise.",
+      "path" : [
+        "history",
+        "unfavorite"
+      ],
+      "readOnly" : false,
+      "summary" : "Remove a transcription from favorites."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--title",
+          "required" : true,
+          "summary" : "New display title.",
+          "valueName" : "TITLE"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Rename result with kind, id, and title for --json; human-readable confirmation otherwise.",
+      "path" : [
+        "history",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename a meeting title or a local file transcription display title."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--filter",
+          "required" : false,
+          "summary" : "Which prompts to list.",
+          "valueName" : "all|visible|auto-run"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of Prompt objects.",
+      "path" : [
+        "prompts",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List result prompts in the prompt library."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--version",
+          "required" : false,
+          "summary" : "Show one immutable version.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Prompt object, or PromptVersion object with --version, when --json is used.",
+      "path" : [
+        "prompts",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one result or Transform prompt, optionally at an immutable version."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of PromptCollection objects.",
+      "path" : [
+        "prompts",
+        "collections",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List prompt collections in display order."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Collection display name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Saved PromptCollection object when --json is used.",
+      "path" : [
+        "prompts",
+        "collections",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Add a prompt collection."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full prompt collection UUID."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "New collection display name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Saved PromptCollection object when --json is used.",
+      "path" : [
+        "prompts",
+        "collections",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename a prompt collection."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Full prompt collection UUID."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Deletion result with collection ID and name when --json is used.",
+      "path" : [
+        "prompts",
+        "collections",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete a prompt collection and leave its prompts unfiled."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "ids",
+          "required" : false,
+          "summary" : "Full collection UUIDs in final order. Include every current collection exactly once; pass none only when there are no collections."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "PromptCollection objects in saved display order when --json is used.",
+      "path" : [
+        "prompts",
+        "collections",
+        "reorder"
+      ],
+      "readOnly" : false,
+      "summary" : "Replace the complete prompt collection display order."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of PromptVersion objects.",
+      "path" : [
+        "prompts",
+        "history"
+      ],
+      "readOnly" : true,
+      "summary" : "List immutable versions for one prompt."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--from",
+          "required" : true,
+          "summary" : "Older version.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--to",
+          "required" : true,
+          "summary" : "Newer version.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "PromptDiffRecord object.",
+      "path" : [
+        "prompts",
+        "diff"
+      ],
+      "readOnly" : true,
+      "summary" : "Compare Markdown, settings, and model across two prompt versions."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--version",
+          "required" : true,
+          "summary" : "Version to restore.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--note",
+          "required" : false,
+          "summary" : "Optional history note.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Resolved Prompt object.",
+      "path" : [
+        "prompts",
+        "restore"
+      ],
+      "readOnly" : false,
+      "summary" : "Copy a historical version into a new active version."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Prompt display name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--content",
+          "required" : false,
+          "summary" : "Prompt body text.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--from-file",
+          "required" : false,
+          "summary" : "Read prompt body from a file.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--auto-run",
+          "required" : false,
+          "summary" : "Mark as auto-run for completed transcriptions."
+        },
+        {
+          "name" : "--collection",
+          "required" : false,
+          "summary" : "Assign to a prompt collection.",
+          "valueName" : "UUID"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Saved Prompt object when --json is used.",
+      "path" : [
+        "prompts",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Add a custom result prompt."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--visible",
+          "required" : false,
+          "summary" : "Make the prompt visible."
+        },
+        {
+          "name" : "--hidden",
+          "required" : false,
+          "summary" : "Hide the prompt and disable auto-run."
+        },
+        {
+          "name" : "--auto-run",
+          "required" : false,
+          "summary" : "Enable global auto-run."
+        },
+        {
+          "name" : "--no-auto-run",
+          "required" : false,
+          "summary" : "Disable auto-run."
+        },
+        {
+          "name" : "--include-meeting-notes",
+          "required" : false,
+          "summary" : "Include meeting notes as additional context for this result prompt."
+        },
+        {
+          "name" : "--no-include-meeting-notes",
+          "required" : false,
+          "summary" : "Disable automatic meeting-note context for this result prompt."
+        },
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Scope --auto-run\/--no-auto-run to one source; omit for global all-source behavior.",
+          "valueName" : "file|youtube|podcast|meeting"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Set a versioned active-provider model override.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--active-model",
+          "required" : false,
+          "summary" : "Clear the versioned model override."
+        },
+        {
+          "name" : "--temperature",
+          "required" : false,
+          "summary" : "Set versioned sampling temperature.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--top-p",
+          "required" : false,
+          "summary" : "Set versioned nucleus sampling.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--top-k",
+          "required" : false,
+          "summary" : "Set versioned top-k sampling.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--max-tokens",
+          "required" : false,
+          "summary" : "Set versioned output token limit.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--thinking-mode",
+          "required" : false,
+          "summary" : "Set versioned thinking mode.",
+          "valueName" : "MODE"
+        },
+        {
+          "name" : "--reasoning-effort",
+          "required" : false,
+          "summary" : "Set versioned reasoning effort.",
+          "valueName" : "LEVEL"
+        },
+        {
+          "name" : "--provider-default-settings",
+          "required" : false,
+          "summary" : "Clear all versioned inference overrides."
+        },
+        {
+          "name" : "--collection",
+          "required" : false,
+          "summary" : "Assign to a prompt collection without creating a version by itself.",
+          "valueName" : "UUID"
+        },
+        {
+          "name" : "--no-collection",
+          "required" : false,
+          "summary" : "Remove collection membership without creating a version by itself."
+        },
+        {
+          "name" : "--label",
+          "required" : false,
+          "summary" : "Target one label availability rule across transcription sources.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--all-labels",
+          "required" : false,
+          "summary" : "Target the fallback when no explicit label rule matches."
+        },
+        {
+          "name" : "--available",
+          "required" : false,
+          "summary" : "Make the targeted policy manually available."
+        },
+        {
+          "name" : "--unavailable",
+          "required" : false,
+          "summary" : "Make the targeted label policy unavailable; source auto-run settings are unchanged."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated Prompt or PromptLabelPolicy object when --json is used.",
+      "path" : [
+        "prompts",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Update a result or Transform prompt; meeting-note context and label availability apply only to results."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Affected Prompt object.",
+      "path" : [
+        "prompts",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Soft-delete a result or Transform prompt, including a built-in."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Deleted prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Resolved Prompt object.",
+      "path" : [
+        "prompts",
+        "restore-deleted"
+      ],
+      "readOnly" : false,
+      "summary" : "Restore a soft-deleted result or Transform prompt."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "none",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Human-readable restore confirmation.",
+      "path" : [
+        "prompts",
+        "restore-defaults"
+      ],
+      "readOnly" : false,
+      "summary" : "Re-show built-in result prompts and hidden built-in Transforms without changing custom prompts."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "prompt",
+          "required" : true,
+          "summary" : "Prompt ID, UUID prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        },
+        {
+          "name" : "--transcription",
+          "required" : true,
+          "summary" : "Saved transcription ID or prefix.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--no-store",
+          "required" : false,
+          "summary" : "Do not save a PromptResult."
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Stream tokens; incompatible with --json."
+        },
+        {
+          "name" : "--extra",
+          "required" : false,
+          "summary" : "Append extra instructions for this run.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "LLMResult envelope when --json is used.",
+      "path" : [
+        "prompts",
+        "run"
+      ],
+      "readOnly" : false,
+      "summary" : "Run a saved result prompt against a saved transcription."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Object with ok and routes; each route includes task, inherited, configured and optional provider, model, isLocal and endpoint origin.",
+      "path" : [
+        "llm",
+        "routes",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "Inspect effective AI routes and inheritance without exposing credentials or contacting a provider."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "task",
+          "required" : true,
+          "summary" : "cleanup or analysis."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        }
+      ],
+      "output" : "Object with ok and the effective route. Makes no LLM request; local CLI reuses the existing shared template.",
+      "path" : [
+        "llm",
+        "routes",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Save one cleanup or analysis override using shared app preferences and provider credentials."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "task",
+          "required" : true,
+          "summary" : "cleanup or analysis."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "Object with ok and the effective route.",
+      "path" : [
+        "llm",
+        "routes",
+        "reset"
+      ],
+      "readOnly" : false,
+      "summary" : "Remove a task override and restore Default AI inheritance without deleting credentials."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        }
+      ],
+      "output" : "LLM test-connection result envelope when --json is used.",
+      "path" : [
+        "llm",
+        "test-connection"
+      ],
+      "readOnly" : false,
+      "summary" : "Test connectivity to an LLM provider."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "input",
+          "required" : true,
+          "summary" : "Path to text file; use '-' for stdin."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Stream tokens; incompatible with --json."
+        }
+      ],
+      "output" : "LLMResult envelope when --json is used.",
+      "path" : [
+        "llm",
+        "summarize"
+      ],
+      "readOnly" : false,
+      "summary" : "Summarize text from a file or stdin using an LLM provider."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "input",
+          "required" : true,
+          "summary" : "Path to transcript text file; use '-' for stdin."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        },
+        {
+          "name" : "--question",
+          "required" : true,
+          "summary" : "Question to ask about the transcript.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Stream tokens; incompatible with --json."
+        }
+      ],
+      "output" : "LLMResult envelope when --json is used.",
+      "path" : [
+        "llm",
+        "chat"
+      ],
+      "readOnly" : false,
+      "summary" : "Ask a question about transcript text using an LLM provider."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "input",
+          "required" : true,
+          "summary" : "Path to text file; use '-' for stdin."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        },
+        {
+          "name" : "--prompt",
+          "required" : true,
+          "summary" : "Transform instruction.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Stream tokens; incompatible with --json."
+        }
+      ],
+      "output" : "LLMResult envelope when --json is used.",
+      "path" : [
+        "llm",
+        "transform"
+      ],
+      "readOnly" : false,
+      "summary" : "Apply an ad-hoc LLM transform to text from a file or stdin."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--pinned",
+          "required" : false,
+          "summary" : "Filter by pin state.",
+          "valueName" : "true|false"
+        },
+        {
+          "name" : "--visible-only",
+          "required" : false,
+          "summary" : "Only visible prompts."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of QuickPrompt objects.",
+      "path" : [
+        "quick-prompts",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List live Meeting Ask quick prompts."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "quick-prompt",
+          "required" : true,
+          "summary" : "Quick prompt ID, UUID prefix, or label."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt object when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one quick prompt's full content."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--label",
+          "required" : true,
+          "summary" : "Display label shown on the pill.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--prompt",
+          "required" : false,
+          "summary" : "Prompt body text.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--from-file",
+          "required" : false,
+          "summary" : "Read prompt body from a file.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--group",
+          "required" : false,
+          "summary" : "Optional group label.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--hidden",
+          "required" : false,
+          "summary" : "Insert as hidden."
+        },
+        {
+          "name" : "--pinned",
+          "required" : false,
+          "summary" : "Pin immediately."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt write result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Add a custom Meeting Ask quick prompt."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "quick-prompt",
+          "required" : true,
+          "summary" : "Quick prompt ID, UUID prefix, or label."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--label",
+          "required" : false,
+          "summary" : "Replace the display label.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--prompt",
+          "required" : false,
+          "summary" : "Replace the prompt body.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--group",
+          "required" : false,
+          "summary" : "Replace or clear the group label.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--sort-order",
+          "required" : false,
+          "summary" : "Replace sort order.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--visible",
+          "required" : false,
+          "summary" : "Make visible."
+        },
+        {
+          "name" : "--hidden",
+          "required" : false,
+          "summary" : "Hide."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt write result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Update a quick prompt's fields or visibility."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "quick-prompt",
+          "required" : true,
+          "summary" : "Quick prompt ID, UUID prefix, or label."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete a custom quick prompt; built-ins are protected."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "quick-prompt",
+          "required" : true,
+          "summary" : "Quick prompt ID, UUID prefix, or label."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt write result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "pin"
+      ],
+      "readOnly" : false,
+      "summary" : "Pin a quick prompt to the after-response strip."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "quick-prompt",
+          "required" : true,
+          "summary" : "Quick prompt ID, UUID prefix, or label."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt write result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "unpin"
+      ],
+      "readOnly" : false,
+      "summary" : "Unpin a quick prompt from the after-response strip."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--id",
+          "required" : false,
+          "summary" : "Limit restore to one built-in quick prompt.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Restore result when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "restore-defaults"
+      ],
+      "readOnly" : false,
+      "summary" : "Reset built-in quick prompts to canonical values."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json for failure envelopes only",
+      "options" : [
+        {
+          "name" : "--out",
+          "required" : false,
+          "summary" : "Write bundle to a file; stdout if omitted.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--pinned",
+          "required" : false,
+          "summary" : "Filter by pin state.",
+          "valueName" : "true|false"
+        },
+        {
+          "name" : "--include-builtins",
+          "required" : false,
+          "summary" : "Include built-in prompts."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPromptBundle JSON.",
+      "path" : [
+        "quick-prompts",
+        "export"
+      ],
+      "readOnly" : true,
+      "summary" : "Export quick prompts as a versioned JSON bundle."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "path",
+          "required" : true,
+          "summary" : "Path to the bundle JSON file."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--mode",
+          "required" : false,
+          "summary" : "Import mode.",
+          "valueName" : "merge|replace"
+        },
+        {
+          "name" : "--dry-run",
+          "required" : false,
+          "summary" : "Show planned changes without writing."
+        },
+        {
+          "name" : "--yes",
+          "required" : false,
+          "summary" : "Skip replace confirmation."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "QuickPrompt import summary when --json is used.",
+      "path" : [
+        "quick-prompts",
+        "import"
+      ],
+      "readOnly" : false,
+      "summary" : "Import a quick-prompts bundle from JSON."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of TransformDTO objects.",
+      "path" : [
+        "transforms",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List saved Transforms with their bound shortcuts."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "transform",
+          "required" : true,
+          "summary" : "Transform ID, UUID prefix, or name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "TransformDTO object when --json is used.",
+      "path" : [
+        "transforms",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one Transform's prompt body and bound shortcut."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "transform",
+          "required" : true,
+          "summary" : "Transform ID, UUID prefix, or name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--provider",
+          "required" : true,
+          "summary" : "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, or cli.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--api-key",
+          "required" : false,
+          "summary" : "API key literal; prefer --api-key-env for scripts.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--api-key-env",
+          "required" : false,
+          "summary" : "Environment variable containing the API key.",
+          "valueName" : "ENV"
+        },
+        {
+          "name" : "--model",
+          "required" : false,
+          "summary" : "Provider model name.",
+          "valueName" : "MODEL"
+        },
+        {
+          "name" : "--base-url",
+          "required" : false,
+          "summary" : "Provider base URL override.",
+          "valueName" : "URL"
+        },
+        {
+          "name" : "--allow-insecure-http",
+          "required" : false,
+          "summary" : "Allow non-loopback http:\/\/ base URLs intentionally."
+        },
+        {
+          "name" : "--command",
+          "required" : false,
+          "summary" : "CLI command for the cli provider.",
+          "valueName" : "COMMAND"
+        },
+        {
+          "name" : "--local",
+          "required" : false,
+          "summary" : "Mark provider as local for context budgeting."
+        },
+        {
+          "name" : "--input",
+          "required" : true,
+          "summary" : "Path to text file; use '-' for stdin.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--stream",
+          "required" : false,
+          "summary" : "Stream tokens; incompatible with --json."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "LLMResult envelope when --json is used.",
+      "path" : [
+        "transforms",
+        "run"
+      ],
+      "readOnly" : false,
+      "summary" : "Run a saved Transform against text from a file or stdin."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Transform name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--prompt",
+          "required" : false,
+          "summary" : "Prompt body text.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--from-file",
+          "required" : false,
+          "summary" : "Read prompt body from a file.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--shortcut",
+          "required" : false,
+          "summary" : "Keyboard shortcut such as opt+1.",
+          "valueName" : "KEYS"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "TransformDTO object when --json is used.",
+      "path" : [
+        "transforms",
+        "create"
+      ],
+      "readOnly" : false,
+      "summary" : "Create a custom saved Transform with an optional shortcut."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "transform",
+          "required" : true,
+          "summary" : "Transform ID, UUID prefix, or name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result when --json is used.",
+      "path" : [
+        "transforms",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Soft-delete a custom or built-in Transform."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--transform",
+          "required" : false,
+          "summary" : "Reset one built-in Transform; omit to re-show hidden built-ins and re-seed missing built-ins without overwriting edits.",
+          "valueName" : "ID|NAME"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Restore result when --json is used.",
+      "path" : [
+        "transforms",
+        "restore-defaults"
+      ],
+      "readOnly" : false,
+      "summary" : "Restore built-in Transform defaults."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of history rows.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of TransformHistoryDTO objects.",
+      "path" : [
+        "transforms",
+        "history",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List saved Transform runs."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "history-id",
+          "required" : true,
+          "summary" : "History item UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "TransformHistoryDTO object when --json is used.",
+      "path" : [
+        "transforms",
+        "history",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one saved Transform run."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "history-id",
+          "required" : true,
+          "summary" : "History item UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result when --json is used.",
+      "path" : [
+        "transforms",
+        "history",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete one saved Transform history item."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Clear result when --json is used.",
+      "path" : [
+        "transforms",
+        "history",
+        "clear"
+      ],
+      "readOnly" : false,
+      "summary" : "Clear all local Transform history."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "text",
+          "required" : true,
+          "summary" : "Text to process."
+        }
+      ],
+      "jsonMode" : "none",
+      "options" : [
+        {
+          "name" : "--copy",
+          "required" : false,
+          "summary" : "Copy result to clipboard."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Processed text.",
+      "path" : [
+        "vocab",
+        "process"
+      ],
+      "readOnly" : false,
+      "summary" : "Run deterministic clean text processing on input text."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "Filter by source.",
+          "valueName" : "all|manual|learned"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of CustomWord objects for --json; human output also reports recognition-boosting support for the current app-default engine.",
+      "path" : [
+        "vocab",
+        "words",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List custom words."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "word",
+          "required" : true,
+          "summary" : "Word or phrase to match."
+        },
+        {
+          "name" : "replacement",
+          "required" : false,
+          "summary" : "Replacement text; omit for a vocabulary anchor that can boost supported Parakeet TDT recognition."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Write result with the saved CustomWord, including id, when --json is used.",
+      "path" : [
+        "vocab",
+        "words",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Add a custom word or correction."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Word UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--enabled",
+          "required" : false,
+          "summary" : "Enable the word or correction."
+        },
+        {
+          "name" : "--disabled",
+          "required" : false,
+          "summary" : "Disable the word or correction."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Write result when --json is used.",
+      "path" : [
+        "vocab",
+        "words",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Update a custom word's enabled state."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Word UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result with id and label for --json; human-readable delete confirmation otherwise.",
+      "path" : [
+        "vocab",
+        "words",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete a custom word by UUID prefix."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of TextSnippet objects.",
+      "path" : [
+        "vocab",
+        "snippets",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List text snippets."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "trigger",
+          "required" : true,
+          "summary" : "Natural-language trigger phrase."
+        },
+        {
+          "name" : "expansion",
+          "required" : true,
+          "summary" : "Expansion text."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Write result with the saved TextSnippet, including id, when --json is used.",
+      "path" : [
+        "vocab",
+        "snippets",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Add a text snippet."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Snippet UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--trigger",
+          "required" : false,
+          "summary" : "Replacement trigger.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--expansion",
+          "required" : false,
+          "summary" : "Replacement expansion.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--enabled",
+          "required" : false,
+          "summary" : "Enable the snippet."
+        },
+        {
+          "name" : "--disabled",
+          "required" : false,
+          "summary" : "Disable the snippet."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Write result when --json is used.",
+      "path" : [
+        "vocab",
+        "snippets",
+        "edit"
+      ],
+      "readOnly" : false,
+      "summary" : "Edit a text snippet by UUID prefix."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Snippet UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Delete result with id and label for --json; human-readable delete confirmation otherwise.",
+      "path" : [
+        "vocab",
+        "snippets",
+        "delete"
+      ],
+      "readOnly" : false,
+      "summary" : "Delete a text snippet by UUID prefix."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "bundle JSON",
+      "options" : [
+        {
+          "name" : "--output",
+          "required" : false,
+          "summary" : "Write bundle to a file; stdout if omitted.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "VocabularyBundle JSON.",
+      "path" : [
+        "vocab",
+        "export"
+      ],
+      "readOnly" : true,
+      "summary" : "Export custom words and snippets as a vocabulary bundle."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--input",
+          "required" : false,
+          "summary" : "Read bundle from a file; stdin if omitted.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--policy",
+          "required" : false,
+          "summary" : "Skip or replace matching entries, or reset manual vocabulary before import.",
+          "valueName" : "skip|replace|replace-all"
+        },
+        {
+          "name" : "--dry-run",
+          "required" : false,
+          "summary" : "Decode and report without writing."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Vocabulary import report when --json is used.",
+      "path" : [
+        "vocab",
+        "import"
+      ],
+      "readOnly" : false,
+      "summary" : "Import a vocabulary bundle."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+
+      ],
+      "output" : "VocabularyBundleSpec object when --json is used.",
+      "path" : [
+        "vocab",
+        "schema"
+      ],
+      "readOnly" : true,
+      "summary" : "Print the vocabulary bundle JSON schema and example."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "StatsPayload object.",
+      "path" : [
+        "stats"
+      ],
+      "readOnly" : true,
+      "summary" : "Show voice stats dashboard."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "id",
+          "required" : true,
+          "summary" : "Transcription UUID or UUID prefix."
+        }
+      ],
+      "jsonMode" : "--stdout --format json",
+      "options" : [
+        {
+          "name" : "--format",
+          "required" : false,
+          "summary" : "Export format.",
+          "valueName" : "txt|markdown|srt|vtt|dapt|json"
+        },
+        {
+          "name" : "--output",
+          "required" : false,
+          "summary" : "Output file path.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--stdout",
+          "required" : false,
+          "summary" : "Print to stdout instead of writing a file."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Written file path or exported content.",
+      "path" : [
+        "export"
+      ],
+      "readOnly" : false,
+      "summary" : "Export a saved transcription to a file or stdout."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--days",
+          "required" : false,
+          "summary" : "Number of days to look ahead.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--filter",
+          "required" : false,
+          "summary" : "Meeting trigger filter.",
+          "valueName" : "link|participants|all"
+        }
+      ],
+      "output" : "Array of CalendarEvent objects when --json is used.",
+      "path" : [
+        "calendar",
+        "upcoming"
+      ],
+      "readOnly" : true,
+      "summary" : "List upcoming calendar events visible to MacParakeet."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "message",
+          "required" : true,
+          "summary" : "Feedback message."
+        }
+      ],
+      "jsonMode" : "none",
+      "options" : [
+        {
+          "name" : "--category",
+          "required" : false,
+          "summary" : "Feedback category.",
+          "valueName" : "bug|feature|other"
+        },
+        {
+          "name" : "--email",
+          "required" : false,
+          "summary" : "Optional follow-up email.",
+          "valueName" : "EMAIL"
+        }
+      ],
+      "output" : "Human-readable submission progress.",
+      "path" : [
+        "feedback"
+      ],
+      "readOnly" : false,
+      "summary" : "Submit user feedback to MacParakeet support."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--limit",
+          "required" : false,
+          "summary" : "Maximum number of meetings.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--type",
+          "required" : false,
+          "summary" : "Filter by type; repeatable with ANY semantics.",
+          "valueName" : "TYPE"
+        },
+        {
+          "name" : "--label",
+          "required" : false,
+          "summary" : "Filter by label; repeatable with ANY semantics.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--unclassified",
+          "required" : false,
+          "summary" : "Only meetings without a primary type."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of meeting list objects with transcript, notes, and prompt-result availability.",
+      "path" : [
+        "meetings",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List recent meeting recordings."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--include-archived",
+          "required" : false,
+          "summary" : "Include archived types."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of MeetingType objects.",
+      "path" : [
+        "meetings",
+        "types",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List meeting types."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Type name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--color",
+          "required" : false,
+          "summary" : "Optional color token.",
+          "valueName" : "TOKEN"
+        },
+        {
+          "name" : "--icon",
+          "required" : false,
+          "summary" : "Optional SF Symbol name.",
+          "valueName" : "SYMBOL"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingType object.",
+      "path" : [
+        "meetings",
+        "types",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Create a meeting type."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "type",
+          "required" : true,
+          "summary" : "Type UUID, prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "New name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingType object.",
+      "path" : [
+        "meetings",
+        "types",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename a meeting type."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "type",
+          "required" : true,
+          "summary" : "Type UUID, prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--restore",
+          "required" : false,
+          "summary" : "Restore instead of archive."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingType object.",
+      "path" : [
+        "meetings",
+        "types",
+        "archive"
+      ],
+      "readOnly" : false,
+      "summary" : "Archive or restore a meeting type."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--include-archived",
+          "required" : false,
+          "summary" : "Include archived labels."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of MeetingLabel objects.",
+      "path" : [
+        "meetings",
+        "labels",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List meeting labels."
+    },
+    {
+      "arguments" : [
+
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Label name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--color",
+          "required" : false,
+          "summary" : "Optional color token.",
+          "valueName" : "TOKEN"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingLabel object.",
+      "path" : [
+        "meetings",
+        "labels",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Create a meeting label."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "label",
+          "required" : true,
+          "summary" : "Label UUID, prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "New name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingLabel object.",
+      "path" : [
+        "meetings",
+        "labels",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename a meeting label."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "label",
+          "required" : true,
+          "summary" : "Label UUID, prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : false,
+          "summary" : "New name.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--color",
+          "required" : false,
+          "summary" : "coral, green, amber, red, purple, or blue.",
+          "valueName" : "TOKEN"
+        },
+        {
+          "name" : "--automatic-color",
+          "required" : false,
+          "summary" : "Clear the explicit color."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingLabel object.",
+      "path" : [
+        "meetings",
+        "labels",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Update a meeting label's name or color."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "label",
+          "required" : true,
+          "summary" : "Label UUID, prefix, or exact name."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--restore",
+          "required" : false,
+          "summary" : "Restore instead of archive."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingLabel object.",
+      "path" : [
+        "meetings",
+        "labels",
+        "archive"
+      ],
+      "readOnly" : false,
+      "summary" : "Archive or restore a meeting label."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--type",
+          "required" : false,
+          "summary" : "Set or clear the primary type.",
+          "valueName" : "TYPE|none"
+        },
+        {
+          "name" : "--add-label",
+          "required" : false,
+          "summary" : "Add a label; repeatable.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--remove-label",
+          "required" : false,
+          "summary" : "Remove a label; repeatable.",
+          "valueName" : "LABEL"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingClassificationRecord object.",
+      "path" : [
+        "meetings",
+        "classify"
+      ],
+      "readOnly" : false,
+      "summary" : "Set a meeting type and add\/remove labels atomically."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingRecord object with transcript, transcriptSegments, notes, prompt-result count, artifactMarkdownPath, and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath.",
+      "path" : [
+        "meetings",
+        "show"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one meeting artifact."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--format json",
+      "options" : [
+        {
+          "name" : "--format",
+          "required" : false,
+          "summary" : "Transcript output format.",
+          "valueName" : "text|json|srt|vtt"
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingTranscriptRecord object with transcriptSegments for --format json.",
+      "path" : [
+        "meetings",
+        "transcript"
+      ],
+      "readOnly" : true,
+      "summary" : "Print a meeting transcript."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Correction revision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--file",
+          "required" : false,
+          "summary" : "UTF-8 JSON array of segment UUIDs with text or omit:true; exclusive with --stdin.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read the revision JSON array from stdin."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord. Stale revisions return conflict without a write; original audio and recognition are preserved.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "revise-text"
+      ],
+      "readOnly" : false,
+      "summary" : "Apply an atomic batch of passage replacements and omissions as one Undo step."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--segment",
+          "required" : true,
+          "summary" : "Current segment ID from meetings transcript --format json.",
+          "valueName" : "UUID"
+        },
+        {
+          "name" : "--text",
+          "required" : false,
+          "summary" : "Replacement text.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read replacement text from stdin."
+        },
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "edit-line"
+      ],
+      "readOnly" : false,
+      "summary" : "Replace one timed transcript line through the reversible correction journal."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--segment",
+          "required" : true,
+          "summary" : "Current segment ID; repeat in transcript order at least twice.",
+          "valueName" : "UUID"
+        },
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "merge-lines"
+      ],
+      "readOnly" : false,
+      "summary" : "Merge adjacent same-speaker timed transcript lines."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--speaker",
+          "required" : true,
+          "summary" : "Speaker id from meetings transcript --format json.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--label",
+          "required" : true,
+          "summary" : "New display label.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "rename"
+      ],
+      "readOnly" : false,
+      "summary" : "Rename one speaker in the reversible correction journal."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--segment",
+          "required" : true,
+          "summary" : "Current segment ID from meetings transcript --format json; repeatable.",
+          "valueName" : "UUID"
+        },
+        {
+          "name" : "--to-speaker",
+          "required" : false,
+          "summary" : "Existing speaker id to assign the lines to.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--unassigned",
+          "required" : false,
+          "summary" : "Clear speaker assignment on the selected lines."
+        },
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "assign"
+      ],
+      "readOnly" : false,
+      "summary" : "Assign one or more timed lines to a speaker or unassigned."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--from",
+          "required" : true,
+          "summary" : "Speaker id whose lines should move.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--into",
+          "required" : true,
+          "summary" : "Speaker id that should remain.",
+          "valueName" : "ID"
+        },
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "merge-speakers"
+      ],
+      "readOnly" : false,
+      "summary" : "Merge one speaker into another."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "undo"
+      ],
+      "readOnly" : false,
+      "summary" : "Undo the active transcript correction."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "redo"
+      ],
+      "readOnly" : false,
+      "summary" : "Redo the next transcript correction."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--expected-revision",
+          "required" : true,
+          "summary" : "Optimistic speakerCorrectionRevision from the last transcript read.",
+          "valueName" : "N"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Updated MeetingTranscriptRecord object when --json or --envelope is used.",
+      "path" : [
+        "meetings",
+        "corrections",
+        "reset"
+      ],
+      "readOnly" : false,
+      "summary" : "Reset the active transcript projection to its automatic baseline."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingNotesRecord object.",
+      "path" : [
+        "meetings",
+        "notes",
+        "get"
+      ],
+      "readOnly" : true,
+      "summary" : "Read user-authored notes from a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--text",
+          "required" : false,
+          "summary" : "Notes text to store.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read notes text from stdin."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingNotesRecord object.",
+      "path" : [
+        "meetings",
+        "notes",
+        "set"
+      ],
+      "readOnly" : false,
+      "summary" : "Replace user-authored notes for a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--text",
+          "required" : false,
+          "summary" : "Notes text to append.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read notes text from stdin."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingNotesRecord object.",
+      "path" : [
+        "meetings",
+        "notes",
+        "append"
+      ],
+      "readOnly" : false,
+      "summary" : "Append user-authored notes to a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingNotesRecord object.",
+      "path" : [
+        "meetings",
+        "notes",
+        "clear"
+      ],
+      "readOnly" : false,
+      "summary" : "Clear user-authored notes from a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Array of MeetingPromptResultRecord objects.",
+      "path" : [
+        "meetings",
+        "results",
+        "list"
+      ],
+      "readOnly" : true,
+      "summary" : "List saved PromptResults for a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--name",
+          "required" : true,
+          "summary" : "Display name for the saved result.",
+          "valueName" : "NAME"
+        },
+        {
+          "name" : "--content",
+          "required" : false,
+          "summary" : "Generated result content to store.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read generated result content from stdin."
+        },
+        {
+          "name" : "--prompt-content",
+          "required" : false,
+          "summary" : "Optional prompt\/instructions that produced the result.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--extra",
+          "required" : false,
+          "summary" : "Optional extra instructions or provenance.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingPromptResultRecord object.",
+      "path" : [
+        "meetings",
+        "results",
+        "add"
+      ],
+      "readOnly" : false,
+      "summary" : "Store externally generated output as a PromptResult for a meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        },
+        {
+          "name" : "result",
+          "required" : true,
+          "summary" : "Full saved-result UUID belonging to that meeting."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--expected-content",
+          "required" : false,
+          "summary" : "Exact previously read content; exclusive with --expected-content-file.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--expected-content-file",
+          "required" : false,
+          "summary" : "UTF-8 file with the exact previous content.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--content",
+          "required" : false,
+          "summary" : "Replacement Markdown; exactly one of --content, --file or --stdin is required.",
+          "valueName" : "TEXT"
+        },
+        {
+          "name" : "--file",
+          "required" : false,
+          "summary" : "UTF-8 replacement content file.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--stdin",
+          "required" : false,
+          "summary" : "Read replacement content from stdin."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingPromptResultRecord with contentEditedAt. Stale content returns conflict without overwriting the result.",
+      "path" : [
+        "meetings",
+        "results",
+        "edit"
+      ],
+      "readOnly" : false,
+      "summary" : "Edit saved result content in place with an exact-content precondition, preserving provenance."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingArtifactSnapshot object with folderPath, manifestPath, markdownPath, transcriptPath, prompt-result paths, optional meetingCaptureReport (absence on legacy recordings means unknown), and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath.",
+      "path" : [
+        "meetings",
+        "artifact"
+      ],
+      "readOnly" : false,
+      "summary" : "Materialize and inspect the first-class meeting session artifact folder."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--stdout --format json",
+      "options" : [
+        {
+          "name" : "--format",
+          "required" : false,
+          "summary" : "Export format.",
+          "valueName" : "md|json"
+        },
+        {
+          "name" : "--output",
+          "required" : false,
+          "summary" : "Output file path; defaults to an auto-generated file.",
+          "valueName" : "PATH"
+        },
+        {
+          "name" : "--stdout",
+          "required" : false,
+          "summary" : "Print export content to stdout."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "Meeting Markdown in the same shape as meeting.md, or MeetingRecord JSON with prompt-result count and artifact paths when --stdout is present; otherwise writes a file and prints its path.",
+      "path" : [
+        "meetings",
+        "export"
+      ],
+      "readOnly" : false,
+      "summary" : "Export a deterministic local meeting artifact."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "path",
+          "required" : true,
+          "summary" : "Local audio or video file path."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--title",
+          "required" : false,
+          "summary" : "Explicit title; defaults to the filename.",
+          "valueName" : "TITLE"
+        },
+        {
+          "name" : "--started-at",
+          "required" : false,
+          "summary" : "YYYY-MM-DD at local midnight or an ISO-8601 timestamp.",
+          "valueName" : "DATE"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingImportRecord with id, completion, status, title, startedAt, durationMs, managedAudioPath, and warnings. Complete and partial results exit 0; needsRetry prints its saved meeting then exits 1, or 130 after SIGINT.",
+      "path" : [
+        "meetings",
+        "import"
+      ],
+      "readOnly" : false,
+      "summary" : "Import one external audio or video recording as a managed, searchable meeting."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--cut",
+          "required" : false,
+          "summary" : "A cut point in milliseconds; repeatable, ascending.",
+          "valueName" : "MS"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingSplitPreview object: total duration, ranges, and which optional tracks exist.",
+      "path" : [
+        "meetings",
+        "split",
+        "preview"
+      ],
+      "readOnly" : true,
+      "summary" : "Read-only preview of the parts a split would produce. Performs no writes."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "meeting",
+          "required" : true,
+          "summary" : "Meeting UUID, UUID prefix, or exact title."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--cut",
+          "required" : false,
+          "summary" : "A cut point in milliseconds; repeatable, ascending.",
+          "valueName" : "MS"
+        },
+        {
+          "name" : "--title",
+          "required" : false,
+          "summary" : "Title for one resulting part, in order; repeatable, must be cuts.count + 1.",
+          "valueName" : "TITLE"
+        },
+        {
+          "name" : "--key",
+          "required" : false,
+          "summary" : "Explicit idempotency key; defaults to a stable key derived from the meeting id, cuts and titles.",
+          "valueName" : "KEY"
+        },
+        {
+          "name" : "--expected-identity",
+          "required" : false,
+          "summary" : "Opaque sourceIdentity from preview; reject changed source audio.",
+          "valueName" : "IDENTITY"
+        },
+        {
+          "name" : "--dry-run",
+          "required" : false,
+          "summary" : "Validate and print the preview only; performs no writes."
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingSplitOperation object (or MeetingSplitPreview when --dry-run). Safe to repeat with identical arguments after an interruption; never duplicates parts.",
+      "path" : [
+        "meetings",
+        "split",
+        "create"
+      ],
+      "readOnly" : false,
+      "summary" : "Split a saved meeting and process every part sequentially: first transcription, then enabled automation."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "operationId",
+          "required" : false,
+          "summary" : "Split operation UUID; omit when using --source."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--source",
+          "required" : false,
+          "summary" : "List every split operation recorded for this meeting instead of one operation id.",
+          "valueName" : "MEETING"
+        },
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingSplitOperation object, or an array of them when --source is used.",
+      "path" : [
+        "meetings",
+        "split",
+        "status"
+      ],
+      "readOnly" : true,
+      "summary" : "Show one split operation's progress, or discover prior operations for a source recording."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "operationId",
+          "required" : true,
+          "summary" : "Split operation UUID."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingSplitOperation object. Retries only unfinished\/failed children; completed work is never repeated.",
+      "path" : [
+        "meetings",
+        "split",
+        "resume"
+      ],
+      "readOnly" : false,
+      "summary" : "Resume processing a committed split operation without recreating audio."
+    },
+    {
+      "arguments" : [
+        {
+          "name" : "operationId",
+          "required" : true,
+          "summary" : "Split operation UUID."
+        }
+      ],
+      "jsonMode" : "--json",
+      "options" : [
+        {
+          "name" : "--envelope",
+          "required" : false,
+          "summary" : "Wrap JSON output in an ok\/data\/meta success envelope."
+        },
+        {
+          "name" : "--database",
+          "required" : false,
+          "summary" : "Use a specific MacParakeet SQLite database instead of the app default.",
+          "valueName" : "PATH"
+        }
+      ],
+      "output" : "MeetingSplitOperation object with status discarded. Refused once the operation has committed audio parts.",
+      "path" : [
+        "meetings",
+        "split",
+        "discard"
+      ],
+      "readOnly" : false,
+      "summary" : "Abandon a not-yet-published split operation and remove its unpublished output."
+    }
+  ],
+  "configKeys" : [
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "telemetry",
+      "summary" : "Enable or disable telemetry.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "raw",
+        "clean"
+      ],
+      "key" : "processing-mode",
+      "summary" : "Default dictation text processing mode.",
+      "valueSyntax" : "raw|clean"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "spoken-punctuation",
+      "summary" : "Convert spoken question\/exclamation marks in Clean dictation. File, URL, and meeting transcripts never convert.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "remove-um-filler",
+      "summary" : "Clean processing strips standalone English hesitation um. Turn off to keep Portuguese\/German um.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "parakeet",
+        "nemotron",
+        "whisper",
+        "cohere"
+      ],
+      "key" : "speech-engine",
+      "summary" : "Default speech recognition engine for app-default transcription.",
+      "valueSyntax" : "parakeet|nemotron|whisper|cohere"
+    },
+    {
+      "allowedValues" : [
+        "v3",
+        "v2",
+        "unified",
+        "orukeet"
+      ],
+      "key" : "parakeet-model",
+      "summary" : "Default Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview).",
+      "valueSyntax" : "v3|v2|unified|orukeet"
+    },
+    {
+      "allowedValues" : [
+        "multilingual-1120ms",
+        "english-1120ms"
+      ],
+      "key" : "nemotron-model",
+      "summary" : "Default Nemotron Beta streaming build.",
+      "valueSyntax" : "multilingual-1120ms|english-1120ms"
+    },
+    {
+      "key" : "nemotron-language",
+      "summary" : "Default Nemotron language hint for the multilingual build; auto uses engine detection when available.",
+      "valueSyntax" : "auto|<Nemotron language code>"
+    },
+    {
+      "key" : "whisper-language",
+      "summary" : "Default Whisper language hint; auto detects when possible.",
+      "valueSyntax" : "auto|<Whisper language code>"
+    },
+    {
+      "allowedValues" : [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "it",
+        "pt",
+        "nl",
+        "pl",
+        "el",
+        "ar",
+        "ja",
+        "zh",
+        "vi",
+        "ko"
+      ],
+      "key" : "cohere-language",
+      "summary" : "Default Cohere Transcribe language; Cohere has no auto-detect.",
+      "valueSyntax" : "en|fr|de|es|it|pt|nl|pl|el|ar|ja|zh|vi|ko"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "speaker-detection",
+      "summary" : "Default file and URL transcription speaker detection.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "meeting-speaker-detection",
+      "summary" : "Default meeting recording speaker detection.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "custom-vocabulary-boosting",
+      "summary" : "Enable Parakeet TDT recognition-time boosting for enabled custom words without replacement text. Default off; Settings shows status but has no toggle.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "auto-meeting-titles",
+      "summary" : "Enable or disable automatic meeting title generation.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "key" : "meeting-ai-output-language",
+      "summary" : "Language for generated AI results; accepts follow-transcript, a Whisper language code, or an English language name.",
+      "valueSyntax" : "follow-transcript|<Whisper language code>"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "voice-return-enabled",
+      "summary" : "Enable or disable Voice Return phrase insertion.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "key" : "voice-return-triggers",
+      "summary" : "Voice Return trigger phrases separated by |.",
+      "valueSyntax" : "phrase[|phrase...]"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "play-dictation-capture-sounds",
+      "summary" : "Play short cues when dictation capture starts and stops.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "escape-cancels-dictation",
+      "summary" : "Whether Escape cancels a live dictation.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "preserve-discarded-dictations",
+      "summary" : "Save cancelled dictations to History instead of deleting them.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "save-transcription-audio",
+      "summary" : "Persist source audio for file\/media transcriptions.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "key" : "meeting-audio-retention",
+      "summary" : "Meeting audio retention policy.",
+      "valueSyntax" : "keep-forever|delete-immediately|delete-after-<1-365>-days|<1-365>d"
+    },
+    {
+      "allowedValues" : [
+        "microphone-and-system",
+        "microphone-only",
+        "system-only"
+      ],
+      "key" : "meeting-audio-source",
+      "summary" : "Default meeting capture source mode.",
+      "valueSyntax" : "microphone-and-system|microphone-only|system-only"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "start-meetings-muted",
+      "summary" : "Start microphone-capturing meetings muted until this setting is turned off.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "save-meeting-audio",
+      "summary" : "Legacy alias for meeting audio retention.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "m4a",
+        "best-available"
+      ],
+      "key" : "youtube-audio-quality",
+      "summary" : "Downloaded media audio quality.",
+      "valueSyntax" : "m4a|best-available"
+    },
+    {
+      "allowedValues" : [
+        "default"
+      ],
+      "key" : "meeting-artifacts-folder",
+      "summary" : "Meeting artifact folder override.",
+      "valueSyntax" : "absolute path|default"
+    },
+    {
+      "allowedValues" : [
+        "on",
+        "off"
+      ],
+      "key" : "meeting-hook-enabled",
+      "summary" : "Enable or disable the meeting automation hook.",
+      "valueSyntax" : "on|off"
+    },
+    {
+      "allowedValues" : [
+        "none"
+      ],
+      "key" : "meeting-hook-path",
+      "summary" : "Executable invoked by the meeting automation hook.",
+      "valueSyntax" : "absolute executable path|none"
+    },
+    {
+      "key" : "meeting-hook-timeout",
+      "summary" : "Meeting automation hook timeout in seconds.",
+      "valueSyntax" : "seconds 1-300"
+    }
+  ],
+  "conventions" : {
+    "exitCodes" : [
+      {
+        "code" : 0,
+        "meaning" : "success"
+      },
+      {
+        "code" : 1,
+        "meaning" : "runtime failure after work was attempted"
+      },
+      {
+        "code" : 2,
+        "meaning" : "validation or invocation misuse"
+      },
+      {
+        "code" : 130,
+        "meaning" : "interrupted by SIGINT"
+      }
+    ],
+    "failureEnvelope" : {
+      "appliesAfterArgumentParsing" : true,
+      "fields" : [
+        "ok",
+        "error",
+        "errorType",
+        "fix",
+        "meta"
+      ],
+      "okValueOnFailure" : false
+    },
+    "idLookup" : "Full UUID, UUID prefix of at least 4 hex characters, or exact title\/name where documented.",
+    "jsonDateFormat" : "iso8601",
+    "stderr" : "Human progress\/status messages are written to stderr.",
+    "stdout" : "Machine-readable payloads are written to stdout."
+  },
+  "schema" : "macparakeet.cli.spec",
+  "schemaVersion" : 1
+}

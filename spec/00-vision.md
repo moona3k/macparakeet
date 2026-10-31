@@ -510,20 +510,27 @@ Ship-quality polish. Direct distribution via notarized DMG.
 
 ### v0.8: Library, meetings, and transcript workflow
 
-- Stable v0.8.7 is the current user-facing DMG. The train adds meeting import
+- See the [release-channel table](README.md#release-channels-and-feature-flags)
+  for the current stable app and separately versioned CLI. The train adds meeting import
   and split, timed transcript corrections, live transcription during recording,
   independent capture-source startup, per-event calendar skip, start-meetings-muted,
   Microsoft 365/Exchange calendar setup, Library labels/layouts, Seed of Life covers,
   Clean English “um” stripping, optional preserved discarded dictations, DAPT export,
   skip-microphone onboarding for file-only users, AI Formatter off by default with
   separate dictation and transcript prompts, optional streaming-cursor insert,
-  China-lab LLM providers, and CLI 4.4.0. 0.8.5 cleared a stuck Wrapping up tile
+  China-lab LLM providers, and expanded CLI automation. 0.8.5 cleared a stuck Wrapping up tile
   label after stop (status only; recordings were already saved). 0.8.6 kept
   the Sonoma Parakeet encoder off ANE. 0.8.7 restores hold-to-talk when the
   microphone is already granted, admits Fn while Caps Lock is latched, and
   splits overlay insets so hold-to-talk stays 16pt while cancelled/Undo is 7pt.
-- Voice profiles, encrypted share links, activity-based meeting detection,
-  app-aware AI Formatter profiles, and in-process MLX remain gated.
+- 0.8.8–0.8.10 add capture/retry and Library improvements, saved transcript/result
+  editing, clearer task-specific AI setup, speaker-count selection, transcript
+  find and replace, a second dictation shortcut, opt-in meeting URL controls,
+  bounded meeting memory, and bundled CLI 5.1.0. Apple Intelligence serves
+  cleanup only; longer analysis uses another configured provider.
+- Cross-recording Ask, Voice Control, voice profiles, encrypted share links,
+  activity-based meeting detection, app-aware AI Formatter profiles, and
+  in-process MLX remain gated.
 
 ---
 

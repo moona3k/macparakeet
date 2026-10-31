@@ -1,0 +1,51 @@
+OVERVIEW: Local STT, transcription, and prompt automation for Apple Silicon.
+Powered by Parakeet TDT, with optional Nemotron Beta, Cohere, and Whisper
+recognition.
+
+USAGE: macparakeet-cli <subcommand>
+
+OPTIONS:
+  --version               Show the version.
+  -h, --help              Show help information.
+
+SUBCOMMANDS:
+  transcribe              Transcribe files, folders, Apple Podcasts, podcast
+                          searches, or media URLs.
+  retranscribe            Retranscribe retained source audio for an existing
+                          saved record in place.
+  search                  Search meeting and file/URL transcript segments.
+  search-reindex          Deterministically rebuild transcript segments and
+                          their FTS index.
+  transcript              Read a segment slice from a saved meeting or file/URL
+                          transcript.
+  cards                   List or generate compact per-recording knowledge
+                          cards.
+  ask                     Experimental Ask workspace (developer builds only).
+                          Outputs JSON.
+  history                 View and manage dictation and transcription history.
+  export                  Export a transcription to a file.
+  stats                   Show voice stats dashboard.
+  spec                    Print the machine-readable CLI contract for agents
+                          and scripts.
+  health                  Check system health: database, local speech stack,
+                          and helper binaries.
+  config                  Read or write CLI/app configuration values.
+  models                  Inspect and manage the local speech and speaker
+                          models.
+  vocab, flow             Manage vocabulary: custom words, text snippets, and
+                          the text-processing pipeline.
+  llm                     LLM provider commands (test, summarize, chat,
+                          transform).
+  prompts                 Manage the prompt library and run prompts against
+                          transcriptions.
+  quick-prompts           Manage the live meeting Ask tab quick prompts.
+  transforms              Manage and run user-defined Transforms (saved prompt
+                          + hotkey rewrite shortcuts).
+  meetings                Inspect and manage local meeting recordings.
+  calendar                Inspect the calendar pipeline used by meeting
+                          auto-start.
+  feedback                Submit feedback from the CLI.
+  voice-control           Experimental: replay Voice Control observations
+                          offline.
+
+  See 'macparakeet-cli help <subcommand>' for detailed help.

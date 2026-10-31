@@ -1,5 +1,11 @@
 # Back-to-back meeting capture (#1291)
 
+> Current status (2026-10-31): capture settlement and saved-meeting recovery
+> are integrated through #1295 (`f0ef01df0`) and #1301 (`3b2b04bbc`), both
+> ancestors of reviewed `79cf1ca92`. The dated checklist and CI narrative below
+> are historical implementation evidence, not a fresh test of this later head.
+> Physical capture/recovery qualification remains separate.
+
 ## Context and invariants
 
 Stop currently awaits playback mixing before queue admission. Release capture only after callbacks/writers settle and source metadata/notes/lock are durable. Queue owns derived playback and final transcription. A must never clear B's capture, notes, selected engine, lease, or UI. Preserve source audio and retry/recovery ownership on failure, canonical row identity, source alignment/fallback, and completed playback duration.
