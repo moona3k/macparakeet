@@ -1,0 +1,23 @@
+README.md
+  s_1d3c3aeecdd983::t_df68c4489316c4 88
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_1d3c3aeecdd983::t_90cffb02cd5685 49,73,3597-3604
+spec/03-architecture.md
+  s_1d3c3aeecdd983::t_2826d47a84d208 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b24f5f962e7e0403c7a660624e88cca47fe5797",
+  "prompts": {},
+  "sessions": {
+    "s_1d3c3aeecdd983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d9-1279-75c1-a0aa-2e17aa9d4af4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
