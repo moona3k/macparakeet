@@ -1,0 +1,25 @@
+spec/adr/031-timed-transcript-corrections.md
+  s_f37f226eb6c907::t_cf3446cc98a6c9 124
+  s_f37f226eb6c907::t_75a297d650aa3f 125-126
+spec/contracts/cli-json-v1.md
+  s_f37f226eb6c907::t_796d224acac75b 73-79
+  s_f37f226eb6c907::t_bde9c37a34592b 71-72
+Sources/CLI/CHANGELOG.md
+  s_f37f226eb6c907::t_14ec0d037bbcb0 100-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79fe769f5f5d302b6bd4d2ac87b3b553559d0a2f",
+  "prompts": {},
+  "sessions": {
+    "s_f37f226eb6c907": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da028177-298d-43a3-9667-fab786172797",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
