@@ -53,7 +53,7 @@
       "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "20aee2207785b12c6fa7678864f974411900577ccfc3fa63fd5a853bbe5f18be",
       "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "cfc28a9969db2e1c56ca3db58eccd76c5be0f7ed76852d3b05a657e584536a83",
       "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "efe58974146ef16aa661cd8daad70f828dac88e2bcaf1b1a4c3245f8e6201504",
-      "docs/cli-testing.md": "c38bb8ea2ee17042b56a3a09e73f81da56cd14b0965911c605f6158f295bf418",
+      "docs/cli-testing.md": "0db8bd68282ad884e53c1feea607562c13c07402c2e1ee883dea1cb7aa613f78",
       "docs/distribution.md": "54d3d5310a11b2cf9bccb3a40e7cd3af6be5d2883c6a489e9a9339045f76ba59",
       "docs/plans/2026-09-17-issue-449-streaming-cursor.md": "5143137164842e34cfcfab146f06f5b2bc5b87b97b7cd50d81b42345dade82c2",
       "docs/releases/0.8.10/README.md": "f4b9ed328da5b00ccf38b194d17d8613c40a840f308c1b57d8165eb14551ba8e",
@@ -3818,6 +3818,44 @@
       "rawArtifactCount": 7,
       "localLinkTargetsUnchanged": true,
       "diffCheckExit": 0
+    }
+  },
+  "followUpStateRootOverrideWording": {
+    "capturedAtUTC": "2026-11-01T03:12:32.396354+00:00",
+    "scope": "Correct two stale statements in docs/cli-testing.md that presented MACPARAKEET_DEBUG_APP_STATE_DIR as a DEBUG-only override ignored by Release builds. AppPaths.debugAppStateDir has no DEBUG gate: an explicit absolute path applies in Debug and Release, and a non-absolute value is a fatal error. The override does not isolate shared UserDefaults, Keychain or paths already stored in existing rows. The guide's example still uses the debug build. Other active statements already agree (integrations/skill/macparakeet-stt/SKILL.md, integrations/README.md, this audit README); dated QA evidence under docs/qa is unchanged. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "sourceEvidence": {
+      "file": "Sources/MacParakeetCore/Services/AppPaths.swift",
+      "function": "debugAppStateDir",
+      "observedFrom": "source read; no binary was run"
+    },
+    "documentsEdited": [
+      "docs/cli-testing.md"
+    ],
+    "checks": {
+      "documentHashes": true,
+      "documentCount": 33,
+      "rawArtifactHashes": true,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "localLinkCountUnchanged": true,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
     }
   }
 }
