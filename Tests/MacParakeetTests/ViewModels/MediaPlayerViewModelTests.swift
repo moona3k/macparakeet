@@ -392,6 +392,91 @@ final class MediaPlayerViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testHidingFailedDirectVideoLoadRestoresRetainedAudio() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let vm = MediaPlayerViewModel(videoStreamService: FailingVideoStub(), playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+
+        await vm.load(for: youtubeTranscription(filePath: audio.path))
+
+        XCTAssertNil(vm.player)
+        XCTAssertFalse(vm.needsVideoStreamLoad)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed direct load should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, audio)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @MainActor
+    func testHidingFailedDirectVideoLoadPreparesLegacyRetainedAudio() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let source = audioDirectory.appendingPathComponent("retained.webm")
+        let playable = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: source)
+        try Data([0]).write(to: playable)
+        let persisted = expectation(description: "Retained audio conversion persisted")
+        let vm = MediaPlayerViewModel(
+            videoStreamService: FailingVideoStub(),
+            playbackConverter: StubPlaybackConverter(transformedPath: playable.path),
+            playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        let transcription = youtubeTranscription(filePath: source.path)
+        vm.onPlaybackFilePathConverted = { id, path, sourcePath in
+            XCTAssertEqual(id, transcription.id)
+            XCTAssertEqual(path, playable.path)
+            XCTAssertEqual(sourcePath, source.path)
+            persisted.fulfill()
+        }
+        await vm.load(for: transcription)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed direct load should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+        await fulfillment(of: [persisted], timeout: 2)
+
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, playable)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path), "The persistence owner controls source cleanup")
+    }
+
+    @MainActor
+    func testHidingFailedVideoLoadKeepsExistingAudioPlayerUsable() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let transcription = youtubeTranscription(filePath: audio.path)
+        let vm = MediaPlayerViewModel(videoStreamService: FailingVideoStub(), playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        await vm.prepare(for: transcription)
+        let audioPlayer = vm.player
+        await vm.load(for: transcription)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed preparation should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+
+        XCTAssertTrue(vm.player === audioPlayer, "Existing playable audio must not be rebuilt")
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+    }
+
+    @MainActor
     func testRestoredLegacyAudioCannotReplaceNewTranscriptAfterPersistenceWait() async throws {
         let directory = try makeVideoPreparationDirectory()
         let audioDirectory = try makeVideoPreparationDirectory()

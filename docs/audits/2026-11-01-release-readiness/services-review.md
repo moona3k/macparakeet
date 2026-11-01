@@ -15,10 +15,13 @@ Reviewed `v0.8.10..bb1ebcc37974bfb363f2bec46250bc0532009f17` in the release-revi
 
 A related existing async boundary needed protection: cancellation while the conversion's persistence callback is suspended could previously let the old conversion replace a newly selected transcript's player. A cancellation check now follows that callback. The production callback is currently synchronous on MainActor, but the public callback supports suspension; the restored conversion path preserves that boundary.
 
-Three behavioral regressions were added before/alongside the fix:
+The same stranded state was reachable when the direct load failed instead of being cancelled: the player stayed empty in `.error`, so Hide Video did nothing. `cancelVideoPreparation()` now also restores retained audio from the failed state, keeps an existing audio player instead of rebuilding it, and returns it to `.ready`. Retry from the error panel is unchanged.
+
+Behavioral regressions were added before/alongside the fix:
 
 - `testHidingDirectVideoLoadRestoresRetainedAudio`: direct video load, cancellation, retained `.m4a` player restoration, and late video result disposal.
 - `testHidingDirectVideoLoadPreparesLegacyRetainedAudio`: direct video load cancellation starts the existing WebM conversion/persistence flow and installs its playable output without deleting source data itself.
+- `testHidingFailedDirectVideoLoadRestoresRetainedAudio`, `testHidingFailedDirectVideoLoadPreparesLegacyRetainedAudio` and `testHidingFailedVideoLoadKeepsExistingAudioPlayerUsable`: the failed-load counterparts, including legacy conversion and an already-installed audio player.
 - `testRestoredLegacyAudioCannotReplaceNewTranscriptAfterPersistenceWait`: navigation during suspended conversion persistence cannot install the old audio afterward.
 
 The pre-fix first test would observe a nil player and `.idle`; the second would time out waiting for persistence. The third isolates the missing post-persistence cancellation check. Parent owns compilation and focused/full test execution; no build or test pass is claimed by this reviewer. `git diff --check` passed after these edits.

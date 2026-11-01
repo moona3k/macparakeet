@@ -33,11 +33,12 @@ one AVPlayer timeline so seeking, speed, and transcript highlighting share a clo
   detaches the player item before releasing the last resource reference.
 - A cancelled load cannot replace the current player, update its preparation stage,
   or stop a newer load's timer. Failed preparation leaves the existing audio player available.
-- Hide Video cancels unfinished preparation without stopping retained audio. Hiding
+- Hide Video cancels unfinished or failed preparation without stopping retained audio. Hiding
   already-prepared video keeps its player available for audio playback.
-  If a transcript was opened directly into the video panel, cancelling prepares
-  its retained audio, including the existing legacy audio conversion path, so the
-  audio scrubber remains usable without reopening the transcript.
+  If a transcript was opened directly into the video panel, cancelling or hiding
+  after a failed load prepares its retained audio, including the existing legacy
+  audio conversion path, so the audio scrubber remains usable without reopening
+  the transcript. An existing audio player is kept, not rebuilt.
 - Preserve the latest playback position, play/pause state, and rate when switching
   from retained audio to video; sample them after preparation completes.
 - Keep subprocess output out of pipes that could fill while waiting for exit; bound

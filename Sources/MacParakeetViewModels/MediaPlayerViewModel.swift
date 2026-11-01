@@ -136,6 +136,14 @@ public final class MediaPlayerViewModel {
         prepareRetainedYouTubeAudio(for: transcription)
     }
 
+    private var hasVideoPreparationToCancel: Bool {
+        switch playerState {
+        case .loading: return loadingTask != nil
+        case .error: return videoPreparationTranscription != nil
+        case .idle, .ready, .unavailableOffline: return false
+        }
+    }
+
     private func prepareRetainedYouTubeAudio(for transcription: Transcription) {
         // Also used when Hide Video interrupts a direct load after navigation.
         needsVideoStreamLoad = true
@@ -299,9 +307,9 @@ public final class MediaPlayerViewModel {
         await task.value
     }
 
-    /// Stop an unfinished Show Video request while keeping retained audio usable.
+    /// Stop an unfinished or failed Show Video request while keeping retained audio usable.
     public func cancelVideoPreparation() {
-        guard playerState == .loading, loadingTask != nil else { return }
+        guard hasVideoPreparationToCancel else { return }
         loadingTask?.cancel()
         loadingTask = nil
         let transcription = videoPreparationTranscription

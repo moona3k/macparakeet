@@ -187,6 +187,10 @@ owned by `AppEnvironment`.
   speech boundaries and falls back to fixed on VAD errors.
 - `AudioFileConverter.swift` — file-side converter (FFmpeg /
   AVFoundation) for file/YouTube/meeting transcription inputs.
+- `FFmpegAudioTrackProbe.swift` — embedded audio-stream discovery from
+  FFmpeg's input summary. Its stderr capture lives under
+  `$TMPDIR/macparakeet/`, created on demand. Creation and read failures throw
+  instead of reporting an empty track list, and the log is removed on every exit.
 - `AudioProcessor.swift` + `AudioProcessorProtocol.swift` — thin
   facade composing `AudioRecorder` + `AudioFileConverter` behind a
   single protocol. Useful where a caller wants both the dictation

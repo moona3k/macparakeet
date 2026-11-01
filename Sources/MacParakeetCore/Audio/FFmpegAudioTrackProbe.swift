@@ -89,21 +89,31 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
             )
         }
 
-        let primaryOutput = try await runFFmpegProbe(fileURL: fileURL, ffmpegPath: primaryPath)
+        let primaryOutput = try await runFFmpegProbe(
+            fileURL: fileURL, ffmpegPath: primaryPath, temporaryRoot: Self.defaultTemporaryRoot)
         if (primaryOutput.output.contains("dyld")
             || primaryOutput.output.contains("Library not loaded")),
             let fallbackPath = BinaryBootstrap.findSystemFFmpeg(),
             fallbackPath != primaryPath
         {
-            return try await runFFmpegProbe(fileURL: fileURL, ffmpegPath: fallbackPath)
+            return try await runFFmpegProbe(
+                fileURL: fileURL, ffmpegPath: fallbackPath, temporaryRoot: Self.defaultTemporaryRoot)
         }
         return primaryOutput
     }
 
-    private static func runFFmpegProbe(fileURL: URL, ffmpegPath: String) async throws -> ProbeResult {
-        let logURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("macparakeet-audio-tracks-\(UUID().uuidString).log")
-        FileManager.default.createFile(atPath: logURL.path, contents: Data())
+    private static var defaultTemporaryRoot: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("macparakeet", isDirectory: true)
+    }
+
+    static func runFFmpegProbe(
+        fileURL: URL,
+        ffmpegPath: String,
+        temporaryRoot: URL
+    ) async throws -> ProbeResult {
+        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        let logURL = temporaryRoot.appendingPathComponent("macparakeet-audio-tracks-\(UUID().uuidString).log")
+        try Data().write(to: logURL)
         defer { try? FileManager.default.removeItem(at: logURL) }
 
         let handle = try FileHandle(forWritingTo: logURL)
@@ -128,8 +138,9 @@ public final class FFmpegAudioTrackProbe: AudioTrackProbing, Sendable {
             timeoutError: AudioProcessorError.conversionFailed("Audio-track discovery timed out")
         )
         try handle.synchronize()
+        let output = try Data(contentsOf: logURL)
         return ProbeResult(
-            output: (try? String(contentsOf: logURL, encoding: .utf8)) ?? "",
+            output: String(decoding: output, as: UTF8.self),
             terminationStatus: process.terminationStatus
         )
     }

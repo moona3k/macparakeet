@@ -7,7 +7,8 @@ Draft release notes. This candidate has not been published.
 - **Choose your dictation sounds.** Pick separate start and stop cues, adjust their volume, or import your own sounds. New Bloom and Gong cues are included.
 - **Control dictation from a link.** The optional setting accepts `macparakeet://dictation/start` and `macparakeet://dictation/stop`. It starts off. Once enabled, other apps and websites can send those links.
 - **More reliable keyboard interaction.** App-generated paste events are separated from physical shortcut state, and interrupted streaming insertion stops retrying after a failed flush.
-- **YouTube playback supports separate video and audio streams.** Preparation shows progress and can be cancelled while keeping saved audio available.
+- **YouTube playback supports separate video and audio streams.** Preparation shows progress. Cancelling it, or hiding the video after it fails, keeps saved audio available.
+- **File transcription reports scratch-storage failures.** Audio-track discovery creates its temporary folder on demand and shows the underlying error if its scratch output cannot be written or read, instead of treating the file as having no tracks.
 - **Meeting echo suppression handles a reference track that arrives ahead of the microphone.**
 - **Knowledge cards recover from incomplete output.** Generation makes one corrective retry and preserves an existing card if replacement fails.
 - **Settings and vocabulary are easier to use.** Compact windows keep controls accessible, search covers more rows, vocabulary load failures are reported, and standalone terms such as `C++`, `C#`, and `.NET` match correctly.
