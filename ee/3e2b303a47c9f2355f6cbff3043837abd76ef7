@@ -1,0 +1,24 @@
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_c6cce7be304f19::t_824a16c540717e 49,77,3605-3616
+  s_c6cce7be304f19::t_d57f627365a5d4 3617
+spec/adr/002-local-only.md
+  s_c6cce7be304f19::t_671e372ee70a6a 139,147
+README.md
+  s_c6cce7be304f19::t_671e372ee70a6a 294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee3e2b303a47c9f2355f6cbff3043837abd76ef7",
+  "prompts": {},
+  "sessions": {
+    "s_c6cce7be304f19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eaaf44ae-720d-4aa9-bdef-f0dfd005ce70",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

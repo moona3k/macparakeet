@@ -1,0 +1,38 @@
+spec/11-llm-integration.md
+  s_71265a844b5293::t_73904676d94a69 595-599
+  s_71265a844b5293::t_8e7fec39efe2d1 569
+  s_71265a844b5293::t_f4fd64af157509 632
+  s_71265a844b5293::t_bd12a36d2b0f86 540-541
+spec/adr/034-meeting-ask-workspace.md
+  s_71265a844b5293::t_7b05d066695859 49-50
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_71265a844b5293::t_6e35e7e31d22f1 4-5,8,10,38,40,44,49,52,54,60,73,75,79,1249-1458,1494-1548,3385-3386,3492-3594
+README.md
+  s_71265a844b5293::t_9853c4e3f2fff9 62
+  s_71265a844b5293::t_5c672afa7b6b57 88
+  s_71265a844b5293::t_0491d273679973 136
+spec/03-architecture.md
+  s_71265a844b5293::t_401760bfe7fbd1 32
+integrations/README.md
+  s_71265a844b5293::t_62cb25054ad8e2 518-519,522
+docs/audits/2026-10-31-app-cli-parity/README.md
+  s_71265a844b5293::t_6ba5469f55dc4f 154-155
+  s_71265a844b5293::t_37eef34f8825a5 177-187
+  s_71265a844b5293::t_0242c238828c6a 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40d03ca9af01d2ec7d5e967d5269074a9d2a15ee",
+  "prompts": {},
+  "sessions": {
+    "s_71265a844b5293": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7527514f-1b28-4ad2-9ea2-813f2364aba9",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
