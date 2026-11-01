@@ -1,7 +1,9 @@
 # Local signed candidate — 2026-11-01
 
+This is the **initial, superseded** candidate receipt. It predates the fresh-review title fixes; its successful checks do not qualify later source changes.
+
 - App: **0.8.11**, build **20261101185026**; bundled CLI **5.2.0**.
-- Executable source: `b9eab04a1f4f` (includes upstream `f7d1a4457` and review fixes through `d66cfae0f`). Later branch changes update documentation only.
+- Executable source: `b9eab04a1f4f` (includes upstream `f7d1a4457` and review fixes through `d66cfae0f`).
 - Build: canonical `scripts/dist/build_app_bundle.sh`, Release/arm64, Xcode 26.4.1, Swift 6.3.1, minimum macOS 14.2. Both Xcode app and SwiftPM CLI builds succeeded. Existing compiler warnings remain; this is not a warning-free build claim.
 - Required LocalVQE runtime/model, real FFmpeg and yt-dlp seed reused from the installed stable app as explicit build inputs; the bundle script verified portability and echo asset identity. Node 24.13.1 and the Ask helper were packaged by the canonical script.
 - Signing: `SKIP_NOTARIZE=1 REQUIRE_MEETING_ECHO_ASSETS=1 scripts/dist/sign_notarize.sh`. Developer ID **Daniel Moon (FYAF2ZD7RM)**, hardened runtime, nested helper entitlements, strict deep verification, privacy strings/entitlements and signed echo assets passed.

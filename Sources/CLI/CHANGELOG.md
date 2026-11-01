@@ -133,8 +133,9 @@ remain separate release steps.
   completed meeting schemas and durations are unchanged (#1291).
 
 - Automatic meeting titles retry transient provider failures and accept valid
-  topic years and titles within the character limit. User-edited titles remain
-  protected (#1309).
+  topic years and titles within the character limit. Generic labels with only
+  a year appended are rejected. Adopted calendar names and user-edited titles
+  remain protected (#1309 and release review).
 
 - File transcription creates the audio-track probe's temporary folder when
   missing and propagates scratch-output creation/read errors instead of treating

@@ -4,7 +4,7 @@
 
 The reviewed source is ready for final candidate acceptance testing. Confirmed findings are fixed, regression verification is green, and the Release app is built and Developer ID signed locally. **Publication remains on hold pending native/physical acceptance and exact-artifact notarization, installation and Sparkle upgrade checks.** This review does not claim zero regressions or resolve every existing issue.
 
-The candidate is app **0.8.11**, build **20261101185026**, CLI **5.2.0**, built from `b9eab04a1f4f`. The signed app, ZIP and dSYM remain in this worktree's `dist/`; [artifact hashes and qualification details](evidence/signed-candidate.md) identify the exact bytes. Later branch changes are documentation only. The primary checkout and personal library were preserved.
+The initial candidate was app **0.8.11**, build **20261101185026**, CLI **5.2.0**, built from `b9eab04a1f4f`; [its artifact receipt](evidence/signed-candidate.md) preserves that evidence. The fresh review below adds title fixes, so that initial artifact is superseded and must not be used as proof for the updated source. The primary checkout and personal library were preserved.
 
 ## Candidate and scope
 
@@ -73,3 +73,15 @@ The [recent-issue risk assessment](recent-issue-risks.md) distinguishes the fixe
 Remote main advanced to `f7d1a4457efbe7acaff76091ae8666d7d7313acf` (meeting-title fix, #1309) while verification was underway. An independent read-only integration review found no concrete conflict with capture recovery: it changes title validation/generation, respects persisted row titles/overrides, and bounds retry/cancellation. It was integrated locally in `b9eab04a1` after the full run and verified with the focused integration suite above. The earlier full run does not cover that combined tree.
 
 No step used Jev: this work involved code reasoning, fixed contract checks and synthetic regression tests, with no new semantic-decision integration.
+
+## Fresh review requested after the initial handoff
+
+Live GitHub and git checks confirm PR [#1309](https://github.com/moona3k/macparakeet/pull/1309) merged at `f7d1a4457` and was already included in the initial candidate. Remote main still pointed to that commit when this pass began. Fresh reviewers independently inspected stable `v0.8.10` through `93e7b3944`, including the first review's fixes, rather than assuming the earlier verdict was sufficient.
+
+- [Capture/recovery review](fresh-capture-review.md): no additional confirmed introduced P1/P2 in capture, lease ownership, queue settlement, retry, editing or deletion. Native and high-latency AEC acceptance remain separate.
+- [Interaction/playback review](fresh-interaction-review.md): no additional actionable P1/P2 in input, URL consent, sounds, vocabulary, Settings or media ownership/cancellation.
+- [Title/services review](fresh-title-services-review.md): one pre-existing P2 and one introduced P3 were confirmed and fixed. A calendar name such as `Meeting May Hiring Plan` could be overwritten by the old fallback-name heuristic. A recording that actually uses its saved calendar title is now protected. Distinct probable calendar metadata on manual recordings still allows automatic titles. PR #1309 also allowed generic labels with only a year appended; `Meeting 2027` is now rejected while descriptive topic years remain accepted.
+
+Both findings reproduced against the prior implementation: two focused cases produced 14 failed assertions. Adversarial review caught an overly broad first calendar guard before commit; a probable-snapshot regression reproduced three failed assertions and drove the narrower adopted-title comparison. Final focused title/transcription/capture/queue/detail-retry verification: **206 tests, zero failures**. Both reviewers rechecked the correction with no remaining finding. Changed-file lint exited zero with existing style warnings; whitespace checks passed. The earlier full-suite receipt applies to its recorded commit, not these follow-up fixes; the full suite was not repeated.
+
+The parent also rechecked Release feature gates, URL integration, telemetry fields and packaging scope. Experimental Voice Control/Ask/sharing/profile gates remain closed in Release; the new meeting reminder runtime remains opt-in. Website source accepts the new finite telemetry values, but no live telemetry event was submitted. No publication or external review comment was posted.
