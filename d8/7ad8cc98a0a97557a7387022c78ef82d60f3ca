@@ -22,6 +22,7 @@ plans/active/2026-09-16-issue-1062-apple-intelligence.md
   s_1d3c3aeecdd983::t_269ea9c035ad72 5
 spec/README.md
   s_1d3c3aeecdd983::t_9397edd679f076 31,96-103,108,112,114-118,379
+  s_ac84acbebda8cf::t_3e6dbef107d9e0 104-107,113,206
 plans/active/2026-07-03-speaker-voiceprints.md
   s_1d3c3aeecdd983::t_71aea7ed1ab048 3-8
 docs/releases/0.8.10/README.md
@@ -92,6 +93,10 @@ docs/audits/2026-10-31-app-cli-parity/installed-cli-spec.json
   s_1d3c3aeecdd983::t_fdc09cfdb803e8 1-5490
 docs/audits/2026-10-31-app-cli-parity/installed-cli-version.txt
   s_1d3c3aeecdd983::t_49fcde68b072f3 1
+README.md
+  s_ac84acbebda8cf::t_7c5865b2045a3d 66-67
+spec/04-ui-patterns.md
+  s_ac84acbebda8cf::t_dc7f61a561669d 1165
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -104,6 +109,14 @@ docs/audits/2026-10-31-app-cli-parity/installed-cli-version.txt
         "tool": "codex",
         "id": "01a193d9-1279-75c1-a0aa-2e17aa9d4af4",
         "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ac84acbebda8cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d53b72ed-275e-42de-a79c-ad78417189b7",
+        "model": "claude-sonnet-5-5"
       },
       "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
     }
