@@ -3,7 +3,7 @@ import MacParakeetViewModels
 import SwiftUI
 
 /// Calendar auto-start — the "Start recording automatically" half of the
-/// Meeting Recording card's Automatic recording group. A single adaptive row
+/// Meeting Recording card's Reminders and automation group. A single adaptive row
 /// requests Calendar access in context (so the user opts into auto-start and
 /// *that* prompts for access). Once granted, the row is a plain on/off toggle —
 /// matching its "Stop recording automatically" sibling and the "Auto-save
@@ -147,7 +147,7 @@ struct CalendarSettingsView: View {
     // MARK: - Start (adaptive permission + mode)
 
     /// Single adaptive row that frames calendar auto-start as the "start" half
-    /// of the Automatic recording group. The trailing control follows Calendar
+    /// of the Reminders and automation group. The trailing control follows Calendar
     /// permission: a one-tap enable button before access is granted (so the
     /// user opts into auto-start and *that* triggers the access prompt), an
     /// on/off toggle once granted, and a System Settings deep-link if denied.

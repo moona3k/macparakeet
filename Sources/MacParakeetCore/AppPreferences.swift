@@ -83,3 +83,8 @@ public enum CalendarAutoStartPreferences {
         Set(defaults.stringArray(forKey: skippedEventsKey) ?? [])
     }
 }
+
+/// Opt-in meeting-start reminders.
+public enum MeetingActivityDetectionPreferences {
+    public static let modeKey = "MeetingActivityDetection.mode"
+}

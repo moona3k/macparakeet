@@ -10,10 +10,12 @@ implemented in the published CLI 5.1.0 binary by `history transcriptions`, `hist
 correction projection. Use history to discover IDs, then `export <id> --format
 json --stdout` or `meetings show <id> --json` for corrected content. See the
 [parity map](../../integrations/capabilities.md#1-published-cli-history-json-can-return-superseded-text-and-speakers)
-for scope and regression requirements. This annotation records a defect; it
-does not redefine the intended contract. The source fix is tracked in
-[PR #1304](https://github.com/moona3k/macparakeet/pull/1304); installation of a
-release containing that fix remains a separate step.
+for scope. This annotation records a defect; it does not redefine the intended
+contract. The source fix merged in
+[PR #1304](https://github.com/moona3k/macparakeet/pull/1304) as `264c11c33`
+and is the behavior the history bullet below describes; the CLI changelog lists
+it under Unreleased. The published 5.1.0 binary keeps this limitation until a
+CLI release containing the fix is installed.
 
 ## Purpose
 
@@ -78,6 +80,18 @@ still apply.
   (boolean) and `skipScope` (`"occurrence"`, `"event"`, or `null`). Recurrence
   is not exposed. Membership, `--filter`, and declined-fetch behavior stay as
   before this feature.
+- `history transcriptions --json`, `history search-transcriptions --json`,
+  and `history favorites --json` return arrays of saved transcription objects
+  with active corrections resolved through the shared effective projection.
+  `cleanTranscript`, `speakers`, `speakerCount`, word `speakerId` values,
+  `diarizationSegments`, and `transcriptSegments` reflect the same corrections
+  as the app and JSON export. An intentionally omitted transcript has empty
+  `cleanTranscript` and no effective segments; consumers must not treat that
+  empty string as missing and restore raw text. `rawTranscript` and recognized
+  word strings/timestamps remain automatic evidence, not a second edited
+  transcript. Fields, array shape, metadata, ordering, filters, and limits are
+  unchanged. These reads never persist the materialized projection back over
+  the automatic transcription row.
 - `transcript --json` returns one object with transcription metadata and an
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
@@ -381,6 +395,8 @@ still apply.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
+  `triggerKind` may be `manual`, `hotkey`, `calendar_auto_start`, or
+  `activity_detection` (the user accepted a detected-call recording prompt).
 - Meeting list/show/export/transcript JSON can include additive optional
   `meetingType` and `meetingLabels`. A meeting type object has `id`, `name`,
   optional `colorToken`, optional `iconName`, `sortOrder`, and `isArchived`;

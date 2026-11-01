@@ -6,7 +6,25 @@ date: 2026-06-14
 
 # Rich Meeting Activity Detection Plan
 
-## Summary
+## 2026-10-19 rollout amendment
+
+The historical no-flag-flip/full-green/manual-QA requirements below are
+superseded for the prompt-only opt-in Beta introduced by PR #1267. The compile
+flag is enabled in Debug and Release builds, the preference defaults off, and
+Settings identifies the feature as Beta. This exposes the useful path for real
+qualification; it does not claim GA or a passing full suite. The initial full
+run had six failed assertions across four app cases, with the relation to this
+change unestablished because no exact-base rerun was done. Native/browser and
+idle-CPU verification remain pending. The [active rollout amendment](../../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime)
+records counts, the earlier unsuccessful/unqualified muted browser trial, scope,
+and remaining work. Activity auto-recording remains unavailable, and legacy
+auto-start preferences resolve to prompt mode. The published stable 0.8.10 DMG
+does not include this feature.
+
+The rest of this document preserves the original design and completion criteria
+as historical context; it does not override that current rollout decision.
+
+## Historical summary
 
 Complete ADR-024 Phase C by upgrading meeting activity detection from a coarse
 app/camera identity into a rich meeting-candidate pipeline. The shipped behavior

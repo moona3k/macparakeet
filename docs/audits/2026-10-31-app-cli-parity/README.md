@@ -3,6 +3,9 @@
 > Date: 2026-10-31. Source baseline: `79cf1ca92` from freshly fetched
 > `origin/main`. Published app: 0.8.10 (`394e630b4`). Installed app: 0.8.10;
 > bundled CLI: 5.1.0. Review branch: `review/app-cli-docs-2026-10-31`.
+> Follow-up (2026-10-31): status notes are reconciled against `264c11c33`, which
+> adds merged PRs #1267 and #1304 to that baseline. Findings below describe the
+> baseline unless a dated status note says otherwise.
 
 ## Verdict
 
@@ -24,10 +27,13 @@ workflow map and safe alternatives while those gaps remain open.
 The owner subsequently authorized validating findings and opening PRs. The
 [code inventory](code-inventory.json), [UI/tooling review](ui-tooling-review.md),
 [capture review](capture-review.md), and [data/agent review](data-agent-review.md)
-record the broader pass. The history JSON defect has a separate fix branch,
-`fix/history-effective-projection`, with synthetic regression tests in
-[PR #1304](https://github.com/moona3k/macparakeet/pull/1304). The gaps
-below describe the baseline; the fix does not expand capture or editing APIs.
+record the broader pass. At that follow-up the history JSON defect had a
+separate fix branch, `fix/history-effective-projection`, with synthetic
+regression tests in
+[PR #1304](https://github.com/moona3k/macparakeet/pull/1304). That PR has since
+merged as `264c11c33` and this branch is rebased onto it; see the status note
+under P1. The gaps below describe the baseline; the fix does not expand capture
+or editing APIs.
 
 `no-mistakes` was found outside PATH at the follow-up and is used for PR gating.
 Its local test stage is deferred to hosted macOS CI because available disk space
@@ -108,8 +114,16 @@ reads using a fresh synthetic database. Public correction commands committed
 new text and a speaker name; meeting detail/export returned those corrections,
 while history returned the originals. All 16 probe commands succeeded. See the
 [reproduction script](history-projection-repro.py) and
-[receipt](history-projection-repro.json). PR #1304 implements the source fix;
-this documentation branch does not contain it.
+[receipt](history-projection-repro.json). At the baseline, PR #1304
+implemented the source fix and this documentation branch did not contain it.
+
+**Status note (2026-10-31, after rebase):** PR #1304 merged as `264c11c33` and
+this branch is rebased onto it, so source at the branch head resolves all three
+JSON reads through `SpeakerAttributionReadService`. The baseline evidence and
+the 5.1.0 reproduction above are unchanged. The published CLI 5.1.0 still
+returns stored rows: the fix is listed under Unreleased in the CLI changelog,
+and no release containing it is claimed here. The workaround applies to the
+installed binary until one ships.
 
 ### P2: CLI cannot retry retained source tracks without canonical audio
 

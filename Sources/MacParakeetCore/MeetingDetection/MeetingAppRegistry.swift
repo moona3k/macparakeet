@@ -45,6 +45,8 @@ public enum MeetingAppRegistry {
         "org.mozilla.firefox",
         "com.brave.Browser",
         "company.thebrowser.Browser",
+        "com.operasoftware.Opera",
+        "com.operasoftware.OperaGX",
     ]
 
     public static func isRecognizedNativeApp(bundleID: String) -> Bool {
@@ -71,5 +73,17 @@ public enum MeetingAppRegistry {
 
     public static func isBrowser(bundleID: String) -> Bool {
         browserBundleIDs.contains(bundleID)
+    }
+
+    /// Chromium attributes microphone use to helper processes. Only accept
+    /// helpers belonging to a known browser, not arbitrary prefix matches or
+    /// shared WebKit processes that cannot identify their owning browser.
+    public static func normalizedBrowserBundleID(for bundleID: String) -> String? {
+        if browserBundleIDs.contains(bundleID) { return bundleID }
+        return browserBundleIDs.sorted().first { browserID in
+            [".helper", ".Helper"].contains { suffix in
+                bundleID == browserID + suffix || bundleID.hasPrefix(browserID + suffix + ".")
+            }
+        }
     }
 }

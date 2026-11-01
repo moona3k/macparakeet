@@ -383,7 +383,7 @@ prompt-customization trend.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `meeting_recording_started` | `trigger` (manual, hotkey, calendar_auto_start) | How meetings start |
+| `meeting_recording_started` | `trigger` (manual, hotkey, calendar_auto_start, activity_detection) | How meetings start |
 | `meeting_recording_completed` | `duration_seconds`, `live_word_count`, `live_transcript_lagged` | Recording duration and live-preview quality |
 | `meeting_recording_cancelled` | `duration_seconds` | How often recordings are intentionally discarded |
 | `meeting_recording_failed` | `error_type` | What blocks recording/finalization |
@@ -394,7 +394,7 @@ prompt-customization trend.
 `recording`, `stop_recording`, `transcription`, `complete_transcription`, and
 `cancel`.
 `meeting_operation.trigger` values include `manual`, `hotkey`,
-`calendar_auto_start`, and `auto_stop`; `meeting_recording_started.trigger`
+`calendar_auto_start`, `activity_detection`, and `auto_stop`; `meeting_recording_started.trigger`
 does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 Failed/cancelled Stop includes actual `capture_start_completed`, elapsed
 `duration_seconds`, known `capture_source_mode`, and successfully written
@@ -418,7 +418,7 @@ zero frames remains distinct from a Stop whose start never completed.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, menu_bar_icon, hide_pill, overlay_placement, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, start_meetings_muted, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, play_dictation_capture_sounds, escape_cancels_dictation, preserve_discarded_dictations, dictation_insertion_style, spoken_punctuation, remove_um_filler, dictation_undo_countdown, keep_dictation_on_clipboard, streaming_cursor, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, menu_bar_icon, hide_pill, overlay_placement, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, start_meetings_muted, meeting_recording_pill, meeting_auto_stop, meeting_activity_detection_mode, pause_media_during_dictation, play_dictation_capture_sounds, escape_cancels_dictation, preserve_discarded_dictations, dictation_insertion_style, spoken_punctuation, remove_um_filler, dictation_undo_countdown, keep_dictation_on_clipboard, streaming_cursor, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, calendar mode/filter, and meeting activity detection mode (`off` or `prompt` from the UI; legacy stored auto-start values restore as `prompt`). It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"

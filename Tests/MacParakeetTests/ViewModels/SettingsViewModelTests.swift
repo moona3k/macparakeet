@@ -406,6 +406,30 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.startMeetingsMuted, .startMeetingsMuted])
     }
 
+    func testMeetingActivityReminderDefaultsOffAndPersistsPromptMode() {
+        XCTAssertEqual(viewModel.meetingActivityDetectionMode, .off)
+        viewModel.meetingActivityDetectionMode = .prompt
+        XCTAssertEqual(testDefaults.string(forKey: MeetingActivityDetectionPreferences.modeKey), "prompt")
+        viewModel.meetingActivityDetectionMode = .off
+        XCTAssertEqual(testDefaults.string(forKey: MeetingActivityDetectionPreferences.modeKey), "off")
+    }
+
+    func testMeetingActivityExperimentalAutoStartBecomesPromptAndUnknownBecomesOff() {
+        // Match the persisted enum value rather than relying on a display title.
+        testDefaults.set(
+            MeetingActivityDetectionMode.autoStart.rawValue, forKey: MeetingActivityDetectionPreferences.modeKey)
+        let restored = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(restored.meetingActivityDetectionMode, .prompt)
+        testDefaults.set("future-unknown", forKey: MeetingActivityDetectionPreferences.modeKey)
+        XCTAssertEqual(SettingsViewModel(defaults: testDefaults).meetingActivityDetectionMode, .off)
+    }
+
+    func testActivityDetectionTriggerPreservesMeetingStartAndOperationAttribution() {
+        XCTAssertEqual(MeetingStartContext.TriggerKind(.activityDetection), .activityDetection)
+        XCTAssertEqual(TelemetryMeetingOperationTrigger(.activityDetection), .activityDetection)
+        XCTAssertEqual(TelemetryMeetingRecordingTrigger.activityDetection.rawValue, "activity_detection")
+    }
+
     func testMeetingAutoStopPersistsEmitsTelemetryAndPostsNotification() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
@@ -832,7 +856,7 @@ final class SettingsViewModelTests: XCTestCase {
                         uid: "builtin-zed",
                         name: "Zed Built-In Mic",
                         transportType: kAudioDeviceTransportTypeBuiltIn
-                    )
+                    ),
                 ]
             },
             defaultInputDeviceUIDProvider: { "builtin-zed" }
@@ -2004,7 +2028,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testClearAllDictationsRefreshesStats() {
         mockRepo.dictations = [
-            Dictation(durationMs: 1000, rawTranscript: "Test"),
+            Dictation(durationMs: 1000, rawTranscript: "Test")
         ]
 
         viewModel.configure(
@@ -2096,7 +2120,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testResetLifetimeStatsCallsRepo() {
         mockRepo.dictations = [
-            Dictation(durationMs: 1000, rawTranscript: "One"),
+            Dictation(durationMs: 1000, rawTranscript: "One")
         ]
 
         viewModel.configure(

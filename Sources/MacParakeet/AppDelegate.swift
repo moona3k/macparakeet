@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var meetingAutoStopCoordinator: MeetingAutoStopCoordinator?
+    private var meetingActivityDetectionCoordinator: MeetingActivityDetectionCoordinator?
     /// Productized Transforms coordinator (ADR-022). Owns the process-wide
     /// `TransformsHotkeyRegistry` + dispatch from registered hotkeys to the
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
@@ -463,6 +464,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
         meetingAutoStopCoordinator?.stop()
+        meetingActivityDetectionCoordinator?.stop()
         transformsCoordinator?.stop()
         voiceControlCoordinator?.shutdown()
         settingsObserverCoordinator.stopObserving()
@@ -497,6 +499,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        meetingActivityDetectionCoordinator?.dismissPromptForQuit()
         // Repeated Quit commands share the original deferred decision. Do not
         // replace its completion or cancel it while notes are being saved.
         if savedMeetingNotesCoordinator.isPreparingToQuit { return .terminateLater }
@@ -517,6 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sender.reply(toApplicationShouldTerminate: false)
                 _ = self.presentActiveMeetingQuitAlert()
             } else {
+                self.meetingActivityDetectionCoordinator?.stop()
                 sender.reply(toApplicationShouldTerminate: true)
             }
         }) {
@@ -524,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard meetingRecordingFlowCoordinator?.quitState != nil else {
+            meetingActivityDetectionCoordinator?.stop()
             return .terminateNow
         }
 
@@ -684,6 +689,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
                 isOnboardingBlockingDictation: { [weak self] in
                     self?.onboardingWindowController.isBlockingDictation ?? false
+                },
+                isActivityRecordingSuppressed: { [weak self] in
+                    guard let self else { return true }
+                    return self.onboardingWindowController.isVisible
+                        || self.savedMeetingNotesCoordinator.isPreparingToQuit
+                        || self.isPresentingQuitAlert || self.meetingQuitTask != nil
                 }
             )
         )
@@ -708,6 +719,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
         meetingAutoStopCoordinator = runtime.meetingAutoStopCoordinator
+        meetingActivityDetectionCoordinator = runtime.meetingActivityDetectionCoordinator
         applyInstantDictationPreference(refreshWarmCapture: false)
 
         // Shared resolver for the user's LLM provider — returns the live
@@ -777,11 +789,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 conflictingHotkeys: { [weak self] in
                     guard let self else { return [] }
                     let transforms = (try? env.promptRepo.fetchVisible(category: .transform)) ?? []
-                    return [self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
-                            self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
-                            self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
-                            self.settingsViewModel.meetingHotkeyTrigger, self.settingsViewModel.fileTranscriptionHotkeyTrigger,
-                            self.settingsViewModel.youtubeTranscriptionHotkeyTrigger]
+                    return [
+                        self.settingsViewModel.hotkeyTrigger, self.settingsViewModel.pushToTalkHotkeyTrigger,
+                        self.settingsViewModel.alternateHandsFreeHotkeyTrigger,
+                        self.settingsViewModel.alternatePushToTalkHotkeyTrigger,
+                        self.settingsViewModel.meetingHotkeyTrigger,
+                        self.settingsViewModel.fileTranscriptionHotkeyTrigger,
+                        self.settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                    ]
                         + transforms.compactMap { $0.shortcut?.hotkeyTrigger }
                 }
             )
@@ -1170,6 +1185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return .terminateCancel
         }
         guard let quitState = meetingRecordingFlowCoordinator?.quitState else {
+            meetingActivityDetectionCoordinator?.stop()
             return .terminateNow
         }
         isPresentingQuitAlert = true

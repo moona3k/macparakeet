@@ -1,7 +1,7 @@
 {
   "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
   "local_link_check": {
-    "count": 422,
+    "count": 425,
     "markdownDocuments": 33,
     "missing": [],
     "outsideRepository": [],
@@ -46,21 +46,21 @@
       "spec/contracts/cli-json-v1.md"
     ],
     "documentSha256": {
-      "README.md": "a6b6b47fbc7c98040ed380327f32bb093c3a4162b21b430e038d75bc82fc5fd2",
+      "README.md": "c8b994b0dfadc070415f7c4b4c3410e72916d7d898c447973bce7bdfcdfe7c73",
       "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
       "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
-      "docs/audits/2026-10-31-app-cli-parity/README.md": "d9acc93dc3576972d728fe2762d50e0bdc9cfb74d5727b5d597dd6b4ae638e1f",
+      "docs/audits/2026-10-31-app-cli-parity/README.md": "c1bb5c2e1425ea580f5326c0c58096e27d2f33fcdb27099fff7d3891304383f1",
       "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "20aee2207785b12c6fa7678864f974411900577ccfc3fa63fd5a853bbe5f18be",
       "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "cfc28a9969db2e1c56ca3db58eccd76c5be0f7ed76852d3b05a657e584536a83",
       "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "efe58974146ef16aa661cd8daad70f828dac88e2bcaf1b1a4c3245f8e6201504",
-      "docs/cli-testing.md": "966fa5f2b01facd84c2c415acd78cb2c4764558a178cdcbf293796de89ec92b2",
+      "docs/cli-testing.md": "c38bb8ea2ee17042b56a3a09e73f81da56cd14b0965911c605f6158f295bf418",
       "docs/distribution.md": "54d3d5310a11b2cf9bccb3a40e7cd3af6be5d2883c6a489e9a9339045f76ba59",
       "docs/plans/2026-09-17-issue-449-streaming-cursor.md": "5143137164842e34cfcfab146f06f5b2bc5b87b97b7cd50d81b42345dade82c2",
       "docs/releases/0.8.10/README.md": "f4b9ed328da5b00ccf38b194d17d8613c40a840f308c1b57d8165eb14551ba8e",
       "integrations/README.md": "6e0863621a54a1d877f5ddde93916328db31e186c299be1914b2181305b68a3c",
-      "integrations/capabilities.md": "811049249bd55f4987f5adccb47aaad7f3cf7fc2632b30c36b20f6ac698099b0",
+      "integrations/capabilities.md": "87a9b815ecfe2b038a0a468ffc4201e2cef3257199d9aaf780eb663c2a271a74",
       "integrations/skill/macparakeet-stt/SKILL.md": "2634ce08a4b759a4e338aa869300c789355652d19b53e63d6f36469c998b4e8c",
-      "plans/README.md": "42adb57987a366af14e87531e962d2c51b77f170162741cbd04cdc1c8457c102",
+      "plans/README.md": "3ce0ce701d3f0e5c0cf930ec41710cba5eb3f877ec50e9635b18c2906bb12013",
       "plans/active/2026-07-03-speaker-voiceprints.md": "4a88e27bfae5b5ce116e1675f1e05fe946abaabf8fd3bf9d4e4d72c38089d5b2",
       "plans/active/2026-09-13-timed-transcript-editing.md": "617f9616ca659120450b36c76e94092beaaab78addfccb01baa29fa15ef0aab9",
       "plans/active/2026-09-14-issue-609-calendar-event-skip.md": "60e15c2501df27170679b8783dea80669d0997bf132150dabe08cceb9cb5a03e",
@@ -68,19 +68,24 @@
       "plans/active/2026-09-17-issue-1079-wrapping-up.md": "0627a3a41c735699911a9183a914966ad055b5d94d183a3fe56c81886548d7f0",
       "plans/active/2026-09-24-issue-1142-event-taps-off-main.md": "f7a32f26ea8ef1812a1a2deb18d6bdffbc80cc88c72b2adbd9b44a9ab8b01634",
       "plans/active/2026-10-30-1291-capture-finalization.md": "8f43b4ad74c481b746c0eb9e0a218f4cc5dfb7b3ac69e93801e6bcb75dbd7f0b",
-      "spec/00-vision.md": "c824360c5cb7512bb689bca17c8bd3afaf04801ee495658d49cd860d5336743f",
-      "spec/02-features.md": "7eed1a86f97dc504d584904fe968496ba928b0fceb79b874cd445cdecc528861",
+      "spec/00-vision.md": "f4f52667d52e4682dacc3e6e919681ad81057b7a2d418213867b0e3fb79a100f",
+      "spec/02-features.md": "0e235bf38039239dd3f12f031150ef66b1e9042f39d650ff71e701a15fe04ab3",
       "spec/03-architecture.md": "a6ea9bfc60edc1943ce4adbf874e3c3318a387c21a35c5d7adf80852e3385a67",
-      "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
+      "spec/04-ui-patterns.md": "f0ee51d7d338d35e707c25a2e91dfb8ed418fe31d06ed5d6e3b604adb4f52a39",
       "spec/11-llm-integration.md": "96eaa635c799c18a1fd09e1f1dfffcfd071ea421c430991ae785d5cef5abf59c",
-      "spec/README.md": "6fab2db86552f3f40b7816e32bfd1ff6585edc30a1035752ac73b59373bce9c2",
+      "spec/README.md": "39c7c05474479e9158604c8479dddc232bef8e16b070780f171f8a3e9b1e7e07",
       "spec/adr/002-local-only.md": "4339769d8d49de47804bdd819ce3ec6d1d545846edafaf3eac46f6e08dc075fd",
       "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
       "spec/adr/034-meeting-ask-workspace.md": "9fc2fdf7239dad366f3ea38051cb075f20347e180bef94af8543032a703a12ec",
       "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
-      "spec/contracts/cli-json-v1.md": "38619ae3bc2ded13bace2cb673ef13dffe825c8a1d7851f3e3aba3e95614fded"
+      "spec/contracts/cli-json-v1.md": "f33cfd11dbdfa413ff6f89754718b24f08c8d08ffd8bf9970d7c080e5099b8be"
     },
     "targets": [
+      {
+        "document": "README.md",
+        "target": "docs/releases/0.8.10/github.md",
+        "resolved": "docs/releases/0.8.10/github.md"
+      },
       {
         "document": "README.md",
         "target": "docs/releases/0.8.10/github.md",
@@ -1748,6 +1753,11 @@
       },
       {
         "document": "spec/README.md",
+        "target": "../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime",
+        "resolved": "plans/active/2026-06-14-meeting-activity-detection.md"
+      },
+      {
+        "document": "spec/README.md",
         "target": "contracts/speaker-voiceprints.md",
         "resolved": "spec/contracts/speaker-voiceprints.md"
       },
@@ -1950,6 +1960,11 @@
         "document": "spec/README.md",
         "target": "02-features.md",
         "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime",
+        "resolved": "plans/active/2026-06-14-meeting-activity-detection.md"
       },
       {
         "document": "spec/README.md",
@@ -3614,6 +3629,195 @@
       "localLinkCount": 422,
       "localLinkMissing": 0,
       "baselineDiffCheckExit": 0
+    }
+  },
+  "followUpRebase2026-10-31": {
+    "capturedAtUTC": "2026-11-01T02:46:08.341365+00:00",
+    "scope": "Rebase of the five documentation commits onto main at 264c11c338b597a51f7719384b4a39d064de8406 (includes #1267 and #1304). Conflicts in README.md, spec/04-ui-patterns.md and spec/README.md were resolved by keeping the base reminder and release text beside the audited wording; spec/00-vision.md no longer lists activity-based meeting detection as gated. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "rebasedOnto": "264c11c338b597a51f7719384b4a39d064de8406",
+    "markdownScopeNote": "After the rebase the Markdown set is the pull-request range against the rebased base, which is the same 33 files; the audit baseline field above still names the source revision that was reviewed.",
+    "documentsWithChangedHash": [
+      "README.md",
+      "spec/00-vision.md",
+      "spec/02-features.md",
+      "spec/04-ui-patterns.md",
+      "spec/README.md",
+      "spec/contracts/cli-json-v1.md"
+    ],
+    "localLinkRefresh": {
+      "previous": {
+        "count": 422,
+        "markdownDocuments": 33,
+        "excludedTargets": {
+          "remote_or_other_scheme": 53,
+          "anchor_only_or_empty": 3
+        }
+      },
+      "current": {
+        "count": 425,
+        "markdownDocuments": 33,
+        "excludedTargets": {
+          "remote_or_other_scheme": 53,
+          "anchor_only_or_empty": 3
+        }
+      },
+      "missing": 0,
+      "method": "Same extraction rules as the first receipt; they reproduced the previous 422 targets and exclusion counts exactly on the pre-rebase head before being applied to the rebased tree. The additional targets are rollout-amendment links from the base reminder text in spec/README.md."
+    },
+    "featureFlagTableCheck": {
+      "sourceFlags": 16,
+      "documentedFlags": 16,
+      "mismatches": 0,
+      "note": "Current AppFeatures.swift compared with the spec/README.md flag table after the rebase; meetingActivityDetectionEnabled is true in both. The original 16-flag receipt is unchanged."
+    },
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "sourceReadmeReferences": {
+        "command": [
+          "bash",
+          "scripts/check-readme-references.sh"
+        ],
+        "exit": 0,
+        "stdout": "All Sources/**/README.md backticked .swift references resolve.",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
+    }
+  },
+  "followUpHistoryFixStatus2026-10-31": {
+    "capturedAtUTC": "2026-11-01T02:53:20.254972+00:00",
+    "scope": "Current-status wording reconciled after the rebase onto 264c11c338b597a51f7719384b4a39d064de8406, which contains PR #1304. Source (fixed), merge (264c11c33) and publication (CLI 5.1.0 unchanged; fix listed under Unreleased) are stated separately. The installed-5.1.0 workaround, the dated baseline findings and all raw reproduction evidence are preserved. The #1267 reminder wording is untouched. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "sourceEvidence": {
+      "pullRequest": 1304,
+      "mergeCommit": "264c11c338b597a51f7719384b4a39d064de8406",
+      "mergeCommitIsAncestorOfHead": true,
+      "stateObservedFrom": "git history only; GitHub state was not re-queried",
+      "historyCommandRouting": "Sources/CLI/Commands/HistoryCommand.swift routes history transcriptions, search-transcriptions and favorites JSON through printHistoryTranscriptionsJSON, which uses SpeakerAttributionReadService",
+      "changelog": "Sources/CLI/CHANGELOG.md lists the fix under Unreleased; no CLI release containing it is claimed"
+    },
+    "documentsEdited": [
+      "docs/audits/2026-10-31-app-cli-parity/README.md",
+      "docs/cli-testing.md",
+      "integrations/capabilities.md",
+      "spec/contracts/cli-json-v1.md"
+    ],
+    "documentsReviewedUnchanged": {
+      "integrations/skill/macparakeet-stt/SKILL.md": "already scoped to published CLI 5.1.0",
+      "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "dated review narrative; 'separate PR' remains true",
+      "PR #1305 wording": "not in the base; still described as a separate fix branch"
+    },
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "localLinkCountUnchanged": true,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
+    }
+  },
+  "followUpProvenance2026-10-31": {
+    "capturedAtUTC": "2026-11-01T02:57:47.665257+00:00",
+    "scope": "Provenance clarification only. 79cf1ca928b53c3853a99f6832c197d664dcdd78 remains the dated audit baseline. The capability map header and the audit README header now say that follow-up status is reconciled against 264c11c338b597a51f7719384b4a39d064de8406, which adds merged PRs #1267 and #1304, so the history JSON fix is not read as present at the baseline. The implementation/release distinction, dated baseline findings and raw evidence are unchanged. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "revisionEvidence": {
+      "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
+      "followUpRevision": "264c11c338b597a51f7719384b4a39d064de8406",
+      "baselineIsAncestorOfFollowUpRevision": true,
+      "commitsBetween": [
+        "5fe201369 Add opt-in recording reminders for active meetings (#1267)",
+        "264c11c33 Fix CLI history corrected transcript reads (#1304)"
+      ]
+    },
+    "documentsEdited": [
+      "docs/audits/2026-10-31-app-cli-parity/README.md",
+      "integrations/capabilities.md"
+    ],
+    "documentsReviewedUnchanged": {
+      "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "header already reads Source baseline and makes no current-state claim",
+      "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "header already reads Source baseline and makes no current-state claim",
+      "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "header already reads Baseline; its 'separate PR' note remains true",
+      "plans/README.md and plans/active/*.md headers naming 79cf1ca92": "concern other topics; none claims history JSON or recording reminder state"
+    },
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "localLinkCountUnchanged": true,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
+    }
+  },
+  "followUpPlanBoardReconciliation": {
+    "capturedAtUTC": "2026-11-01T03:05:15.981538+00:00",
+    "scope": "Correct only the meeting-activity-detection plan-board row after independent review of the reconciled tree. Preserve merged #1267 source-enabled, preference-off prompt-only Beta behavior, the stable 0.8.10 boundary and remaining native/browser qualification. The row uses the same local Markdown link; raw evidence is unchanged.",
+    "sourceEvidence": {
+      "mergeCommit": "5fe201369fb961a697ce628c9f43acc96f086bbf",
+      "plan": "plans/active/2026-06-14-meeting-activity-detection.md",
+      "featureFlag": "AppFeatures.meetingActivityDetectionEnabled = true"
+    },
+    "checks": {
+      "documentHashes": true,
+      "documentCount": 33,
+      "rawArtifactHashes": true,
+      "rawArtifactCount": 7,
+      "localLinkTargetsUnchanged": true,
+      "diffCheckExit": 0
     }
   }
 }

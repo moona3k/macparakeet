@@ -822,6 +822,17 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         }
     }
 
+    func testMeetingRecordingWaitsForReadyOverlayAndAllDictationWork() {
+        XCTAssertFalse(DictationFlowCoordinator.isBusyForMeetingRecording(for: .idle))
+        for state: DictationFlowState in [
+            .ready, .checkingEntitlements(mode: .persistent), .startingService(mode: .persistent),
+            .recording(mode: .holdToTalk), .pendingStop(mode: .persistent), .processing,
+            .cancelCountdown, .finishing(outcome: .success), .finishing(outcome: .error("failed")),
+        ] {
+            XCTAssertTrue(DictationFlowCoordinator.isBusyForMeetingRecording(for: state), "Expected busy for \(state)")
+        }
+    }
+
     func testIsCapturingAudioTrueForCaptureAndProcessingStates() {
         XCTAssertTrue(DictationFlowCoordinator.isCapturingAudio(for: .startingService(mode: .persistent)))
         XCTAssertTrue(DictationFlowCoordinator.isCapturingAudio(for: .recording(mode: .holdToTalk)))

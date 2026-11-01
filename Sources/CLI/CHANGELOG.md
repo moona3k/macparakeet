@@ -94,7 +94,22 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `meetings show --json` can report `activity_detection` in
+  `startContext.triggerKind` when the user accepts a meeting recording reminder.
+  Readers with a closed trigger enum must accept this additional value; existing
+  recordings keep their original trigger values.
+
 ### Fixed
+
+- `history transcriptions --json`, `history search-transcriptions --json`,
+  and `history favorites --json` now resolve saved text and speaker
+  corrections, matching the app and corrected exports. A search for corrected
+  words returns those words in `cleanTranscript`; deliberately omitted text
+  remains empty. Automatic `rawTranscript` and recognized word text/times
+  remain available. Array shapes, fields, ordering, metadata, and exit codes
+  are unchanged (patch fix).
 
 - Knowledge-card generation now makes one corrective retry for incomplete or
   malformed output, waits briefly for busy AI settings, and reserves provider

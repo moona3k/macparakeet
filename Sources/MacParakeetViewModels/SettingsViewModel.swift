@@ -386,6 +386,17 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAutoStop, value: Self.settingValue(meetingAutoStopEnabled)))
         }
     }
+    /// Auto-start values from older experimental builds are treated as prompt-only.
+    public var meetingActivityDetectionMode: MeetingActivityDetectionMode {
+        didSet {
+            defaults.set(meetingActivityDetectionMode.rawValue, forKey: MeetingActivityDetectionPreferences.modeKey)
+            NotificationCenter.default.post(name: .macParakeetMeetingActivitySettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(
+                setting: .meetingActivityDetectionMode,
+                value: meetingActivityDetectionMode.rawValue
+            ))
+        }
+    }
     public var pauseMediaDuringDictation: Bool {
         didSet {
             defaults.set(
@@ -1127,12 +1138,18 @@ public final class SettingsViewModel {
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
         notifyOnMeetingEnd = UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: defaults)
-        meetingAutoStopEnabled = defaults.object(
-            forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
-        ) as? Bool ?? false
-        pauseMediaDuringDictation = defaults.object(
-            forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
-        ) as? Bool ?? false
+        meetingAutoStopEnabled =
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
+            ) as? Bool ?? false
+        meetingActivityDetectionMode =
+            MeetingActivityDetectionMode(
+                rawValue: defaults.string(forKey: MeetingActivityDetectionPreferences.modeKey) ?? "off"
+            ).map { $0 == .off ? .off : .prompt } ?? .off
+        pauseMediaDuringDictation =
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
+            ) as? Bool ?? false
         playDictationCaptureSounds = UserDefaultsAppRuntimePreferences.playDictationCaptureSounds(defaults: defaults)
         escapeCancelsDictation = UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: defaults)
         preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)

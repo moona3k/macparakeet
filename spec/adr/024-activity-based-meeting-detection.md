@@ -1,18 +1,21 @@
 # ADR-024: Activity-Based Meeting Detection
 
-> Status: **PARTIAL IMPLEMENTATION** — Phases A+B ship the default-off CoreAudio
-> process attribution collector, CoreMediaIO camera activity collector, shared
-> activity snapshot types, app registry, detection mode, and pure detector tests.
-> Coordinator/UI wiring, prompt/auto-start telemetry, and ADR-023 auto-stop
-> attribution remain proposed until later phases flip
-> `AppFeatures.meetingActivityDetectionEnabled`.
-> Default off / opt-in.
+> Status: **OPT-IN BETA PROMPT RUNTIME IMPLEMENTED FOR THE NEXT APP RELEASE**.
+> CoreAudio attribution, bounded browser Accessibility metadata, session policy,
+> coordinator, and Record / Not now panel are wired. The compile-time feature
+> flag is enabled in Debug and Release builds of this source; the per-user
+> preference defaults off. Full-suite failures and native/browser qualification
+> remain tracked in the [rollout amendment](../../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime).
+> Activity auto-recording, camera inference in the runtime, and new ADR-023
+> auto-stop attribution remain deferred. Published stable 0.8.10 excludes this feature.
 > Date: 2026-06-14
 > Related: ADR-002 (local-first), ADR-014 (meeting recording), ADR-015
 > (concurrent dictation/meeting), ADR-017 (calendar auto-start), ADR-023
 > (activity-based meeting auto-stop — authored in parallel; consumes the same
 > activity-signal layer this ADR builds).
-> Requirement: REQ-MEET-016 (v0.7, Phases A+B foundation implemented).
+> Historical requirement: REQ-MEET-016 (v0.7 foundation). The 2026-10-19
+> amendment governs the current prompt-only Beta; earlier phase proposals below
+> are historical where they conflict with that amendment.
 
 ## Context
 
@@ -487,3 +490,19 @@ focused false-positive + idle-CPU pass clears.
   Teams tab needs the active tab URL. Is there a metadata-only path (e.g. the
   frontmost window's accessibility-exposed URL) that stays within the no-content
   invariant, or do browsers stay limited to "frontmost + mic" until one exists?
+
+## 2026-10-19 amendment: prompt-only runtime
+
+The next app release includes an opt-in Beta that wires the local audio collector, bounded browser Accessibility metadata, session-aware prompt policy, and a nonactivating, keyless Record / Not now panel. Release builds of this source expose it; the published 0.8.10 DMG does not. Separate buttons support pointer and Accessibility actions, and the reminder itself does not take keyboard focus or intercept the meeting app's Return/Escape keys. Explicitly choosing Record enters the normal recording flow, which may bring up the live recording panel and permission prompts. The feature is exposed behind a per-user preference that defaults off; a legacy auto-start preference resolves to prompt mode. Native microphone attribution and strict browser meeting-room URLs establish candidates. Google Meet in-call button metadata can corroborate a muted call. Calendar matching, camera-only inference, activity auto-recording, and new auto-stop attribution are outside this implementation.
+
+The runtime rechecks stable evidence periodically to satisfy dwell deadlines without waiting for another device event. Per-session suppression replaces the coarse detector's 30-minute cooldown. Native suppression persists while any previously observed instance survives and resets after complete exit or process replacement; same-process calls separated by less than the 30-second input-absence grace remain indistinguishable from mute/reconnect. Successful capture is distinct from recorder busy state: failed/cancelled starts do not consume a reminder, and consumption is limited to the confirmed room or sole observed candidate. Onboarding, quit preparation, own dictation, and any recording transition defer presentation, and stale panel actions cannot start an ended or replaced call. Authorized termination stops detection and invalidates pending starts. Accessibility work runs away from the main actor; browser titles, URL strings and button labels remain local and are not sent as telemetry.
+
+A Zoom or Teams pre-join tab suppresses reminders for the same room in other tabs of that browser. Microphone ownership is browser-wide, so another document without a visible Join control cannot prove an active call. Close the duplicate pre-join tab to restore eligibility; positive Google Meet in-call evidence already overrides this veto.
+
+Control matching is fixture-limited: Meet Leave-call and Meet/Teams pre-join controls cover English and Polish; Zoom pre-join controls cover English only. Other locales may miss a muted Meet join or show a reminder during microphone preview when the Join control is unrecognized. Adding locales requires verified accessible button labels, not translated guesses. Explicit Record confirmation remains required.
+
+Chromium Accessibility setup retains its per-process state while no browser windows exist, and a windowless scan skips the hydration wait. An observed window with an unpopulated tree permits setup again on the next poll, including after navigation or reopening a window. Both Chromium Accessibility activation attributes remain required; the collector never focuses or opens a browser window.
+
+Panel and integration scaffolding was adapted from the archived Phase C implementation in [MacParakeet (`moona3k/macparakeet`)](https://github.com/moona3k/macparakeet), licensed under the [GNU General Public License v3](https://github.com/moona3k/macparakeet/blob/main/LICENSE). The adaptation remains part of this GPL-licensed project. The existing collectors remain in place; browser discovery, current lifecycle wiring, and session policy are an original implementation using public macOS/browser metadata. Behavioral investigation informed the expected user experience only; no proprietary implementation code was incorporated.
+
+The [active rollout amendment](../../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime) deliberately replaces the former compile-time gate pending fully green tests and native qualification with an available, default-off Beta. That permits observing and correcting the useful path. Known full-suite failures have no established relationship to this change without an exact-base rerun; native/browser and idle-CPU checks remain pending. Neither the flag nor this status declares GA readiness. Runtime availability is distinct from a published release; see spec/README.md.

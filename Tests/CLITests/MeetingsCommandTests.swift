@@ -1575,44 +1575,50 @@ final class MeetingsCommandTests: XCTestCase {
     }
 
     func testShowJSONIncludesMeetingStartContext() async throws {
-        let dbURL = temporaryDatabaseURL()
-        defer { try? FileManager.default.removeItem(at: dbURL) }
-        let db = try DatabaseManager(path: dbURL.path)
-        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
-        let startContext = MeetingStartContext(
-            triggerKind: .calendarAutoStart,
-            frontmostApplication: .init(
-                bundleIdentifier: "COM.Google.Chrome",
-                localizedName: "Google Chrome"
-            ),
-            sourceMode: .microphoneAndSystem
-        )
-        let meeting = Transcription(
-            fileName: "Customer Sync",
-            rawTranscript: "We discussed onboarding.",
-            status: .completed,
-            sourceType: .meeting,
-            meetingStartContext: startContext
-        )
-        try transcriptionRepo.save(meeting)
+        let triggers: [(MeetingStartContext.TriggerKind, String)] = [
+            (.calendarAutoStart, "calendar_auto_start"),
+            (.activityDetection, "activity_detection"),
+        ]
+        for (trigger, expectedTrigger) in triggers {
+            let dbURL = temporaryDatabaseURL()
+            defer { try? FileManager.default.removeItem(at: dbURL) }
+            let db = try DatabaseManager(path: dbURL.path)
+            let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+            let startContext = MeetingStartContext(
+                triggerKind: trigger,
+                frontmostApplication: .init(
+                    bundleIdentifier: "COM.Google.Chrome",
+                    localizedName: "Google Chrome"
+                ),
+                sourceMode: .microphoneAndSystem
+            )
+            let meeting = Transcription(
+                fileName: "Customer Sync",
+                rawTranscript: "We discussed onboarding.",
+                status: .completed,
+                sourceType: .meeting,
+                meetingStartContext: startContext
+            )
+            try transcriptionRepo.save(meeting)
 
-        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
-            meeting.id.uuidString,
-            "--json",
-            "--database", dbURL.path,
-        ])
-        let showOutput = try await captureStandardOutput {
-            try await showCommand.run()
+            let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+                meeting.id.uuidString,
+                "--json",
+                "--database", dbURL.path,
+            ])
+            let showOutput = try await captureStandardOutput {
+                try await showCommand.run()
+            }
+            let showPayload = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+            )
+            let context = try XCTUnwrap(showPayload["startContext"] as? [String: Any])
+            XCTAssertEqual(context["triggerKind"] as? String, expectedTrigger)
+            XCTAssertEqual(context["sourceMode"] as? String, "microphone_and_system")
+            let app = try XCTUnwrap(context["frontmostApplication"] as? [String: Any])
+            XCTAssertEqual(app["bundleIdentifier"] as? String, "com.google.chrome")
+            XCTAssertEqual(app["localizedName"] as? String, "Google Chrome")
         }
-        let showPayload = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
-        )
-        let context = try XCTUnwrap(showPayload["startContext"] as? [String: Any])
-        XCTAssertEqual(context["triggerKind"] as? String, "calendar_auto_start")
-        XCTAssertEqual(context["sourceMode"] as? String, "microphone_and_system")
-        let app = try XCTUnwrap(context["frontmostApplication"] as? [String: Any])
-        XCTAssertEqual(app["bundleIdentifier"] as? String, "com.google.chrome")
-        XCTAssertEqual(app["localizedName"] as? String, "Google Chrome")
     }
 
     func testArtifactSubcommandMaterializesMeetingFolder() async throws {

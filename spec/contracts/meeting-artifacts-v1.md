@@ -389,7 +389,8 @@ retranscription may replace the array with newly minted segment IDs.
 
 `startContext`, when present, keeps the recording-start snapshot:
 
-- `triggerKind`: `manual`, `hotkey`, or `calendar_auto_start`
+- `triggerKind`: `manual`, `hotkey`, `calendar_auto_start`, or
+  `activity_detection` (the user accepted a detected-call recording prompt)
 - `sourceMode`: configured meeting source mode at start (`microphone_only`,
   `microphone_and_system`, or `system_only`)
 - `frontmostApplication`: optional object with `bundleIdentifier` and
@@ -417,6 +418,14 @@ compatibility was promised. Future additive fields and new optional files can
 remain v1 when old consumers can ignore them. Future renames or removals of
 stable filenames or fields require a schema-version bump and CLI/changelog
 notes.
+
+The `startContext.triggerKind` value `activity_detection` extends the v1
+enumeration without renaming a field or changing its shape. Existing artifacts
+keep their original trigger values. Older consumers with a closed three-value
+enum can reject newer start contexts; update those readers before consuming
+activity-detected recordings. An absent optional `startContext` remains valid
+for legacy artifacts. This addition does not imply that an older strict enum
+decoder can ignore an unfamiliar value.
 
 The database row stays canonical. Do not teach features to treat the folder as
 the source of truth for mutable meeting metadata unless the contract is updated

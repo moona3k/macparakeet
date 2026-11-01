@@ -289,7 +289,7 @@ struct SettingsView: View {
 
         if let badge = Self.attentionBadge(for: [
             engineSelectorCardStatus,
-            enginesModelsCardStatus
+            enginesModelsCardStatus,
         ]) {
             badges[.engine] = badge
         }
@@ -1457,10 +1457,11 @@ struct SettingsView: View {
                     meetingAutoSaveOptionsView
                 }
 
-                // Start (calendar) and stop (activity) automation are grouped
-                // under one subsection so they read as the two ends of the
-                // recording lifecycle. Either flag alone still shows the group.
-                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled {
+                // Recording reminders, calendar start, and activity stop share
+                // a subsection. Each feature flag independently exposes it.
+                if AppFeatures.calendarEnabled || AppFeatures.meetingAutoStopEnabled
+                    || AppFeatures.meetingActivityDetectionEnabled
+                {
                     Divider()
 
                     meetingAutomationSection
@@ -1498,31 +1499,41 @@ struct SettingsView: View {
         )
     }
 
-    /// Automatic-recording controls grouped under one subsection: the
-    /// calendar-driven "Start recording automatically" half (ADR-017) and the
-    /// activity-driven "Stop recording automatically" half (ADR-023). They read
-    /// as the two ends of the recording lifecycle but use different signals on
-    /// purpose — calendar *start* times are reliable, *end* times are not, so
-    /// stop keys off meeting-end activity (app quit + dual-channel silence)
-    /// instead. Each flag is independent; either alone still renders the group.
+    /// Independent meeting reminders and automation controls: prompt-only
+    /// activity detection (ADR-024), calendar start (ADR-017), and activity
+    /// stop (ADR-023). Any enabled feature flag renders this subsection.
     private var meetingAutomationSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: 6) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("Automatic recording")
+                Text("Reminders and automation")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
 
+            if AppFeatures.meetingActivityDetectionEnabled {
+                settingsToggleRow(
+                    title: "Remind me to record meetings",
+                    detail:
+                        "Offers to record calls in supported meeting apps and Google Meet, Zoom, or Teams browser tabs. Browser detection uses Accessibility access. Recording starts only when you choose Record.",
+                    isBeta: true,
+                    isOn: Binding(
+                        get: { viewModel.meetingActivityDetectionMode != .off },
+                        set: { viewModel.meetingActivityDetectionMode = $0 ? .prompt : .off }
+                    )
+                )
+            }
+
             if AppFeatures.calendarEnabled {
+                if AppFeatures.meetingActivityDetectionEnabled { Divider() }
                 CalendarSettingsView(viewModel: viewModel)
             }
 
             if AppFeatures.meetingAutoStopEnabled {
-                if AppFeatures.calendarEnabled {
+                if AppFeatures.calendarEnabled || AppFeatures.meetingActivityDetectionEnabled {
                     Divider()
                 }
 
@@ -2451,7 +2462,7 @@ struct SettingsView: View {
             strengths: [
                 "Fast everyday dictation",
                 "Timestamps for saved dictations",
-                "English + supported European languages"
+                "English + supported European languages",
             ],
             helpText: "Choose Parakeet for fast everyday dictation in supported languages. Use Whisper when your dictation language is outside Parakeet's coverage.",
             modelStatus: displayedParakeetModelStatus,
@@ -2471,7 +2482,7 @@ struct SettingsView: View {
             strengths: [
                 "Live preview while you speak",
                 "English or multilingual builds",
-                "Quality varies by language and audio"
+                "Quality varies by language and audio",
             ],
             helpText: "Choose Nemotron when responsive live preview matters more than proven final quality. It is Beta, so validate it on your language, device, and audio.",
             modelStatus: displayedNemotronModelStatus,
@@ -2491,7 +2502,7 @@ struct SettingsView: View {
             strengths: [
                 "Recorded dictation in many languages",
                 "Meeting preview with word timestamps",
-                "Slower cold starts; no dictation preview"
+                "Slower cold starts; no dictation preview",
             ],
             helpText: "Choose Whisper for recorded dictation outside Parakeet or Nemotron language coverage. It runs locally with word timestamps and can preview meetings, but first use can be slow and live dictation preview stays off.",
             modelStatus: displayedWhisperModelStatus,
@@ -2513,7 +2524,7 @@ struct SettingsView: View {
             strengths: [
                 "Local record-then-transcribe",
                 "Plain text with set language",
-                "No dictation or meeting preview"
+                "No dictation or meeting preview",
             ],
             helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
             modelStatus: displayedCohereModelStatus,

@@ -458,6 +458,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.startMuted",
             "meeting.urlControl",
             "meeting.autoStop",
+            "meeting.activityDetection",
             "meeting.calendar",
             "system.permissions.screen",
         ]
@@ -479,7 +480,8 @@ final class SettingsSearchIndexTests: XCTestCase {
                 : expected.subtracting(autoStopGatedIds)
             XCTAssertEqual(
                 intersection,
-                expectedWithAutoStop,
+                AppFeatures.meetingActivityDetectionEnabled
+                    ? expectedWithAutoStop : expectedWithAutoStop.subtracting(["meeting.activityDetection"]),
                 "Meeting-gated entries should match the active flag combination"
             )
         } else {
@@ -595,6 +597,25 @@ final class SettingsSearchIndexTests: XCTestCase {
                         ids.contains("meeting.rememberSpeakers"),
                         AppFeatures.meetingRecordingEnabled && available && detection
                     )
+                    XCTAssertEqual(
+                        ids.contains("meeting.activityDetection"),
+                        AppFeatures.meetingRecordingEnabled && AppFeatures.meetingActivityDetectionEnabled
+                    )
+                }
+            }
+        }
+    }
+
+    func testMeetingReminderQueriesKeepTheirDestinationWithStoredVoices() {
+        for stored in [false, true] {
+            for query in ["remind", "meeting detection", "detect calls"] {
+                let entry = SettingsSearchIndex.matches(query, hasEnrolledVoices: stored)
+                    .first { $0.id == "meeting.activityDetection" }
+                if AppFeatures.meetingRecordingEnabled && AppFeatures.meetingActivityDetectionEnabled {
+                    XCTAssertEqual(entry?.cardAnchor, "meeting", query)
+                    XCTAssertEqual(entry?.tab, .capture, query)
+                } else {
+                    XCTAssertNil(entry, query)
                 }
             }
         }
