@@ -5,19 +5,27 @@ struct MeetingTitleGenerator: Sendable {
     private static let minimumTranscriptWords = 12
     private static let maximumPromptTranscriptCharacters = 24_000
     private static let minimumTitleWords = 2
-    private static let maximumTitleWords = 8
     private static let maximumTitleCharacters = 70
 
     private static let systemPrompt = """
-    Generate a concise title for this meeting transcript.
+        Generate a concise title for this meeting transcript.
 
-    Rules:
-    - Return only the title. Do not include quotes, markdown, JSON, or explanation.
-    - Use 2 to 8 words.
-    - Name the concrete topic of the meeting.
-    - Do not use generic titles like "Meeting", "Discussion", "Transcript", or a date/time.
-    - If the transcript does not have enough context for a useful topic title, return NO_TITLE.
-    """
+        Rules:
+        - Return only the title. Do not include quotes, markdown, JSON, or explanation.
+        - Aim for 2 to 8 words and stay within 70 characters.
+        - Name the concrete topic of the meeting. Keep years when they are part of the topic.
+        - Do not use generic titles like "Meeting", "Discussion", "Transcript", or a date/time.
+        - If the transcript does not have enough context for a useful topic title, return NO_TITLE.
+        """
+
+    enum RejectionReason: String, Error {
+        case empty
+        case multiline
+        case tooLong = "too_long"
+        case tooFewWords = "too_few_words"
+        case generic
+        case dateTime = "date_time"
+    }
 
     let llmService: LLMServiceProtocol?
     let shouldGenerate: @Sendable () -> Bool
@@ -30,21 +38,49 @@ struct MeetingTitleGenerator: Sendable {
         let normalizedTranscript = Self.normalizedWhitespace(transcript)
         guard Self.hasEnoughContext(normalizedTranscript) else { return nil }
 
-        do {
-            let rawTitle = try await llmService.generatePromptResult(
-                transcript: Self.truncatedForPrompt(normalizedTranscript),
-                systemPrompt: Self.systemPrompt
-            )
-            guard let title = Self.validatedTitle(from: rawTitle) else {
-                logger.info("meeting_title_generation_rejected reason=invalid_response")
+        for attempt in 0..<2 {
+            try Task.checkCancellation()
+            guard shouldGenerate() else { return nil }
+            do {
+                let rawTitle = try await llmService.generatePromptResult(
+                    transcript: Self.truncatedForPrompt(normalizedTranscript),
+                    systemPrompt: Self.systemPrompt
+                )
+                try Task.checkCancellation()
+                guard shouldGenerate() else { return nil }
+                return try Self.validatedTitle(from: rawTitle)
+            } catch let reason as RejectionReason {
+                logger.notice("meeting_title_generation_rejected reason=\(reason.rawValue, privacy: .public)")
                 return nil
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                try Task.checkCancellation()
+                guard shouldGenerate() else { return nil }
+                guard attempt == 0, Self.shouldRetry(error) else {
+                    logger.warning(
+                        "meeting_title_generation_failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                    )
+                    return nil
+                }
+                logger.notice(
+                    "meeting_title_generation_retry error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)"
+                )
+                try await Task.sleep(for: .seconds(1))
             }
-            return title
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            logger.warning("meeting_title_generation_failed error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public)")
-            return nil
+        }
+        return nil
+    }
+
+    private static func shouldRetry(_ error: Error) -> Bool {
+        guard let error = error as? LLMError else { return false }
+        switch error {
+        case .connectionFailed, .requestTimedOut, .cliError:
+            // CLI failures wrap unstructured stderr, including transient DNS errors.
+            // Retry once without inspecting or logging potentially private content.
+            return true
+        default:
+            return false
         }
     }
 
@@ -60,32 +96,31 @@ struct MeetingTitleGenerator: Sendable {
         // deliberately omit a bare-year pattern: a real calendar/custom title like
         // "Meeting 2026 Budget Planning" must not be treated as a fallback and
         // silently overwritten.
-        let fallbackDatePattern = #"(?i)\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
+        let fallbackDatePattern =
+            #"(?i)\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
         return normalized.range(of: fallbackDatePattern, options: .regularExpression) != nil
     }
 
-    static func validatedTitle(from rawTitle: String) -> String? {
-        let lines = rawTitle
+    static func validatedTitle(from rawTitle: String) throws -> String {
+        let lines =
+            rawTitle
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        guard lines.count == 1 else { return nil }
+        guard !lines.isEmpty else { throw RejectionReason.empty }
+        guard lines.count == 1 else { throw RejectionReason.multiline }
 
         var title = lines[0]
             .replacingOccurrences(of: #"^[-*•]\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^\d+[\.)]\s*"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         title = stripWrappingQuotes(from: title)
-        title = title.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".:;!?")))
+        title = title.trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".:;!?")))
         title = normalizedWhitespace(title)
 
-        guard !title.isEmpty else { return nil }
-        guard title.count <= maximumTitleCharacters else { return nil }
-
-        let words = title.split(whereSeparator: \.isWhitespace)
-        guard words.count >= minimumTitleWords, words.count <= maximumTitleWords else {
-            return nil
-        }
+        guard !title.isEmpty else { throw RejectionReason.empty }
+        guard title.count <= maximumTitleCharacters else { throw RejectionReason.tooLong }
 
         let lowercased = title.lowercased()
         let genericTitles: Set<String> = [
@@ -103,12 +138,21 @@ struct MeetingTitleGenerator: Sendable {
             "no title",
             "not enough context",
         ]
-        guard !genericTitles.contains(lowercased) else { return nil }
-        guard !lowercased.contains("not enough context") else { return nil }
+        guard !genericTitles.contains(lowercased), !lowercased.contains("not enough context") else {
+            throw RejectionReason.generic
+        }
+        guard title.split(whereSeparator: \.isWhitespace).count >= minimumTitleWords else {
+            throw RejectionReason.tooFewWords
+        }
 
-        let dateLikePattern = #"(?i)\b20\d{2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
+        // Years can name the topic. Reject actual dates/times, not budget years
+        // or month names used as topics (for example, "May Hiring Plan").
+        let month =
+            "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+        let dateLikePattern =
+            #"(?i)\b\d{1,2}:\d{2}\b|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{1,2}\.\d{1,2}\.\d{4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b|\b\#(month)\.?\s+\d{1,4}(?:st|nd|rd|th)?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+\#(month)\b"#
         guard title.range(of: dateLikePattern, options: .regularExpression) == nil else {
-            return nil
+            throw RejectionReason.dateTime
         }
 
         return title

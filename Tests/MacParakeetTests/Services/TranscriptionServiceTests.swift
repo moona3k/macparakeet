@@ -2534,7 +2534,8 @@ final class TranscriptionServiceTests: XCTestCase {
             words: timestampedWords(from: transcript)
         ))
         let llm = MockLLMService()
-        llm.summarizeResult = "  \"Product Roadmap Review\"  "
+        let generatedTitle = "Plan for the next phase of the 2027 rollout"
+        llm.summarizeResult = generatedTitle
         let service = TranscriptionService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
@@ -2549,10 +2550,10 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let result = try await service.transcribeMeeting(recording: recording)
 
-        XCTAssertEqual(result.fileName, "Product Roadmap Review")
-        XCTAssertEqual(result.derivedTitle, "Product Roadmap Review")
-        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.fileName, "Product Roadmap Review")
-        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.derivedTitle, "Product Roadmap Review")
+        XCTAssertEqual(result.fileName, generatedTitle)
+        XCTAssertEqual(result.derivedTitle, generatedTitle)
+        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.fileName, generatedTitle)
+        XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.derivedTitle, generatedTitle)
         XCTAssertEqual(llm.summarizeCallCount, 1)
         XCTAssertEqual(llm.lastSummaryTranscript, transcript)
         XCTAssertTrue(llm.lastSummarySystemPrompt?.contains("Generate a concise title") ?? false)
