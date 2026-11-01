@@ -1883,6 +1883,18 @@ format selection, temporary-file ownership, cancellation, and retained-audio saf
 
 Visible transcription titles are source-aware. Meeting rows use their meeting `fileName`. Local file rows use a non-empty user `titleOverride` when explicitly renamed, then the original media `fileName`; transcript-derived opening words never replace that source identity. URL rows retain the non-empty `titleOverride`, `derivedTitle`, then `fileName` fallback. Library cards, detail headers, title sort, agent-facing title fields, and GUI export filename suggestions use that effective title. Search still matches the override, original filename, derived title, and transcript content. `macparakeet-cli history rename --title` uses the same gates: meetings update `fileName`, local files update `titleOverride`, and URL/podcast rows are rejected. Public CLI exact-name lookup and export defaults remain tied to `fileName`.
 
+Automatic meeting titles replace only fallback names, with AI generation enabled
+and enough transcript context. The prompt requests 2–8 words, but validation
+accepts longer titles within 70 characters so languages with more short words
+retain a complete title. Topic years (for example, `2027 Budget Review`) are
+allowed; generic, multiline, date/time, and overlong responses are rejected.
+Connection, timeout, and Local CLI failures receive one retry after a one-second
+pause. CLI errors are unstructured, so the bounded retry can also repeat a
+permanent CLI failure. Cancellation and opt-out stop further attempts; custom
+and calendar titles keep their existing protection. Rejection diagnostics use
+persisted, content-free reason codes. This does not add a manual title action or
+regenerate titles when a saved summary is rerun.
+
 ### F27: Home Page Redesign
 
 > Status: **IMPLEMENTED**

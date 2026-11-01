@@ -1002,6 +1002,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var streamEffectiveSettings: PromptInferenceSettings?
     var streamEmitsTerminal = true
     var errorToThrow: Error?
+    var promptResultsQueue: [Result<String, Error>] = []
+    var generatePromptResultHook: (@Sendable () async -> Void)?
     var summarizeCallCount = 0
     var chatCallCount = 0
     var formatTranscriptCallCount = 0
@@ -1028,6 +1030,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         summarizeCallCount += 1
         lastSummaryTranscript = transcript
         lastSummarySystemPrompt = systemPrompt
+        await generatePromptResultHook?()
+        if !promptResultsQueue.isEmpty { return try promptResultsQueue.removeFirst().get() }
         if let error = errorToThrow { throw error }
         return summarizeResult
     }
