@@ -1,12 +1,18 @@
 # Release readiness review — 2026-11-01
 
+## Verdict
+
+The reviewed source is ready for final candidate acceptance testing. Confirmed findings are fixed, regression verification is green, and the Release app is built and Developer ID signed locally. **Publication remains on hold pending native/physical acceptance and exact-artifact notarization, installation and Sparkle upgrade checks.** This review does not claim zero regressions or resolve every existing issue.
+
+The candidate is app **0.8.11**, build **20261101185026**, CLI **5.2.0**, built from `b9eab04a1f4f`. The signed app, ZIP and dSYM remain in this worktree's `dist/`; [artifact hashes and qualification details](evidence/signed-candidate.md) identify the exact bytes. Later branch changes are documentation only. The primary checkout and personal library were preserved.
+
 ## Candidate and scope
 
 - Published app baseline: `v0.8.10`, verified against GitHub releases and the live Sparkle appcast (build `20261014033417`).
 - Source baseline: `bb1ebcc37974bfb363f2bec46250bc0532009f17`, current `origin/main` at review start; 56 commits since the release.
 - Working branch: `review/release-readiness-2026-11-01`, isolated in `macparakeet-release-review-20261101` to preserve unfinished work in the primary checkout.
 - Proposed app candidate: 0.8.11. 0.9.0 remains reserved for qualified public Voice Control. Source CLI is promoted to 5.2.0 because the new activity-reminder trigger is an additive public contract change.
-- Scope: review changes since the shipped release, fix confirmed regressions, verify the candidate and prepare release notes. No publication, deployment, production data changes or merge is part of this review.
+- Scope: review changes since the shipped release, fix confirmed regressions, verify the candidate and prepare release notes. No publication, deployment, production data changes or merge into remote main is part of this review.
 
 ## Invariants
 
@@ -40,15 +46,30 @@ Automated proof does not establish the following native/physical/distribution be
 
 ## Verification
 
-In progress. Existing baseline CI run `41323390324` succeeded for `bb1ebcc37974bfb363f2bec46250bc0532009f17`; this is not evidence for later changes or physical capture/distribution qualification.
+Existing baseline CI run `41323390324` succeeded for `bb1ebcc37974bfb363f2bec46250bc0532009f17`; this is not evidence for later changes or physical capture/distribution qualification.
 
 - Original implementations reproduced failed source-only meeting retry and unavailable retained audio after video cancellation (`regression-red.log`). The separate active-lock fixture initially compared a timestamp across JSON serialization; it now checks unchanged on-disk bytes, the actual preservation contract.
-- Focused Swift suite: **165 passed**, zero failures, covering capture/locks, queue/coordinator/detail retry, media/video and CLI version (`focused-tests.log`).
+- Initial focused Swift suite on the code committed as `ee3f9b87e`: **165 passed**, zero failures, covering capture/locks, queue/coordinator/detail retry, media/video and CLI version (`focused-tests.log`). This predates the gate's follow-up fix.
+- Final focused suite on `d66cfae0f868c95be5fa37ec31e6f64c56cf362e`: **177 passed**, zero failures, adding failed-video restoration and executable audio-probe I/O cases (`final-focused-tests.log`).
 - CI helper tests: **46 passed**. Distribution policy fixtures passed for version, privacy, Mach-O minimum OS, echo asset preparation and echo verification.
 - Ask helper: **14 passed** using the packaged helper path. An initial harness invocation omitted that path and could not locate its notices; using the CI environment fixed the invocation without source changes.
 - CLI persistence smoke passed across independent processes. Subsystem README references passed. All 104 Swift telemetry events are accepted by the sibling website checkout's 110-entry allowlist; this is a source compatibility check, not a live ingestion test.
-- Changed-file Swift lint exited zero with existing style warnings; `git diff --check` passed. Local Greptile cannot run because the installed CLI is not signed in. Independent code reviews completed; no further blocking findings in the fixed paths.
-- The initial cold build was interrupted by concurrent edits to a compilation input; the subsequent focused test command rebuilt successfully. No full suite has run yet.
+- Changed-file Swift lint exited zero with style warnings on the initial code and again on `d66cfae0f` (`final-focused-lint.log`); `git diff --check` passed. Local Greptile cannot run because the installed CLI is not signed in. Independent code reviews completed.
+- No-mistakes run `01M6C5E5TASPVSPTMJTNXW5H9C` completed its local review gate at `d66cfae0f`. It found the additional failed-video restoration case; its fix round also implemented the confirmed probe-I/O finding. Test/lint/rebase/intent/document/publication/PR/CI stages were explicitly skipped: the parent owns verification and this task does not publish. The remaining informational comment about test attribution is addressed by the exact-commit receipts above. Six audit/manifest files lacked tool coverage; the parent reviewed them and verified both manifests byte-for-byte against the pinned git comparison.
+- The initial cold build was interrupted by concurrent edits to a compilation input; the subsequent focused commands rebuilt successfully. The single full suite completed successfully on `d66cfae0f`: **8,519 XCTest cases, zero failures/errors**, plus **30 Swift Testing tests passed**. The xUnit format does not report skipped cases, so the case count is not represented as an all-executed count. See the [summary](evidence/full-test-summary.md). The invocation used `--skip-build --parallel --num-workers 4` with the CLI and Ask runtime paths explicitly set.
+- After integrating current main, **231 focused tests passed**, zero failures, on `b9eab04a1`. These cover title generation, transcription, capture/recovery, playback, audio probing and CLI version. The full suite was not repeated, respecting the one-run limit.
+- Upstream main CI [41336689600](https://github.com/moona3k/macparakeet/actions/runs/41336689600) passed for `f7d1a4457`: Tests and Swift 6, Release and Bundle, including its CLI contract smoke. That is separate evidence for the integrated upstream title change; this local branch has not been pushed or run in hosted CI.
+- Real Parakeet v3 transcription, fresh-process history and Markdown export passed on synthesized audio. A second transcription explicitly selecting audio track 1 passed through the real shipped FFmpeg binary on `d66cfae0f`, exercising the repaired probe (`evidence/smoke/`). Both opt-in process-kill/crash-recovery tests passed on the initial candidate; their capture code is unchanged by the gate follow-up.
 - Local health safely reports schema skew for this machine's existing library (`v0.10.1-quick-prompts-pin` is newer than this release branch understands). It was not modified. Persistence and transcription qualification use disposable databases; this personal development-library state must not be mistaken for a failed 0.8.10 upgrade test.
+- Release Xcode GUI and SwiftPM CLI builds passed on `b9eab04a1f4f`. The canonical bundle script included real FFmpeg, yt-dlp, Node, Ask helper and required LocalVQE assets. Developer ID signing and strict deep verification passed, including the privacy surface, echo model hash, runtime minimum OS and signature checks. No notarization submission or DMG was created.
+- After signing, bundled CLI **5.2.0**, yt-dlp **2026.08.19**, FFmpeg **9.0.2** and Node **24.13.1** ran successfully. Packaged Markdown colors/icons resolved, CLI JSON contract smoke passed, Ask remained disabled with and without developer opt-in, and independent-process persistence passed. The signed CLI also passed real Parakeet v3 transcription, history and Markdown export in a disposable database. Strict bundle signature verification passed again after these executions.
 
-Raw local logs are retained in `evidence/`. Final receipts should identify exact candidate commits and distinguish automated, native, physical and distribution checks.
+Raw local logs are retained in `evidence/` and excluded from source history. The full-suite summary and signed-candidate receipt are committed; the latter records the exact artifact identity. Local Greptile, native/physical and distribution gaps above remain explicit.
+
+## Recent reports and integration
+
+The [recent-issue risk assessment](recent-issue-risks.md) distinguishes the fixed temporary-output defect from existing system-audio startup failures (#1266) and the unreproduced Whisper silence report (#1278). These remain known risks, not proven fixes or newly introduced regressions. Do not close those reports based on this review.
+
+Remote main advanced to `f7d1a4457efbe7acaff76091ae8666d7d7313acf` (meeting-title fix, #1309) while verification was underway. An independent read-only integration review found no concrete conflict with capture recovery: it changes title validation/generation, respects persisted row titles/overrides, and bounds retry/cancellation. It was integrated locally in `b9eab04a1` after the full run and verified with the focused integration suite above. The earlier full run does not cover that combined tree.
+
+No step used Jev: this work involved code reasoning, fixed contract checks and synthetic regression tests, with no new semantic-decision integration.

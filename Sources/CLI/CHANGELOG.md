@@ -132,6 +132,14 @@ remain separate release steps.
   unknown duration and an expected playback path. Source audio is already saved;
   completed meeting schemas and durations are unchanged (#1291).
 
+- Automatic meeting titles retry transient provider failures and accept valid
+  topic years and titles within the character limit. User-edited titles remain
+  protected (#1309).
+
+- File transcription creates the audio-track probe's temporary folder when
+  missing and propagates scratch-output creation/read errors instead of treating
+  unreadable output as a successful empty track list.
+
 ## [5.1.0] — 2026-10-12 (bundled with MacParakeet 0.8.10)
 
 Omitting `--model` on inline Anthropic and OpenRouter commands now selects

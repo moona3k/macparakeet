@@ -11,6 +11,7 @@ Draft release notes. This candidate has not been published.
 - **File transcription reports scratch-storage failures.** Audio-track discovery creates its temporary folder on demand and shows the underlying error if its scratch output cannot be written or read, instead of treating the file as having no tracks.
 - **Meeting echo suppression handles a reference track that arrives ahead of the microphone.**
 - **Knowledge cards recover from incomplete output.** Generation makes one corrective retry and preserves an existing card if replacement fails.
+- **Automatic meeting titles recover from transient provider failures.** Valid topic years and longer titles within the character limit are retained; manually edited titles remain protected.
 - **Settings and vocabulary are easier to use.** Compact windows keep controls accessible, search covers more rows, vocabulary load failures are reported, and standalone terms such as `C++`, `C#`, and `.NET` match correctly.
 
 ## Bundled CLI 5.2.0

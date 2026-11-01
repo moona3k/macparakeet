@@ -24,7 +24,7 @@ Behavioral regressions were added before/alongside the fix:
 - `testHidingFailedDirectVideoLoadRestoresRetainedAudio`, `testHidingFailedDirectVideoLoadPreparesLegacyRetainedAudio` and `testHidingFailedVideoLoadKeepsExistingAudioPlayerUsable`: the failed-load counterparts, including legacy conversion and an already-installed audio player.
 - `testRestoredLegacyAudioCannotReplaceNewTranscriptAfterPersistenceWait`: navigation during suspended conversion persistence cannot install the old audio afterward.
 
-The pre-fix first test would observe a nil player and `.idle`; the second would time out waiting for persistence. The third isolates the missing post-persistence cancellation check. Parent owns compilation and focused/full test execution; no build or test pass is claimed by this reviewer. `git diff --check` passed after these edits.
+The pre-fix direct-load test would observe a nil player and `.idle`; its legacy-audio counterpart would time out waiting for persistence. The suspended-persistence test isolates the missing post-persistence cancellation check. Parent owns compilation and focused/full test execution; no build or test pass is claimed by this reviewer. `git diff --check` passed after these edits.
 
 ## Reviewed without another confirmed actionable defect
 
