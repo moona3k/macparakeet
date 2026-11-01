@@ -1,6 +1,9 @@
 # GUI, CLI, and agent capability map
 
-> Reviewed against development source `79cf1ca92` on 2026-10-31.
+> Reviewed against development source `79cf1ca92` on 2026-10-31, the audit
+> baseline, which does not include the history JSON fix. The follow-up status
+> below is reconciled against `264c11c33`, which adds merged PRs #1267 and
+> #1304 to that baseline.
 > This is a workflow map, not a new API or a claim of complete parity.
 > [Release channels](../spec/README.md#release-channels-and-feature-flags)
 > distinguish the published app from later source changes.

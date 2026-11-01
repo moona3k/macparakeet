@@ -3,6 +3,9 @@
 > Date: 2026-10-31. Source baseline: `79cf1ca92` from freshly fetched
 > `origin/main`. Published app: 0.8.10 (`394e630b4`). Installed app: 0.8.10;
 > bundled CLI: 5.1.0. Review branch: `review/app-cli-docs-2026-10-31`.
+> Follow-up (2026-10-31): status notes are reconciled against `264c11c33`, which
+> adds merged PRs #1267 and #1304 to that baseline. Findings below describe the
+> baseline unless a dated status note says otherwise.
 
 ## Verdict
 
