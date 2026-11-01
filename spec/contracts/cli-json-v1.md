@@ -10,10 +10,12 @@ implemented in the published CLI 5.1.0 binary by `history transcriptions`, `hist
 correction projection. Use history to discover IDs, then `export <id> --format
 json --stdout` or `meetings show <id> --json` for corrected content. See the
 [parity map](../../integrations/capabilities.md#1-published-cli-history-json-can-return-superseded-text-and-speakers)
-for scope and regression requirements. This annotation records a defect; it
-does not redefine the intended contract. The source fix is tracked in
-[PR #1304](https://github.com/moona3k/macparakeet/pull/1304); installation of a
-release containing that fix remains a separate step.
+for scope. This annotation records a defect; it does not redefine the intended
+contract. The source fix merged in
+[PR #1304](https://github.com/moona3k/macparakeet/pull/1304) as `264c11c33`
+and is the behavior the history bullet below describes; the CLI changelog lists
+it under Unreleased. The published 5.1.0 binary keeps this limitation until a
+CLI release containing the fix is installed.
 
 ## Purpose
 

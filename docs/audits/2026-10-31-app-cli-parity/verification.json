@@ -49,16 +49,16 @@
       "README.md": "c8b994b0dfadc070415f7c4b4c3410e72916d7d898c447973bce7bdfcdfe7c73",
       "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
       "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
-      "docs/audits/2026-10-31-app-cli-parity/README.md": "d9acc93dc3576972d728fe2762d50e0bdc9cfb74d5727b5d597dd6b4ae638e1f",
+      "docs/audits/2026-10-31-app-cli-parity/README.md": "3387339231a4f3b7a1ff41da3c7414fa10c49fb4c241a2938de76bbc3a5637c8",
       "docs/audits/2026-10-31-app-cli-parity/capture-review.md": "20aee2207785b12c6fa7678864f974411900577ccfc3fa63fd5a853bbe5f18be",
       "docs/audits/2026-10-31-app-cli-parity/data-agent-review.md": "cfc28a9969db2e1c56ca3db58eccd76c5be0f7ed76852d3b05a657e584536a83",
       "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "efe58974146ef16aa661cd8daad70f828dac88e2bcaf1b1a4c3245f8e6201504",
-      "docs/cli-testing.md": "966fa5f2b01facd84c2c415acd78cb2c4764558a178cdcbf293796de89ec92b2",
+      "docs/cli-testing.md": "c38bb8ea2ee17042b56a3a09e73f81da56cd14b0965911c605f6158f295bf418",
       "docs/distribution.md": "54d3d5310a11b2cf9bccb3a40e7cd3af6be5d2883c6a489e9a9339045f76ba59",
       "docs/plans/2026-09-17-issue-449-streaming-cursor.md": "5143137164842e34cfcfab146f06f5b2bc5b87b97b7cd50d81b42345dade82c2",
       "docs/releases/0.8.10/README.md": "f4b9ed328da5b00ccf38b194d17d8613c40a840f308c1b57d8165eb14551ba8e",
       "integrations/README.md": "6e0863621a54a1d877f5ddde93916328db31e186c299be1914b2181305b68a3c",
-      "integrations/capabilities.md": "811049249bd55f4987f5adccb47aaad7f3cf7fc2632b30c36b20f6ac698099b0",
+      "integrations/capabilities.md": "b734e59744a600da3bdf411ab33ecc8cb0cc11c72a274bb046c800a9ed9191cd",
       "integrations/skill/macparakeet-stt/SKILL.md": "2634ce08a4b759a4e338aa869300c789355652d19b53e63d6f36469c998b4e8c",
       "plans/README.md": "42adb57987a366af14e87531e962d2c51b77f170162741cbd04cdc1c8457c102",
       "plans/active/2026-07-03-speaker-voiceprints.md": "4a88e27bfae5b5ce116e1675f1e05fe946abaabf8fd3bf9d4e4d72c38089d5b2",
@@ -78,7 +78,7 @@
       "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
       "spec/adr/034-meeting-ask-workspace.md": "9fc2fdf7239dad366f3ea38051cb075f20347e180bef94af8543032a703a12ec",
       "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
-      "spec/contracts/cli-json-v1.md": "8b5546e467d10d7faed3a0f7378aabfd8e05d4c1457b83594aec97ba17364a47"
+      "spec/contracts/cli-json-v1.md": "f33cfd11dbdfa413ff6f89754718b24f08c8d08ffd8bf9970d7c080e5099b8be"
     },
     "targets": [
       {
@@ -3695,6 +3695,55 @@
         ],
         "exit": 0,
         "stdout": "All Sources/**/README.md backticked .swift references resolve.",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
+    }
+  },
+  "followUpHistoryFixStatus2026-10-31": {
+    "capturedAtUTC": "2026-11-01T02:53:20.254972+00:00",
+    "scope": "Current-status wording reconciled after the rebase onto 264c11c338b597a51f7719384b4a39d064de8406, which contains PR #1304. Source (fixed), merge (264c11c33) and publication (CLI 5.1.0 unchanged; fix listed under Unreleased) are stated separately. The installed-5.1.0 workaround, the dated baseline findings and all raw reproduction evidence are preserved. The #1267 reminder wording is untouched. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "sourceEvidence": {
+      "pullRequest": 1304,
+      "mergeCommit": "264c11c338b597a51f7719384b4a39d064de8406",
+      "mergeCommitIsAncestorOfHead": true,
+      "stateObservedFrom": "git history only; GitHub state was not re-queried",
+      "historyCommandRouting": "Sources/CLI/Commands/HistoryCommand.swift routes history transcriptions, search-transcriptions and favorites JSON through printHistoryTranscriptionsJSON, which uses SpeakerAttributionReadService",
+      "changelog": "Sources/CLI/CHANGELOG.md lists the fix under Unreleased; no CLI release containing it is claimed"
+    },
+    "documentsEdited": [
+      "docs/audits/2026-10-31-app-cli-parity/README.md",
+      "docs/cli-testing.md",
+      "integrations/capabilities.md",
+      "spec/contracts/cli-json-v1.md"
+    ],
+    "documentsReviewedUnchanged": {
+      "integrations/skill/macparakeet-stt/SKILL.md": "already scoped to published CLI 5.1.0",
+      "docs/audits/2026-10-31-app-cli-parity/ui-tooling-review.md": "dated review narrative; 'separate PR' remains true",
+      "PR #1305 wording": "not in the base; still described as a separate fix branch"
+    },
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "localLinkCountUnchanged": true,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
         "stderr": ""
       }
     },

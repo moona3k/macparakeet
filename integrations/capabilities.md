@@ -26,7 +26,7 @@ and native verification limits are recorded in the
 | Transcribe local files/media | File, folder, media URL import | `transcribe`, including engine/language and app-default options | Shared STT; CLI flags do not exercise GUI capture, playback, or optional formatter behavior. |
 | Capture dictation | Hotkeys, hold/hands-free, insertion/Undo | Opt-in [dictation URLs](../spec/contracts/dictation-url-control-v1.md) invoke the app in development source | No headless mic capture; URL delivery has no state/save receipt. |
 | Record meetings | System/mic capture, pause/resume, live Notes/Transcript/Ask | Opt-in [meeting URLs](../spec/contracts/meeting-url-control-v1.md) invoke the app | CLI handles saved meetings; it does not own a second capture session. |
-| Discover saved records | Library and dictation history | `history`, `meetings list`, `search`, `transcript`, `cards list` | Segment retrieval covers file/media/meeting transcripts; use `history search` for dictations. History JSON has the correction gap below. |
+| Discover saved records | Library and dictation history | `history`, `meetings list`, `search`, `transcript`, `cards list` | Segment retrieval covers file/media/meeting transcripts; use `history search` for dictations. Published CLI 5.1.0 history JSON has the correction gap below; development source has the fix. |
 | Read corrected transcript evidence | Timed/reading views, playback context | `transcript`, `meetings show`, `meetings transcript`, `export` | Prefer these over history row text after edits; preserve original words as evidence, not a substitute for corrected text. |
 | Edit timed text/speakers | Completed timed transcripts across source types, reversible journal | `meetings corrections` with revision/fingerprint checks | CLI editing is meeting-only; no word-boundary split command. Generic correction parity remains open. |
 | Edit untimed/legacy whole text | Reading editor with checked source snapshot | No equivalent public whole-text write command | Meeting `corrections revise-text` edits timed passages; it is not this whole-text editor. See [whole-transcript edits](../spec/contracts/whole-transcript-edits.md). |
@@ -54,27 +54,31 @@ command-specific preconditions or compatibility rules.
 
 ### 1. Published CLI history JSON can return superseded text and speakers
 
-`history transcriptions`, `history search-transcriptions`, and
-`history favorites` serialize stored rows. `fetchLibraryPage` returns effective
-text separately, but these commands discard that map and do not resolve the
-correction projection. A search can match corrected text while the JSON body
-still shows original `cleanTranscript`, speaker labels, or segments. This is a
-known implementation defect against ADR-031's intended consumer behavior,
-not a deliberate exception to corrected evidence.
+In published CLI 5.1.0, `history transcriptions`, `history search-transcriptions`,
+and `history favorites` serialize stored rows. `fetchLibraryPage` returns
+effective text separately, but those commands discard that map and do not
+resolve the correction projection. A search can match corrected text while the
+JSON body still shows original `cleanTranscript`, speaker labels, or segments.
+This is a known implementation defect against ADR-031's intended consumer
+behavior, not a deliberate exception to corrected evidence.
 
-The source fix is tracked in [PR #1304](https://github.com/moona3k/macparakeet/pull/1304).
-Publication of a corrected CLI is separate from merging that fix. Until the
-installed binary includes it, use history output to discover IDs, then read:
+Source status: [PR #1304](https://github.com/moona3k/macparakeet/pull/1304)
+merged as `264c11c33`. Development source resolves all three outputs through
+`SpeakerAttributionReadService`, keeps original evidence fields and
+array/schema compatibility, and has synthetic regression tests in
+`HistoryCommandTests`. The CLI changelog lists it under Unreleased. Merging is
+separate from publication: no CLI release containing the fix is claimed here,
+so the installed 5.1.0 binary is unchanged. Until the installed binary
+includes it, use history output to discover IDs, then read:
 
 ```bash
 macparakeet-cli export <transcription-id> --format json --stdout
 macparakeet-cli meetings show <meeting-id> --json
 ```
 
-A fix should use `SpeakerAttributionReadService` for all three outputs, retain
-original evidence fields and array/schema compatibility, and cover text edits,
-speaker changes, corrected-term search, favorites, and unedited rows. See
-[the source findings](../docs/audits/2026-10-31-app-cli-parity/README.md#runtime-findings).
+The workaround applies to the published binary only. See
+[the source findings](../docs/audits/2026-10-31-app-cli-parity/README.md#runtime-findings)
+for the baseline evidence.
 
 ### 2. Recovery and correction writes need shared contracts
 
