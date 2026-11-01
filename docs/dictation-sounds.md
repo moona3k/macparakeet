@@ -42,8 +42,8 @@ offline generator and verification. No synthesis or extra dependency runs in the
 
 Saved Handy Pop and Handy Marimba selections now use Bloom. Their saved volumes,
 retained custom-file references, and the master sound toggle are preserved.
-macOS default, None, and custom selections remain unchanged. New preferences save
-`bloom`. Reset still restores the macOS cue at 40%.
+macOS default, None, and custom selections remain unchanged. Reset still restores
+the macOS cue at 40%.
 
 ## Testing
 
