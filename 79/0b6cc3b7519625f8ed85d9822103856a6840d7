@@ -1,0 +1,28 @@
+spec/contracts/cli-json-v1.md
+  s_c6cce7be304f19::t_d29cd621a65171 13-18
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_c6cce7be304f19::t_807f1ec640f307 52,56,61,81,3707-3746,3749
+  s_c6cce7be304f19::t_d3054d566e5cb8 3747-3748,3750-3755
+integrations/capabilities.md
+  s_c6cce7be304f19::t_d29cd621a65171 29,57-63,65-72,79-81
+docs/audits/2026-10-31-app-cli-parity/README.md
+  s_c6cce7be304f19::t_d29cd621a65171 27-33,114-123
+docs/cli-testing.md
+  s_c6cce7be304f19::t_d29cd621a65171 24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "790b6cc3b7519625f8ed85d9822103856a6840d7",
+  "prompts": {},
+  "sessions": {
+    "s_c6cce7be304f19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eaaf44ae-720d-4aa9-bdef-f0dfd005ce70",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
