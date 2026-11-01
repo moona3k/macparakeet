@@ -2,9 +2,9 @@
 
 ## Verdict
 
-The reviewed source is ready for final candidate acceptance testing. Confirmed findings are fixed, regression verification is green, and the Release app is built and Developer ID signed locally. **Publication remains on hold pending native/physical acceptance and exact-artifact notarization, installation and Sparkle upgrade checks.** This review does not claim zero regressions or resolve every existing issue.
+The reviewed source is ready for final candidate acceptance testing. Confirmed findings are fixed, regression verification is green, and the Release app is built and Developer ID signed locally. **Publication remains on hold pending deployment of the prepared companion telemetry patch, native/physical acceptance, and exact-artifact notarization, installation and Sparkle upgrade checks.** This review does not claim zero regressions or resolve every existing issue.
 
-The initial candidate was app **0.8.11**, build **20261101185026**, CLI **5.2.0**, built from `b9eab04a1f4f`; [its artifact receipt](evidence/signed-candidate.md) preserves that evidence. The fresh review below adds title fixes, so that initial artifact is superseded and must not be used as proof for the updated source. The primary checkout and personal library were preserved.
+The current candidate is app **0.8.11**, build **20261101201053**, CLI **5.2.0**, built from `0146098b013e` after the fresh-review fixes. The [updated signed-candidate receipt](evidence/signed-candidate-final.md) identifies its exact bytes and qualification. The initial build `20261101185026` is preserved under `dist/initial-20261101185026/` with [its historical receipt](evidence/signed-candidate.md); it is superseded. The primary checkout and personal library were preserved.
 
 ## Candidate and scope
 
@@ -43,6 +43,7 @@ Automated proof does not establish the following native/physical/distribution be
 - Library video: navigation during extraction, Show/Hide while downloading, retained audio, offline behavior and signed yt-dlp/FFmpeg helpers.
 - Real model transcription on representative speech and supported hardware, including long recordings and limited-memory machines.
 - Exact Developer ID app/DMG, required echo assets, notarization Accepted, Gatekeeper, installation and Sparkle upgrade from 0.8.10; no publication before artifact identity is verified.
+- Deploy the companion website telemetry allowlist patch described below before releasing the app; source tests do not prove the live service has it.
 
 ## Verification
 
@@ -84,4 +85,14 @@ Live GitHub and git checks confirm PR [#1309](https://github.com/moona3k/macpara
 
 Both findings reproduced against the prior implementation: two focused cases produced 14 failed assertions. Adversarial review caught an overly broad first calendar guard before commit; a probable-snapshot regression reproduced three failed assertions and drove the narrower adopted-title comparison. Final focused title/transcription/capture/queue/detail-retry verification: **206 tests, zero failures**. Both reviewers rechecked the correction with no remaining finding. Changed-file lint exited zero with existing style warnings; whitespace checks passed. The earlier full-suite receipt applies to its recorded commit, not these follow-up fixes; the full suite was not repeated.
 
-The parent also rechecked Release feature gates, URL integration, telemetry fields and packaging scope. Experimental Voice Control/Ask/sharing/profile gates remain closed in Release; the new meeting reminder runtime remains opt-in. Website source accepts the new finite telemetry values, but no live telemetry event was submitted. No publication or external review comment was posted.
+The parent also rechecked Release feature gates, URL integration, telemetry fields and packaging scope. Experimental Voice Control/Ask/sharing/profile gates remain closed in Release; the new meeting reminder runtime remains opt-in. No publication, live telemetry event or external review comment was submitted.
+
+Final no-mistakes review run `01M6CBJR7KSK4JMJH6H9D5TFGG` completed at `0146098b013e` and returned branch custody without source changes. It found no additional behavioral defect. Its release-README mismatch was valid and is corrected by pointing to the refreshed artifact. Its suggestion to reuse `AppPaths.tempDir` in the probe was declined as a nonblocking reuse preference: both paths resolve to the same `macparakeet` child of `NSTemporaryDirectory`, and the existing injected-root tests cover creation/read/cleanup. Intent/rebase/test/document/lint/push/PR/CI stages were explicitly skipped; parent verification remains separate. No hosted CI result is claimed for this local branch.
+
+The canonical Release app/CLI rebuild, Developer ID signing, strict signatures, privacy/echo checks and Sparkle trust-anchor check passed for **0146098b013e / 20261101201053**. Post-signing helpers, Markdown resources, CLI contract, Ask release gate, independent-process persistence, and real Parakeet v3 transcription/history/export passed again in disposable storage. Strict signature verification passed after execution. The earlier full-suite receipt remains attributed to its earlier source; this follow-up uses the 206-case focused suite plus the new Release/package checks.
+
+### Companion telemetry integration fix
+
+Event-name compatibility alone missed a value-normalization gap. Website `origin/main` at `1921d66` accepts the existing event names but converts `trigger=url_control`, `trigger=activity_detection` and `setting=meeting_activity_detection_mode` to `unknown`. A local SQLite-backed route test reproduced all three losses; this affects telemetry attribution rather than recording behavior.
+
+The isolated website branch `fix/release-0811-telemetry-dimensions` contains companion commit **18727cf**. It adds only the three finite categories. **69 focused tests passed, zero failures/skips**, covering ingestion, public dimensions, privacy, statistics and rollups. Independent review confirmed exact Swift enum alignment; the fixture uses the app's actual `prompt` setting value. The website's existing unrelated work was preserved. Its `docs/release-0811-telemetry.md` records validation and deployment ordering. No website deployment or live ingestion verification was performed. Deploy the companion before app publication; no app rebuild or schema migration is required for that server-side change.
