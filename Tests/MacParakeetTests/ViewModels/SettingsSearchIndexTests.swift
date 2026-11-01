@@ -97,7 +97,7 @@ final class SettingsSearchIndexTests: XCTestCase {
 
     func testCaptureSoundQueriesFindDictationToggle() {
         for query in [
-            "start sound", "stop sound", "tink", "handy", "marimba", "pebble", "bloom", "gong",
+            "start sound", "stop sound", "tink", "handy", "marimba", "bloom", "gong",
             "custom sound", "import sound",
         ] {
             let results = SettingsSearchIndex.matches(query)

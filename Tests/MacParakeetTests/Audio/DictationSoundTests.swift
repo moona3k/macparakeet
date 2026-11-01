@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import CryptoKit
 import SwiftUI
 import XCTest
 @testable import MacParakeet
@@ -76,7 +77,7 @@ final class DictationSoundConfigurationTests: XCTestCase {
         let suite = "DictationSoundTests.\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let start = DictationSoundConfiguration(style: .pebble, volume: 0)
+        let start = DictationSoundConfiguration(style: .bloom, volume: 0)
         let stop = DictationSoundConfiguration(style: .bloom, volume: 0.73)
         start.save(for: .start, defaults: defaults)
         stop.save(for: .stop, defaults: defaults)
@@ -89,7 +90,9 @@ final class DictationSoundConfigurationTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let fileName = "\(UUID()).wav"
-        let aliases: [(String, DictationSoundStyle)] = [("handyPop", .pebble), ("handyMarimba", .bloom)]
+        let aliases: [(String, DictationSoundStyle)] = [
+            ("handyPop", .bloom), ("handyMarimba", .bloom), ("pebble", .bloom), ("gong", .gong),
+        ]
         for enabled in [false, true] {
             defaults.set(enabled, forKey: "playDictationCaptureSounds")
             for cue in DictationSoundCue.allCases {
@@ -150,8 +153,8 @@ final class DictationSoundConfigurationTests: XCTestCase {
         let names = DictationSoundStyle.allCases.flatMap { style in
             DictationSoundCue.allCases.compactMap { style.resourceName(for: $0) }
         }
-        XCTAssertEqual(names.count, 6)
-        XCTAssertEqual(Set(names).count, 6)
+        XCTAssertEqual(names.count, 4)
+        XCTAssertEqual(Set(names).count, 4)
     }
 }
 
@@ -368,7 +371,7 @@ final class DictationSoundControllerTests: XCTestCase {
         let h = try SoundHarness()
         defer { h.cleanup() }
         h.systemSoundEnabled = false
-        h.controller.setStyle(.pebble, for: .start)
+        h.controller.setStyle(.bloom, for: .start)
         h.controller.play(.start)
         XCTAssertTrue(h.audioPlayers.allSatisfy { $0.plays.isEmpty })
         XCTAssertEqual(h.controller.preview(.start), .mutedBySystem)
@@ -378,7 +381,7 @@ final class DictationSoundControllerTests: XCTestCase {
     func testMissingPresetFallsBackWithWarning() async throws {
         let h = try SoundHarness(includeAssets: false)
         defer { h.cleanup() }
-        h.controller.setStyle(.pebble, for: .start)
+        h.controller.setStyle(.bloom, for: .start)
         h.controller.play(.start)
         XCTAssertEqual(h.systems[.start]?.plays.count, 1)
         XCTAssertNotNil(h.controller.warnings[.start])
@@ -424,7 +427,7 @@ final class DictationSoundControllerTests: XCTestCase {
     func testFailedCueAndFallbackReportUnavailableAndClearWarningAfterRecovery() throws {
         let h = try SoundHarness()
         defer { h.cleanup() }
-        h.controller.setStyle(.pebble, for: .start)
+        h.controller.setStyle(.bloom, for: .start)
         h.audioPlayers.forEach { $0.playSucceeds = false }
         h.systems[.start]?.playSucceeds = false
 
@@ -459,11 +462,11 @@ final class DictationSoundControllerTests: XCTestCase {
     func testOriginalPresetsArePreparedOnceNotOnEachCapture() async throws {
         let h = try SoundHarness()
         defer { h.cleanup() }
-        XCTAssertEqual(h.audioPlayers.count, 6)
-        h.controller.setStyle(.pebble, for: .start)
+        XCTAssertEqual(h.audioPlayers.count, 4)
+        h.controller.setStyle(.bloom, for: .start)
         h.controller.play(.start)
         h.controller.play(.start)
-        XCTAssertEqual(h.audioPlayers.count, 6)
+        XCTAssertEqual(h.audioPlayers.count, 4)
         XCTAssertEqual(h.audioPlayers.reduce(0) { $0 + $1.plays.count }, 2)
         XCTAssertTrue(h.systems.values.allSatisfy { $0.plays.isEmpty })
     }
@@ -472,7 +475,7 @@ final class DictationSoundControllerTests: XCTestCase {
     func testEveryOriginalCueUsesItsOwnCaptureAndPreviewAssetWithoutSystemFallback() throws {
         let h = try SoundHarness(includeAssets: false)
         defer { h.cleanup() }
-        let styles: [DictationSoundStyle] = [.pebble, .bloom, .gong]
+        let styles: [DictationSoundStyle] = [.bloom, .gong]
         var assets: [String: Data] = [:]
         for style in styles {
             for cue in DictationSoundCue.allCases {
@@ -727,27 +730,37 @@ final class DictationSoundControllerTests: XCTestCase {
     func testActualBundledPresetFilesLoadThroughProductionResourceResolver() async throws {
         let h = try SoundHarness()
         defer { h.cleanup() }
-        var decodedCount = 0
+        let expected: [(DictationSoundStyle, DictationSoundCue, String, TimeInterval)] = [
+            (.bloom, .start, "c59dc2829470c65c37a864d1fc0125f0898378738fdf29aeaf91f35616d6a410", 0.660),
+            (.bloom, .stop, "e56b0fc90c77130ae3ac928d06d6ceedf76a5774393991db475329a2aafaca83", 0.860),
+            (.gong, .start, "2411a8b858e6b79994acc0f6a939c492cce121242786187e68d00c4e72c98a42", 0.800),
+            (.gong, .stop, "131f0d4d80f3c1dbd93845766e1f252fb6fa0b3e0437f960804bcac5d128b78d", 0.950),
+        ]
+        var players: [String: CueSpy] = [:]
         let controller = DictationSoundController(
             defaults: h.defaults, library: h.library,
             makePlayer: { data in
+                let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                let asset = try XCTUnwrap(expected.first { $0.2 == hash }, "Unexpected bundled audio")
                 let audio = try AVAudioPlayer(data: data)
-                XCTAssertGreaterThan(audio.duration, 0)
-                XCTAssertLessThanOrEqual(audio.duration, 0.4)
+                XCTAssertEqual(audio.duration, asset.3, accuracy: 1 / 48_000)
                 XCTAssertEqual(audio.format.sampleRate, 48_000)
-                XCTAssertEqual(audio.numberOfChannels, 1)
-                decodedCount += 1
-                return CueSpy()
+                XCTAssertEqual(audio.numberOfChannels, 2)
+                let player = CueSpy()
+                players[hash] = player
+                return player
             },
-            makeSystemPlayer: { _ in CueSpy() }, soundEffectsEnabled: { true }
+            makeSystemPlayer: { h.systems[$0] }, soundEffectsEnabled: { true }
         )
-        XCTAssertEqual(decodedCount, 6)
-        for style in [DictationSoundStyle.pebble, .bloom, .gong] {
-            for cue in DictationSoundCue.allCases {
-                controller.setStyle(style, for: cue)
-                XCTAssertNil(controller.warnings[cue])
-            }
+        XCTAssertEqual(players.count, expected.count)
+        for (style, cue, hash, _) in expected {
+            let player = try XCTUnwrap(players[hash])
+            controller.setStyle(style, for: cue)
+            controller.play(cue)
+            XCTAssertEqual(player.plays, [0.4], "Each cue must play its own approved asset, not a swapped file")
+            XCTAssertNil(controller.warnings[cue])
         }
+        XCTAssertTrue(h.systems.values.allSatisfy { $0.plays.isEmpty })
     }
 
     @MainActor

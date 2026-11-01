@@ -1,77 +1,251 @@
 {
   "format": {
     "sample_rate_hz": 48000,
-    "channels": 1,
+    "channels": 2,
     "pcm_bits": 24
   },
-  "source": "Original modal synthesis; scripts/dev/generate_dictation_sounds.py",
-  "level_note": "Maximum 50 ms RMS aligned to -18 dBFS with a -6 dBFS sample-peak ceiling; not a listening-test result.",
+  "source": "Original Bloom and Gong modal synthesis; scripts/dev/generate_dictation_sounds.py",
+  "reference_authoring_versions": {
+    "numpy": "2.4.2",
+    "scipy": "1.17.1"
+  },
+  "level_note": "Maximum 100 ms channel-mean RMS aligned to -10.5 dBFS; not a perceptual loudness or acoustic exposure measurement.",
   "assets": {
-    "macparakeet_pebble_start.wav": {
-      "sha256": "e750e6c700dc69af8d0b6f4dcaf78fb70485718e3b65f5c4b12cc29f2919364a",
-      "bytes": 27404,
-      "duration_ms": 190.0,
-      "peak_dbfs": -9.37,
-      "rms_dbfs": -21.99,
-      "energy_99_ms": 128.1,
-      "dc_mean": -5e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
-    },
-    "macparakeet_pebble_stop.wav": {
-      "sha256": "e8a00a091d18fa906de7307ce663bc1be13d1f5125717c589b1c5ff58b2ef4a3",
-      "bytes": 22364,
-      "duration_ms": 155.0,
-      "peak_dbfs": -9.99,
-      "rms_dbfs": -22.62,
-      "energy_99_ms": 85.42,
-      "dc_mean": -2e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
-    },
     "macparakeet_bloom_start.wav": {
-      "sha256": "6d4450e9598f2ebdcb089b68baf675021af3ba59821d81e741961c07a45cf3e3",
-      "bytes": 34604,
-      "duration_ms": 240.0,
-      "peak_dbfs": -9.62,
-      "rms_dbfs": -22.67,
-      "energy_99_ms": 162.69,
-      "dc_mean": -4e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
+      "sha256": "c59dc2829470c65c37a864d1fc0125f0898378738fdf29aeaf91f35616d6a410",
+      "duration_ms": 660,
+      "max100ms_rms_dbfs": -10.5,
+      "sample_peak_dbfs": -4.808,
+      "estimated4x_peak_dbfs": -4.801,
+      "energy5_95_99_ms": [
+        16.48,
+        204.71,
+        316.29
+      ],
+      "stereo_correlation": 0.95742,
+      "mono_energy_delta_db": -0.094,
+      "side_mid_by_interval": [
+        {
+          "interval_ms": [
+            0,
+            50.0
+          ],
+          "side_mid_db": -21.146
+        },
+        {
+          "interval_ms": [
+            50.0,
+            150.0
+          ],
+          "side_mid_db": -16.718
+        },
+        {
+          "interval_ms": [
+            150.0,
+            300.0
+          ],
+          "side_mid_db": -11.719
+        },
+        {
+          "interval_ms": [
+            300.0,
+            500.0
+          ],
+          "side_mid_db": -7.715
+        },
+        {
+          "interval_ms": [
+            500.0,
+            660.0
+          ],
+          "side_mid_db": -5.706
+        }
+      ],
+      "first_samples": [
+        0.0,
+        0.0
+      ],
+      "last_samples": [
+        0.0,
+        0.0
+      ]
     },
     "macparakeet_bloom_stop.wav": {
-      "sha256": "9e7db1e821c48dcc3a17e437c8e71b601223e67425870b6845e5c6895bd01ee5",
-      "bytes": 30284,
-      "duration_ms": 210.0,
-      "peak_dbfs": -11.05,
-      "rms_dbfs": -23.53,
-      "energy_99_ms": 120.92,
-      "dc_mean": 7e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
+      "sha256": "e56b0fc90c77130ae3ac928d06d6ceedf76a5774393991db475329a2aafaca83",
+      "duration_ms": 860,
+      "max100ms_rms_dbfs": -10.5,
+      "sample_peak_dbfs": -6.163,
+      "estimated4x_peak_dbfs": -6.157,
+      "energy5_95_99_ms": [
+        29.6,
+        327.31,
+        579.83
+      ],
+      "stereo_correlation": 0.95167,
+      "mono_energy_delta_db": -0.106,
+      "side_mid_by_interval": [
+        {
+          "interval_ms": [
+            0,
+            50.0
+          ],
+          "side_mid_db": -29.695
+        },
+        {
+          "interval_ms": [
+            50.0,
+            150.0
+          ],
+          "side_mid_db": -23.824
+        },
+        {
+          "interval_ms": [
+            150.0,
+            300.0
+          ],
+          "side_mid_db": -13.01
+        },
+        {
+          "interval_ms": [
+            300.0,
+            500.0
+          ],
+          "side_mid_db": -4.849
+        },
+        {
+          "interval_ms": [
+            500.0,
+            860.0
+          ],
+          "side_mid_db": -10.055
+        }
+      ],
+      "first_samples": [
+        0.0,
+        0.0
+      ],
+      "last_samples": [
+        0.0,
+        0.0
+      ]
     },
     "macparakeet_gong_start.wav": {
-      "sha256": "f8886f6a85ca7f449f7145caa85247af1c479f459125b47686f483aa84affd54",
-      "bytes": 49004,
-      "duration_ms": 340.0,
-      "peak_dbfs": -9.96,
-      "rms_dbfs": -23.89,
-      "energy_99_ms": 201.52,
-      "dc_mean": -3e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
+      "sha256": "2411a8b858e6b79994acc0f6a939c492cce121242786187e68d00c4e72c98a42",
+      "duration_ms": 800,
+      "max100ms_rms_dbfs": -10.5,
+      "sample_peak_dbfs": -3.998,
+      "estimated4x_peak_dbfs": -3.993,
+      "energy5_95_99_ms": [
+        17.58,
+        226.65,
+        355.96
+      ],
+      "stereo_correlation": 0.97554,
+      "mono_energy_delta_db": -0.053,
+      "side_mid_by_interval": [
+        {
+          "interval_ms": [
+            0,
+            50.0
+          ],
+          "side_mid_db": -23.265
+        },
+        {
+          "interval_ms": [
+            50.0,
+            150.0
+          ],
+          "side_mid_db": -19.114
+        },
+        {
+          "interval_ms": [
+            150.0,
+            300.0
+          ],
+          "side_mid_db": -15.302
+        },
+        {
+          "interval_ms": [
+            300.0,
+            500.0
+          ],
+          "side_mid_db": -12.834
+        },
+        {
+          "interval_ms": [
+            500.0,
+            800.0
+          ],
+          "side_mid_db": -13.645
+        }
+      ],
+      "first_samples": [
+        0.0,
+        0.0
+      ],
+      "last_samples": [
+        0.0,
+        0.0
+      ]
     },
     "macparakeet_gong_stop.wav": {
-      "sha256": "95bdaca788fc8d5f944f9d464a6eda3debbedacde0c177816a1d61ddd65500e7",
-      "bytes": 54764,
-      "duration_ms": 380.0,
-      "peak_dbfs": -11.56,
-      "rms_dbfs": -25.52,
-      "energy_99_ms": 162.04,
-      "dc_mean": -9e-10,
-      "first_sample": 0.0,
-      "last_sample": 0.0
+      "sha256": "131f0d4d80f3c1dbd93845766e1f252fb6fa0b3e0437f960804bcac5d128b78d",
+      "duration_ms": 950,
+      "max100ms_rms_dbfs": -10.5,
+      "sample_peak_dbfs": -4.492,
+      "estimated4x_peak_dbfs": -4.486,
+      "energy5_95_99_ms": [
+        24.58,
+        291.42,
+        489.12
+      ],
+      "stereo_correlation": 0.96944,
+      "mono_energy_delta_db": -0.067,
+      "side_mid_by_interval": [
+        {
+          "interval_ms": [
+            0,
+            50.0
+          ],
+          "side_mid_db": -22.874
+        },
+        {
+          "interval_ms": [
+            50.0,
+            150.0
+          ],
+          "side_mid_db": -18.971
+        },
+        {
+          "interval_ms": [
+            150.0,
+            300.0
+          ],
+          "side_mid_db": -15.261
+        },
+        {
+          "interval_ms": [
+            300.0,
+            500.0
+          ],
+          "side_mid_db": -12.95
+        },
+        {
+          "interval_ms": [
+            500.0,
+            950.0
+          ],
+          "side_mid_db": -13.971
+        }
+      ],
+      "first_samples": [
+        0.0,
+        0.0
+      ],
+      "last_samples": [
+        0.0,
+        0.0
+      ]
     }
   }
 }

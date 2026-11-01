@@ -12,7 +12,6 @@ public enum DictationSoundCue: String, CaseIterable, Codable, Sendable {
 
 public enum DictationSoundStyle: String, CaseIterable, Codable, Sendable {
     case system
-    case pebble
     case bloom
     case gong
     case custom
@@ -21,7 +20,6 @@ public enum DictationSoundStyle: String, CaseIterable, Codable, Sendable {
     public var title: String {
         switch self {
         case .system: "macOS default"
-        case .pebble: "Pebble"
         case .bloom: "Bloom"
         case .gong: "Gong"
         case .custom: "Custom file"
@@ -31,7 +29,7 @@ public enum DictationSoundStyle: String, CaseIterable, Codable, Sendable {
 
     public func resourceName(for cue: DictationSoundCue) -> String? {
         switch self {
-        case .pebble, .bloom, .gong: "macparakeet_\(rawValue)_\(cue.rawValue)"
+        case .bloom, .gong: "macparakeet_\(rawValue)_\(cue.rawValue)"
         case .system, .custom, .silent: nil
         }
     }
@@ -39,11 +37,10 @@ public enum DictationSoundStyle: String, CaseIterable, Codable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
-        // Retired presets become originals without resetting the cue's volume
-        // or retained custom-file metadata. Future writes use the new names.
+        // Retired Handy presets and the unreleased Pebble choice become Bloom
+        // without resetting volume or retained custom-file metadata.
         switch value {
-        case "handyPop": self = .pebble
-        case "handyMarimba": self = .bloom
+        case "handyPop", "handyMarimba", "pebble": self = .bloom
         default:
             guard let style = Self(rawValue: value) else {
                 throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown dictation sound style")

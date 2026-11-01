@@ -286,7 +286,7 @@ public enum SettingsSearchIndex {
             keywords: [
                 "sound", "tone", "chime", "beep", "start sound", "stop sound",
                 "capture cue", "tink", "pop", "audio feedback", "handy", "marimba",
-                "pebble", "bloom", "gong",
+                "bloom", "gong",
                 "custom sound", "import sound", "volume", "preview", "wav", "mute",
             ],
             cardAnchor: "dictation"
