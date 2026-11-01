@@ -1,0 +1,120 @@
+spec/README.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 104-107,113,132,181,206,381,397,399-401
+docs/dev/meeting-detection.html
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-99
+docs/plans/2026-06-14-001-feat-rich-meeting-detection-plan.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 9-27
+README.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 58,66-67,69
+Sources/MacParakeet/Views/MeetingRecording/MeetingActivityPromptController.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-146
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_1d3c3aeecdd983::t_e558d2834b3e77 63,3804-3821
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 4,49,52,56,61,71-72,74,76,81,89-93,1754-1758,1964-1968,3633-3803
+Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 6,150
+spec/02-features.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 2219,2230-2238
+Tests/MacParakeetTests/MeetingDetection/BrowserMeetingURLCollectorTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-369
+plans/active/2026-06-14-meeting-activity-detection.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 3-5,14-57
+  s_1d3c3aeecdd983::t_80b629d04e6e1e 58
+Sources/MacParakeetCore/AppFeatures.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 107-110
+Tests/MacParakeetTests/MeetingDetection/MeetingActivityPromptPolicyTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-251
+plans/README.md
+  s_1d3c3aeecdd983::t_e558d2834b3e77 75
+docs/telemetry.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 386,397,421
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 26,47,369,440,447,588-608,614-615
+Sources/MacParakeetCore/AppNotifications.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 4-6
+Sources/MacParakeet/AppDelegate.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 65,467,502,523,531,692-697,722,792-799,1188
+Sources/MacParakeet/App/BrowserMeetingURLCollector.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-349
+Sources/CLI/Commands/HistoryCommand.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 114,231,507,717-725
+  s_1d3c3aeecdd983::t_a09d56e994a921 726
+Sources/MacParakeetCore/AppPreferences.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 86-90
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 381,390,401-402,586
+Sources/CLI/CHANGELOG.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 97-103,106-112
+  s_1d3c3aeecdd983::t_6d14ae1004dc58 113
+Sources/MacParakeet/App/MeetingActivityDetectionCoordinator.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-354
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 292,1460-1464,1502-1504,1511,1517-1529,1531,1536,2465,2485,2505,2527
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 389-399,1141-1152
+spec/adr/031-timed-transcript-corrections.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 124-126
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 51-53
+Sources/MacParakeetCore/MeetingDetection/MeetingActivityPromptPolicy.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-134
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 825-835
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 57-66
+docs/cli-testing.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 24-26
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 461,483-484,600-618
+integrations/capabilities.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 3-6,32,60-66,68-75,82-84
+spec/adr/024-activity-based-meeting-detection.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 3-10,16-18,493-508
+Sources/MacParakeetCore/Models/MeetingStartContext.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 8,45-46
+Sources/MacParakeetCore/MeetingDetection/MeetingPromptCandidate.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-154
+spec/00-vision.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 532-536
+spec/contracts/meeting-artifacts-v1.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 392-393,422-428
+  s_1d3c3aeecdd983::t_f97c8bc6bb12e5 429
+spec/04-ui-patterns.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1165
+Tests/MacParakeetTests/MeetingDetection/MeetingPromptCandidateTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-176
+docs/audits/2026-10-31-app-cli-parity/README.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 6-8,30-36,117-126
+Tests/CLITests/MeetingsCommandTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1578-1602,1604-1620
+Tests/MacParakeetTests/MeetingDetection/MeetingActivityDetectionCoordinatorTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 1-816
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 144-146,273-275,668-673
+  s_1d3c3aeecdd983::t_99c321c9253ce1 674-676
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 409-432,859,2031,2123
+Sources/MacParakeetCore/MeetingDetection/MeetingAppRegistry.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 48-49,77-87
+  s_1d3c3aeecdd983::t_3300ae9bfdfb45 88
+Tests/CLITests/HistoryCommandTests.swift
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 32-187
+spec/contracts/cli-json-v1.md
+  s_1d3c3aeecdd983::t_0d61c6a43d077d 13-18,83-94,398-399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd9445e94cf4ebad65d3f3d35932860dbfd4eab7",
+  "prompts": {},
+  "sessions": {
+    "s_1d3c3aeecdd983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d9-1279-75c1-a0aa-2e17aa9d4af4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
