@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingTitleGenerator.swift
+  s_9e4dde0c690045::t_8bd327442cf213 152-162
+  s_9e4dde0c690045::t_82e6949f3469e7 115
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingTitleGeneratorTests.swift
+  s_9e4dde0c690045::t_82e6949f3469e7 86
+  s_9e4dde0c690045::t_8bd327442cf213 42,80-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b712ff566565cb7ad851e88c47352920451d50c",
+  "prompts": {},
+  "sessions": {
+    "s_9e4dde0c690045": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19848-ccb8-7d10-aca9-20b9ade2c447",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
