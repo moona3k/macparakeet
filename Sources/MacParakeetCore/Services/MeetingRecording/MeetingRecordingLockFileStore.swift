@@ -447,7 +447,7 @@ public final class MeetingRecordingLockFileStore:
             throw MeetingFinalizationOwnershipError.missingLock
         }
         return try Self.withFinalizationOwnershipMutex(folderURL: folderURL) {
-            guard let currentLock = try readableOrUnreadablePresentLock(folderURL: folderURL)
+            guard let currentLock = try readFinalizationCandidate(folderURL: folderURL)
             else {
                 throw MeetingFinalizationOwnershipError.missingLock
             }
@@ -620,7 +620,10 @@ public final class MeetingRecordingLockFileStore:
     ///
     /// A newer schema is different: if its peeked PID is still alive, claim
     /// must refuse rather than overwrite a lock this build cannot interpret.
-    private func readableOrUnreadablePresentLock(
+    /// Capture reconstruction uses the same read-only fallback before queue
+    /// admission. This does not claim ownership; the queue must still acquire
+    /// its lease before preparing playback or starting any derived writer.
+    func readFinalizationCandidate(
         folderURL: URL
     ) throws -> MeetingRecordingLockFile? {
         if let readableLock = try read(folderURL: folderURL) {

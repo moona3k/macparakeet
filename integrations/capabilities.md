@@ -69,7 +69,7 @@ Source status: [PR #1304](https://github.com/moona3k/macparakeet/pull/1304)
 merged as `264c11c33`. Development source resolves all three outputs through
 `SpeakerAttributionReadService`, keeps original evidence fields and
 array/schema compatibility, and has synthetic regression tests in
-`HistoryCommandTests`. The CLI changelog lists it under Unreleased. Merging is
+`HistoryCommandTests`. The CLI changelog includes it in prepared version 5.2.0. Merging is
 separate from publication: no CLI release containing the fix is claimed here,
 so the installed 5.1.0 binary is unchanged. Until the installed binary
 includes it, use history output to discover IDs, then read:

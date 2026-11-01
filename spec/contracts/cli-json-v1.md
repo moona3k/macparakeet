@@ -14,7 +14,7 @@ for scope. This annotation records a defect; it does not redefine the intended
 contract. The source fix merged in
 [PR #1304](https://github.com/moona3k/macparakeet/pull/1304) as `264c11c33`
 and is the behavior the history bullet below describes; the CLI changelog lists
-it under Unreleased. The published 5.1.0 binary keeps this limitation until a
+it in prepared version 5.2.0. The published 5.1.0 binary keeps this limitation until a
 CLI release containing the fix is installed.
 
 ## Purpose

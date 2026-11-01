@@ -1,0 +1,19 @@
+# MacParakeet 0.8.11
+
+Draft release notes. This candidate has not been published.
+
+- **Start your next meeting while the previous recording finishes processing.** Capture settlement releases the microphone before playback preparation and transcription. Saved meetings show their processing state, and their detail view offers Retry when finalization fails.
+- **Get a reminder to record an active meeting.** Opt-in Beta reminders can recognize supported meeting apps and browser calls. The setting starts off, and recording starts only when you choose Record.
+- **Choose your dictation sounds.** Pick separate start and stop cues, adjust their volume, or import your own sounds. New Bloom and Gong cues are included.
+- **Control dictation from a link.** The optional setting accepts `macparakeet://dictation/start` and `macparakeet://dictation/stop`. It starts off. Once enabled, other apps and websites can send those links.
+- **More reliable keyboard interaction.** App-generated paste events are separated from physical shortcut state, and interrupted streaming insertion stops retrying after a failed flush.
+- **YouTube playback supports separate video and audio streams.** Preparation shows progress and can be cancelled while keeping saved audio available.
+- **Meeting echo suppression handles a reference track that arrives ahead of the microphone.**
+- **Knowledge cards recover from incomplete output.** Generation makes one corrective retry and preserves an existing card if replacement fails.
+- **Settings and vocabulary are easier to use.** Compact windows keep controls accessible, search covers more rows, vocabulary load failures are reported, and standalone terms such as `C++`, `C#`, and `.NET` match correctly.
+
+## Bundled CLI 5.2.0
+
+History JSON includes saved transcript and speaker corrections. Vocabulary processing uses the corrected punctuation boundaries. `meetings show --json` can report `activity_detection` in `startContext.triggerKind`; callers with a closed list of trigger values should accept it. Processing meetings may appear before playback is prepared, with unknown duration. Existing fields and exit codes remain unchanged. The standalone Homebrew CLI has its own publication step.
+
+Requires Apple Silicon and macOS 14.2 or later. Experimental Voice Control, Ask, voice profiles, encrypted sharing and in-process MLX remain gated off in Release builds.

@@ -1,0 +1,6 @@
+# Keep raw local verification output without adding machine logs to source history.
+*.log
+*.xml
+health.json
+smoke/
+ask-qualification/

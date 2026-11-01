@@ -82,6 +82,7 @@ public final class MediaPlayerViewModel {
     private var loadingTimerTask: Task<Void, Never>?
     private var playbackConversionTask: Task<Void, Never>?
     private var videoResource: VideoPlaybackResource?
+    private var videoPreparationTranscription: Transcription?
     private let videoStreamService: any VideoStreamProviding
     private let playbackConverter: YouTubeAudioPlaybackConverting
     private let playbackRateDefaults: UserDefaults?
@@ -107,6 +108,7 @@ public final class MediaPlayerViewModel {
     public func prepare(for transcription: Transcription) async {
         loadingTask?.cancel()
         loadingTask = nil
+        videoPreparationTranscription = nil
         stopLoadingTimer()
         clearLoadedPlayer()
         needsVideoStreamLoad = false
@@ -131,7 +133,11 @@ public final class MediaPlayerViewModel {
             return
         }
 
-        // YouTube: load local audio file for scrubber bar, defer video stream
+        prepareRetainedYouTubeAudio(for: transcription)
+    }
+
+    private func prepareRetainedYouTubeAudio(for transcription: Transcription) {
+        // Also used when Hide Video interrupts a direct load after navigation.
         needsVideoStreamLoad = true
 
         // Set duration from transcription metadata so the scrubber shows the correct
@@ -221,6 +227,7 @@ public final class MediaPlayerViewModel {
                 // `removeItem` here in parallel with `persist`, which was a
                 // race with the persist's own internal task.
                 try await persist(transcriptionId, newPath, inputPath)
+                guard !Task.isCancelled else { return }
                 // Only swap the active player if we're still presenting
                 // the audio-scrubber state for this transcription. If the
                 // user clicked Show Video in the meantime, `needsVideoStreamLoad`
@@ -244,6 +251,8 @@ public final class MediaPlayerViewModel {
     /// Cancels any in-flight load to prevent race conditions on rapid navigation.
     public func load(for transcription: Transcription) async {
         loadingTask?.cancel()
+        videoPreparationTranscription =
+            transcription.sourceType == .youtube && transcription.sourceURL != nil ? transcription : nil
         // Cancel any in-flight lazy m4a transcode too — switching modes
         // (e.g., user clicked Show Video) makes its eventual `loadLocalFile`
         // unwanted. The `needsVideoStreamLoad` guard inside the conversion
@@ -295,10 +304,16 @@ public final class MediaPlayerViewModel {
         guard playerState == .loading, loadingTask != nil else { return }
         loadingTask?.cancel()
         loadingTask = nil
+        let transcription = videoPreparationTranscription
+        videoPreparationTranscription = nil
         stopLoadingTimer()
         videoPreparationStage = .extracting
         needsVideoStreamLoad = true
-        playerState = player == nil ? .idle : .ready
+        if player == nil, let transcription {
+            prepareRetainedYouTubeAudio(for: transcription)
+        } else {
+            playerState = player == nil ? .idle : .ready
+        }
     }
 
     public func seek(toMs ms: Int) {
@@ -352,6 +367,7 @@ public final class MediaPlayerViewModel {
     public func cleanup() {
         loadingTask?.cancel()
         loadingTask = nil
+        videoPreparationTranscription = nil
         playbackConversionTask?.cancel()
         playbackConversionTask = nil
         stopLoadingTimer()
@@ -498,11 +514,16 @@ public final class MediaPlayerViewModel {
         // Observe duration once available
         Task { @MainActor [weak self] in
             guard let self, self.player === avPlayer else { return }
-            if let duration = try? await item.asset.load(.duration),
-               duration.isNumeric {
-                self.durationMs = Int(duration.seconds * 1000)
+            if let duration = try? await item.asset.load(.duration) {
+                self.applyLoadedDuration(duration, for: avPlayer)
             }
         }
+    }
+
+    /// Commit async metadata only while its player still owns the current media.
+    func applyLoadedDuration(_ duration: CMTime, for loadedPlayer: AVPlayer) {
+        guard player === loadedPlayer, duration.isNumeric else { return }
+        durationMs = Int(duration.seconds * 1000)
     }
 
     private func startLoadingTimer() {

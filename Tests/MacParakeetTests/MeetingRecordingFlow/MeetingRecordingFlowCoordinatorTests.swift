@@ -546,6 +546,16 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
     }
 
     func testRetryRepreparesSourceOnlyRowsWithMissingOrInstalledPlayback() async throws {
+        try await assertSourceOnlyRetry()
+    }
+
+    func testSourceOnlyRetryRecoversCorruptAndEmptyLocks() async throws {
+        for lockData in [Data("{not-json".utf8), Data()] {
+            try await assertSourceOnlyRetry(replacementLockData: lockData)
+        }
+    }
+
+    private func assertSourceOnlyRetry(replacementLockData: Data? = nil) async throws {
         for installedPlayback in [false, true] {
             let transcriptionService = MockTranscriptionService()
             await transcriptionService.holdMeetingFinalization()
@@ -573,6 +583,9 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
                     state: .awaitingTranscription, folderURL: folderURL
                 ), folderURL: folderURL)
             let capturedSessionID = try XCTUnwrap(MeetingRecordingLockFileStore().read(folderURL: folderURL)?.sessionId)
+            if let replacementLockData {
+                try replacementLockData.write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
+            }
             let failed = Transcription(
                 id: UUID(),
                 fileName: "Retry meeting",
@@ -585,6 +598,10 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             )
             try settlementHarness.transcriptionRepo.save(failed)
             let ownershipClaimer = FlowFinalizationOwnershipClaimer()
+            // Exercise real unreadable-lock normalization and admission for
+            // corruption, retaining the spy assertions for the original path.
+            let finalizationClaimer: any MeetingFinalizationOwnershipClaiming = replacementLockData == nil
+                ? ownershipClaimer : MeetingRecordingLockFileStore()
             let coordinator = MeetingRecordingFlowCoordinator(
                 meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
                 transcriptionService: transcriptionService,
@@ -596,7 +613,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
                 llmService: nil,
                 pillViewModel: MeetingRecordingPillViewModel(),
                 meetingRecordingSettlement: settlementHarness.settlement,
-                finalizationOwnershipClaimer: ownershipClaimer,
+                finalizationOwnershipClaimer: finalizationClaimer,
                 onMenuBarIconUpdate: { _ in },
                 onTranscriptionReady: { _ in }
             )
@@ -622,10 +639,17 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             XCTAssertEqual(snapshot.prepareMeetingCallCount, 0)
             XCTAssertEqual(snapshot.finalizeMeetingCallCount, 1)
             XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
-            XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
-            XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.sessionID, capturedSessionID)
+            if replacementLockData == nil {
+                XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
+                XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.sessionID, capturedSessionID)
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
             XCTAssertEqual(try XCTUnwrap(snapshot.finalizedMeetingRecordings.first?.durationSeconds), 1, accuracy: 0.1)
-            XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+            if replacementLockData == nil {
+                XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+            } else {
+                XCTAssertNotNil(try MeetingRecordingLockFileStore().read(folderURL: folderURL)?.finalizationLeaseId)
+            }
         }
     }
 
