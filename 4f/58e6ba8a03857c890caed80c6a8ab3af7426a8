@@ -1,0 +1,19 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_38caae34335b3e::t_0ef41b08588780 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f58e6ba8a03857c890caed80c6a8ab3af7426a8",
+  "prompts": {},
+  "sessions": {
+    "s_38caae34335b3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d7-0696-7830-99db-06b3d94f97b0",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

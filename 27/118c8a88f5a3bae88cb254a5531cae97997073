@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/Audio/DictationSoundTests.swift
+  s_6f26576d2ce855::t_a21687b0b6462e 3,80,374,384,430,466,738,748
+  s_6f26576d2ce855::t_30867e38a837fc 93,95
+  s_6f26576d2ce855::t_6ad74c5cf1df5f 733-737,739,743-744,746,749-751,753,755-761,763
+  s_6f26576d2ce855::t_a4f894286976f1 94,156-157,465,469,478
+docs/assets/dictation-sounds/manifest.json
+  s_6f26576d2ce855::t_30867e38a837fc 4,8-12,15-71,74-120,239-248
+  s_6f26576d2ce855::t_8a7f2da04c747c 7,121-130,133-189,192-238
+spec/02-features.md
+  s_6f26576d2ce855::t_6ad74c5cf1df5f 425
+Sources/MacParakeetCore/Models/DictationSoundConfiguration.swift
+  s_6f26576d2ce855::t_a21687b0b6462e 41
+  s_6f26576d2ce855::t_31d5b49b15d144 32,40,43
+docs/dictation-sound-design.md
+  s_6f26576d2ce855::t_6ad74c5cf1df5f 1-7,12,14-17,21-22,25,28-30,51-56,79,81-88,104,107-108
+  s_6f26576d2ce855::t_30867e38a837fc 8-11,13,18-20,23-24,26-27,31,36-47,57-66,73-78,80,89-103,105-106,109-114
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_6f26576d2ce855::t_a4f894286976f1 289
+scripts/dev/generate_dictation_sounds.py
+  s_6f26576d2ce855::t_cc3b30de91098c 4-6,15-16,19-33,35-79,113-154,156,159-161,163,166,169-170,175,179,181-182
+  s_6f26576d2ce855::t_8a7f2da04c747c 2,34,80-112,155,157-158,180,186-197,210
+docs/dictation-sounds.md
+  s_6f26576d2ce855::t_6ad74c5cf1df5f 4,29,31-33,36-37,55,65
+  s_6f26576d2ce855::t_30867e38a837fc 5,34-35,39-41,43-46,66
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_6f26576d2ce855::t_a4f894286976f1 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27118c8a88f5a3bae88cb254a5531cae97997073",
+  "prompts": {},
+  "sessions": {
+    "s_6f26576d2ce855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18e58-eaa6-7583-abd5-6aec9f43cba6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

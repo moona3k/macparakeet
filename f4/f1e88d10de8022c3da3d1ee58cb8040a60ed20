@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/MeetingDetection/BrowserMeetingURLCollectorTests.swift
+  s_38caae34335b3e::t_67b7006f75e1fd 129-152
+spec/adr/024-activity-based-meeting-detection.md
+  s_38caae34335b3e::t_67b7006f75e1fd 500
+  s_38caae34335b3e::t_88e6b9fba038ae 498
+  s_38caae34335b3e::t_be30c974a35fe3 499
+Sources/MacParakeet/App/BrowserMeetingURLCollector.swift
+  s_38caae34335b3e::t_67b7006f75e1fd 116-118
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_38caae34335b3e::t_8cccea06ced3e5 47,600
+Sources/MacParakeet/App/MeetingActivityDetectionCoordinator.swift
+  s_38caae34335b3e::t_8cccea06ced3e5 36,75,97,256,309,321-322
+spec/02-features.md
+  s_38caae34335b3e::t_67b7006f75e1fd 2235
+  s_38caae34335b3e::t_88e6b9fba038ae 2233
+  s_38caae34335b3e::t_d518f5ebd4cfc3 2234
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_38caae34335b3e::t_8cccea06ced3e5 1521
+Tests/MacParakeetTests/MeetingDetection/MeetingActivityDetectionCoordinatorTests.swift
+  s_38caae34335b3e::t_0197adf9bd85a4 618,620-621,623,625,627-628,632
+  s_38caae34335b3e::t_8cccea06ced3e5 20,58,575-617,619,622,624,626,629-631,633-635
+  s_38caae34335b3e::t_d6e4d4dea753ce 636
+Sources/MacParakeet/AppDelegate.swift
+  s_38caae34335b3e::t_8cccea06ced3e5 689-691
+Tests/MacParakeetTests/MeetingDetection/MeetingPromptCandidateTests.swift
+  s_38caae34335b3e::t_293ba5d6d821bb 56-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4f1e88d10de8022c3da3d1ee58cb8040a60ed20",
+  "prompts": {},
+  "sessions": {
+    "s_38caae34335b3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d7-0696-7830-99db-06b3d94f97b0",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
