@@ -1,7 +1,7 @@
 {
   "baseline": "79cf1ca928b53c3853a99f6832c197d664dcdd78",
   "local_link_check": {
-    "count": 422,
+    "count": 425,
     "markdownDocuments": 33,
     "missing": [],
     "outsideRepository": [],
@@ -46,7 +46,7 @@
       "spec/contracts/cli-json-v1.md"
     ],
     "documentSha256": {
-      "README.md": "a6b6b47fbc7c98040ed380327f32bb093c3a4162b21b430e038d75bc82fc5fd2",
+      "README.md": "c8b994b0dfadc070415f7c4b4c3410e72916d7d898c447973bce7bdfcdfe7c73",
       "Sources/CLI/README.md": "fc876871eb0cc3794830af0e90acf7f3abc8996f27a42180a3fb75af1392fa32",
       "Sources/MacParakeetCore/TextProcessing/README.md": "467a1eae167716ce1d43f3391b63daf7eba16acdc862b4dc41ab9d4e20b723d3",
       "docs/audits/2026-10-31-app-cli-parity/README.md": "d9acc93dc3576972d728fe2762d50e0bdc9cfb74d5727b5d597dd6b4ae638e1f",
@@ -68,19 +68,24 @@
       "plans/active/2026-09-17-issue-1079-wrapping-up.md": "0627a3a41c735699911a9183a914966ad055b5d94d183a3fe56c81886548d7f0",
       "plans/active/2026-09-24-issue-1142-event-taps-off-main.md": "f7a32f26ea8ef1812a1a2deb18d6bdffbc80cc88c72b2adbd9b44a9ab8b01634",
       "plans/active/2026-10-30-1291-capture-finalization.md": "8f43b4ad74c481b746c0eb9e0a218f4cc5dfb7b3ac69e93801e6bcb75dbd7f0b",
-      "spec/00-vision.md": "c824360c5cb7512bb689bca17c8bd3afaf04801ee495658d49cd860d5336743f",
-      "spec/02-features.md": "7eed1a86f97dc504d584904fe968496ba928b0fceb79b874cd445cdecc528861",
+      "spec/00-vision.md": "f4f52667d52e4682dacc3e6e919681ad81057b7a2d418213867b0e3fb79a100f",
+      "spec/02-features.md": "0e235bf38039239dd3f12f031150ef66b1e9042f39d650ff71e701a15fe04ab3",
       "spec/03-architecture.md": "a6ea9bfc60edc1943ce4adbf874e3c3318a387c21a35c5d7adf80852e3385a67",
-      "spec/04-ui-patterns.md": "5c8903d2a89e5b97cf7de9a61a7e1dabd2bcfbfe31bc4d506952db15b6e6cba4",
+      "spec/04-ui-patterns.md": "f0ee51d7d338d35e707c25a2e91dfb8ed418fe31d06ed5d6e3b604adb4f52a39",
       "spec/11-llm-integration.md": "96eaa635c799c18a1fd09e1f1dfffcfd071ea421c430991ae785d5cef5abf59c",
-      "spec/README.md": "6fab2db86552f3f40b7816e32bfd1ff6585edc30a1035752ac73b59373bce9c2",
+      "spec/README.md": "39c7c05474479e9158604c8479dddc232bef8e16b070780f171f8a3e9b1e7e07",
       "spec/adr/002-local-only.md": "4339769d8d49de47804bdd819ce3ec6d1d545846edafaf3eac46f6e08dc075fd",
       "spec/adr/027-product-north-star.md": "fafe0eb5de668ede62336004e1e2cd21f5d004dbe2146470e81ea133acec935c",
       "spec/adr/034-meeting-ask-workspace.md": "9fc2fdf7239dad366f3ea38051cb075f20347e180bef94af8543032a703a12ec",
       "spec/contracts/README.md": "55338b17a90b8da3f9d99dd7e732b16416c974431347ddaf053982ae9ddfc954",
-      "spec/contracts/cli-json-v1.md": "38619ae3bc2ded13bace2cb673ef13dffe825c8a1d7851f3e3aba3e95614fded"
+      "spec/contracts/cli-json-v1.md": "8b5546e467d10d7faed3a0f7378aabfd8e05d4c1457b83594aec97ba17364a47"
     },
     "targets": [
+      {
+        "document": "README.md",
+        "target": "docs/releases/0.8.10/github.md",
+        "resolved": "docs/releases/0.8.10/github.md"
+      },
       {
         "document": "README.md",
         "target": "docs/releases/0.8.10/github.md",
@@ -1748,6 +1753,11 @@
       },
       {
         "document": "spec/README.md",
+        "target": "../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime",
+        "resolved": "plans/active/2026-06-14-meeting-activity-detection.md"
+      },
+      {
+        "document": "spec/README.md",
         "target": "contracts/speaker-voiceprints.md",
         "resolved": "spec/contracts/speaker-voiceprints.md"
       },
@@ -1950,6 +1960,11 @@
         "document": "spec/README.md",
         "target": "02-features.md",
         "resolved": "spec/02-features.md"
+      },
+      {
+        "document": "spec/README.md",
+        "target": "../plans/active/2026-06-14-meeting-activity-detection.md#2026-10-19-amendment-opt-in-beta-runtime",
+        "resolved": "plans/active/2026-06-14-meeting-activity-detection.md"
       },
       {
         "document": "spec/README.md",
@@ -3614,6 +3629,80 @@
       "localLinkCount": 422,
       "localLinkMissing": 0,
       "baselineDiffCheckExit": 0
+    }
+  },
+  "followUpRebase2026-10-31": {
+    "capturedAtUTC": "2026-11-01T02:46:08.341365+00:00",
+    "scope": "Rebase of the five documentation commits onto main at 264c11c338b597a51f7719384b4a39d064de8406 (includes #1267 and #1304). Conflicts in README.md, spec/04-ui-patterns.md and spec/README.md were resolved by keeping the base reminder and release text beside the audited wording; spec/00-vision.md no longer lists activity-based meeting detection as gated. Documentation only: no builds, downloads, tests, user data access, merge or deploy.",
+    "rebasedOnto": "264c11c338b597a51f7719384b4a39d064de8406",
+    "markdownScopeNote": "After the rebase the Markdown set is the pull-request range against the rebased base, which is the same 33 files; the audit baseline field above still names the source revision that was reviewed.",
+    "documentsWithChangedHash": [
+      "README.md",
+      "spec/00-vision.md",
+      "spec/02-features.md",
+      "spec/04-ui-patterns.md",
+      "spec/README.md",
+      "spec/contracts/cli-json-v1.md"
+    ],
+    "localLinkRefresh": {
+      "previous": {
+        "count": 422,
+        "markdownDocuments": 33,
+        "excludedTargets": {
+          "remote_or_other_scheme": 53,
+          "anchor_only_or_empty": 3
+        }
+      },
+      "current": {
+        "count": 425,
+        "markdownDocuments": 33,
+        "excludedTargets": {
+          "remote_or_other_scheme": 53,
+          "anchor_only_or_empty": 3
+        }
+      },
+      "missing": 0,
+      "method": "Same extraction rules as the first receipt; they reproduced the previous 422 targets and exclusion counts exactly on the pre-rebase head before being applied to the rebased tree. The additional targets are rollout-amendment links from the base reminder text in spec/README.md."
+    },
+    "featureFlagTableCheck": {
+      "sourceFlags": 16,
+      "documentedFlags": 16,
+      "mismatches": 0,
+      "note": "Current AppFeatures.swift compared with the spec/README.md flag table after the rebase; meetingActivityDetectionEnabled is true in both. The original 16-flag receipt is unchanged."
+    },
+    "checks": {
+      "documentHashes": true,
+      "rawArtifactHashes": true,
+      "documentCount": 33,
+      "rawArtifactCount": 7,
+      "localLinkCount": 425,
+      "localLinkMissing": 0,
+      "rangeDiffCheck": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "264c11c338b597a51f7719384b4a39d064de8406"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "sourceReadmeReferences": {
+        "command": [
+          "bash",
+          "scripts/check-readme-references.sh"
+        ],
+        "exit": 0,
+        "stdout": "All Sources/**/README.md backticked .swift references resolve.",
+        "stderr": ""
+      }
+    },
+    "preservedInitialEvidence": {
+      "installedCliHelpCommands": 139,
+      "featureFlags": 16,
+      "rerun": false,
+      "artifactsSha256Unchanged": true
     }
   }
 }

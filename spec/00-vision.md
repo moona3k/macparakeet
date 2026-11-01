@@ -529,8 +529,11 @@ Ship-quality polish. Direct distribution via notarized DMG.
   bounded meeting memory, and bundled CLI 5.1.0. Apple Intelligence serves
   cleanup only; longer analysis uses another configured provider.
 - Cross-recording Ask, Voice Control, voice profiles, encrypted share links,
-  activity-based meeting detection, app-aware AI Formatter profiles, and
-  in-process MLX remain gated.
+  app-aware AI Formatter profiles, and in-process MLX remain gated.
+- Opt-in Beta meeting recording reminders are in source for the next app
+  release. They are prompt-only and default off, automatic activity-based
+  recording remains unavailable, and the published 0.8.10 DMG does not include
+  them.
 
 ---
 
