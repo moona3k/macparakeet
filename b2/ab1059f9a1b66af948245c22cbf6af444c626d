@@ -1,0 +1,42 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingTranscriptVocabularyApplierTests.swift
+  s_1d3c3aeecdd983::t_f3c1100f6ab376 62-76
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 38-61
+Sources/MacParakeetCore/TextProcessing/TextProcessingPipeline.swift
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 213-214
+Sources/CLI/CHANGELOG.md
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 114-120
+spec/07-text-processing.md
+  s_1d3c3aeecdd983::t_0d5ddb589ecf87 38-43,72-74
+Sources/MacParakeetCore/TextProcessing/CustomWordReplacer.swift
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 12-13,31,40,66-72
+  s_1d3c3aeecdd983::t_6af705263ed85c 34-39
+  s_1d3c3aeecdd983::t_a2e0d98a0aca1b 14-15
+  s_1d3c3aeecdd983::t_ae2cc898c68869 73-74
+Tests/MacParakeetTests/TextProcessing/CustomWordReplacerTests.swift
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 36-53,58-70
+  s_1d3c3aeecdd983::t_6af705263ed85c 54-57
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 64-67,77-78
+  s_1d3c3aeecdd983::t_3ff8579469846c 68-70
+Tests/MacParakeetTests/TextProcessing/TextProcessingPipelineTests.swift
+  s_1d3c3aeecdd983::t_4660f29b1b27d1 207-213,218-233
+  s_1d3c3aeecdd983::t_6af705263ed85c 214-217
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingTranscriptVocabularyApplier.swift
+  s_1d3c3aeecdd983::t_f3c1100f6ab376 55-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2ab1059f9a1b66af948245c22cbf6af444c626d",
+  "prompts": {},
+  "sessions": {
+    "s_1d3c3aeecdd983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a193d9-1279-75c1-a0aa-2e17aa9d4af4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
