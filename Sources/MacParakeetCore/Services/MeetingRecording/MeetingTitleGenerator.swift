@@ -112,7 +112,7 @@ struct MeetingTitleGenerator: Sendable {
 
         var title = lines[0]
             .replacingOccurrences(of: #"^[-*•]\s*"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"^\d+[\.)]\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^\d+[\.)]\s+"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         title = stripWrappingQuotes(from: title)
         title = title.trimmingCharacters(
@@ -149,9 +149,17 @@ struct MeetingTitleGenerator: Sendable {
         // or month names used as topics (for example, "May Hiring Plan").
         let month =
             "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
-        let dateLikePattern =
-            #"(?i)\b\d{1,2}:\d{2}\b|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{1,2}\.\d{1,2}\.\d{4}\b|\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b|\b\#(month)\.?\s+\d{1,4}(?:st|nd|rd|th)?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+\#(month)\b"#
-        guard title.range(of: dateLikePattern, options: .regularExpression) == nil else {
+        let dateLikePattern = [
+            #"\b\d{1,2}:\d{2}\b"#,
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,
+            #"\b\d{1,2}\.\d{1,2}\.\d{4}\b"#,
+            #"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b"#,
+            #"\b\#(month)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
+            #"\b\d{1,2}(?:st|nd|rd|th)?\s+\#(month)\b"#,
+            // A month/year can qualify a topic, but is not a topic by itself.
+            #"^(?:meeting\s+)?\#(month)\.?\s+\d{4}$"#,
+        ].joined(separator: "|")
+        guard title.range(of: dateLikePattern, options: [.regularExpression, .caseInsensitive]) == nil else {
             throw RejectionReason.dateTime
         }
 

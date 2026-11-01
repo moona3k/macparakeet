@@ -39,6 +39,7 @@ final class MeetingTitleGeneratorTests: XCTestCase {
     func testValidatedTitleAcceptsTopicYears() throws {
         for title in [
             "2027 Budget Review", "Q3 2026 Revenue Forecast", "CAPEX Plan for 2027", "План бюджета на 2027 год",
+            "May 2027 Budget Review", "MAY 2027 Budget Review", "Budget Review for Sept. 2027",
         ] {
             XCTAssertEqual(try MeetingTitleGenerator.validatedTitle(from: title), title)
         }
@@ -76,9 +77,13 @@ final class MeetingTitleGeneratorTests: XCTestCase {
             ("There is not enough context here", .generic),
             ("Meeting Jun 17, 2026", .dateTime),
             ("Meeting June 17", .dateTime),
+            ("May 2027", .dateTime),
+            ("Meeting May 2027", .dateTime),
+            ("MEETING MAY 2027", .dateTime),
             ("June 17th, 2026", .dateTime),
             ("Meeting 17th June 2026", .dateTime),
             ("Meeting 17.06.2026", .dateTime),
+            ("17.06.2026 Budget Review", .dateTime),
             ("Meeting 17-06-2026", .dateTime),
             ("Meeting 2026/06/17", .dateTime),
             ("Meeting 17 June 2026", .dateTime),
