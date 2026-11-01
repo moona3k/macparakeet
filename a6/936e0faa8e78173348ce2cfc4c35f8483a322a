@@ -1,0 +1,24 @@
+integrations/capabilities.md
+  s_c6cce7be304f19::t_d3a68f5f945895 3-6
+docs/audits/2026-10-31-app-cli-parity/verification.json
+  s_c6cce7be304f19::t_03895dbb5c4bb7 52,61,3756-3778,3798
+  s_c6cce7be304f19::t_cba23331506323 3779-3797,3799-3804
+docs/audits/2026-10-31-app-cli-parity/README.md
+  s_c6cce7be304f19::t_d3a68f5f945895 6-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6936e0faa8e78173348ce2cfc4c35f8483a322a",
+  "prompts": {},
+  "sessions": {
+    "s_c6cce7be304f19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eaaf44ae-720d-4aa9-bdef-f0dfd005ce70",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
