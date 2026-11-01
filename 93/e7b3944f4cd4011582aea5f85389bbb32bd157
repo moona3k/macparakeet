@@ -1,0 +1,38 @@
+docs/releases/0.8.11/README.md
+  s_bb4ba6b40e4842::t_1edca18bf70ce1 10-12
+docs/audits/2026-11-01-release-readiness/README.md
+  s_bb4ba6b40e4842::t_7e18b730dc6310 61
+  s_bb4ba6b40e4842::t_1edca18bf70ce1 3-8,64-67
+  s_bb4ba6b40e4842::t_ee60f73b0f42e8 15,49,52-53,57-60,62,68-73,75
+Sources/CLI/CHANGELOG.md
+  s_bb4ba6b40e4842::t_ee60f73b0f42e8 135-142
+docs/audits/2026-11-01-release-readiness/services-review.md
+  s_bb4ba6b40e4842::t_08ba42e690052e 27
+docs/audits/2026-11-01-release-readiness/evidence/signed-candidate.md
+  s_bb4ba6b40e4842::t_7fea5d3bc284cb 1-14,17-24
+  s_bb4ba6b40e4842::t_1edca18bf70ce1 15-16
+docs/releases/0.8.11/github.md
+  s_bb4ba6b40e4842::t_ee60f73b0f42e8 14
+docs/releases/0.8.11/sparkle.html
+  s_bb4ba6b40e4842::t_ee60f73b0f42e8 12
+docs/audits/2026-11-01-release-readiness/recent-issue-risks.md
+  s_bb4ba6b40e4842::t_ee60f73b0f42e8 1-49
+docs/audits/2026-11-01-release-readiness/evidence/full-test-summary.md
+  s_bb4ba6b40e4842::t_56cd7c4a86e57c 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "93e7b3944f4cd4011582aea5f85389bbb32bd157",
+  "prompts": {},
+  "sessions": {
+    "s_bb4ba6b40e4842": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19846-cdc7-7de2-b8a6-c8cb3f55285d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
