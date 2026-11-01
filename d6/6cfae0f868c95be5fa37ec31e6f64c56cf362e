@@ -1,0 +1,40 @@
+docs/releases/0.8.11/sparkle.html
+  s_76f49249cc0326::t_0287ba1ed2dcdf 9-10
+spec/contracts/youtube-video-playback.md
+  s_76f49249cc0326::t_0287ba1ed2dcdf 36,38-41
+docs/releases/0.8.11/github.md
+  s_76f49249cc0326::t_0287ba1ed2dcdf 10-11
+Sources/MacParakeetViewModels/MediaPlayerViewModel.swift
+  s_76f49249cc0326::t_0674d8fa8777e2 310,312
+  s_76f49249cc0326::t_31ca3f5d606079 139-146
+Sources/MacParakeetCore/Audio/FFmpegAudioTrackProbe.swift
+  s_76f49249cc0326::t_ab75bdd6624411 92-93,99-100,105-116
+  s_76f49249cc0326::t_98214499e2d25d 141,143
+Tests/MacParakeetTests/ViewModels/MediaPlayerViewModelTests.swift
+  s_76f49249cc0326::t_c7f17bf5f38324 394-478
+docs/audits/2026-11-01-release-readiness/services-review.md
+  s_76f49249cc0326::t_e7d226960c08f7 18-20,24
+docs/audits/2026-11-01-release-readiness/README.md
+  s_76f49249cc0326::t_0287ba1ed2dcdf 23
+  s_76f49249cc0326::t_e7d226960c08f7 26
+Sources/MacParakeetCore/Audio/README.md
+  s_76f49249cc0326::t_e7d226960c08f7 190-193
+Tests/MacParakeetTests/Audio/FFmpegAudioTrackProbeTests.swift
+  s_76f49249cc0326::t_83fd267e06ff71 88-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d66cfae0f868c95be5fa37ec31e6f64c56cf362e",
+  "prompts": {},
+  "sessions": {
+    "s_76f49249cc0326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8321817a-3971-460b-bbbc-6c83f319ccf8",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
