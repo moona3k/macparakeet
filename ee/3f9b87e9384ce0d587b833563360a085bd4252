@@ -1,0 +1,77 @@
+Tests/MacParakeetTests/ViewModels/MediaPlayerViewModelTests.swift
+  s_bb4ba6b40e4842::t_c8fec873c16d32 395-408,410-416,418-428,430-435,802,807
+  s_bb4ba6b40e4842::t_876b87adff3f45 8-28
+  s_bb4ba6b40e4842::t_4527185f825bb4 409,417,429,791-801
+  s_bb4ba6b40e4842::t_63c4fdca0f5970 318-394
+  s_bb4ba6b40e4842::t_e3f339ded90816 803-806
+  s_bb4ba6b40e4842::t_0b6a2f51e42a8d 808-809
+Sources/MacParakeetViewModels/MediaPlayerViewModel.swift
+  s_bb4ba6b40e4842::t_1d1d71fa5054da 85,111,136-140,230,254-255,307-308,312-316,370,527
+  s_bb4ba6b40e4842::t_876b87adff3f45 517-518,523-526
+  s_bb4ba6b40e4842::t_49b9d75b0b864f 528
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingCapture.swift
+  s_bb4ba6b40e4842::t_1d1d71fa5054da 46
+Sources/CLI/MacParakeetCLI.swift
+  s_bb4ba6b40e4842::t_29dbe5a80ebe50 11
+docs/audits/2026-11-01-release-readiness/evidence/.gitignore
+  s_bb4ba6b40e4842::t_209298fa1c699c 1-3,5-6
+  s_bb4ba6b40e4842::t_ba3117784ff6c1 4
+spec/contracts/cli-json-v1.md
+  s_bb4ba6b40e4842::t_6ae6ad12ee2fdc 17
+docs/audits/2026-11-01-release-readiness/capture-review.md
+  s_bb4ba6b40e4842::t_de9e529ba91385 1-35
+integrations/capabilities.md
+  s_bb4ba6b40e4842::t_6ae6ad12ee2fdc 72
+spec/contracts/youtube-video-playback.md
+  s_bb4ba6b40e4842::t_4ae4cba04b3641 38-40
+Sources/CLI/CHANGELOG.md
+  s_bb4ba6b40e4842::t_29dbe5a80ebe50 97-101
+  s_bb4ba6b40e4842::t_ce9708e16e6ccd 163-170
+  s_bb4ba6b40e4842::t_acad5be50c6cbe 171
+docs/audits/2026-11-01-release-readiness/interaction-review.md
+  s_bb4ba6b40e4842::t_837392d3884193 65-99
+  s_bb4ba6b40e4842::t_0cb75434072964 1-64,100-115
+docs/audits/2026-11-01-release-readiness/README.md
+  s_bb4ba6b40e4842::t_ba3117784ff6c1 25,43-51
+  s_bb4ba6b40e4842::t_209298fa1c699c 22-24,26-38
+  s_bb4ba6b40e4842::t_29dbe5a80ebe50 1-21,39-42,52-53
+docs/releases/0.8.11/sparkle.html
+  s_bb4ba6b40e4842::t_b0b2fadc22bcd7 1-15
+docs/releases/0.8.11/README.md
+  s_bb4ba6b40e4842::t_b0b2fadc22bcd7 1-10
+spec/README.md
+  s_bb4ba6b40e4842::t_29dbe5a80ebe50 101-104
+docs/releases/0.8.11/github.md
+  s_bb4ba6b40e4842::t_b0b2fadc22bcd7 1-19
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_bb4ba6b40e4842::t_445f86fb267428 450,623-626
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_bb4ba6b40e4842::t_97c6aa2a151937 549-558,586-588,601-604,616,642-646,648-652
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingCaptureTests.swift
+  s_bb4ba6b40e4842::t_c84ea097e966ed 1-28,31-40,43-44,48,50-76
+  s_bb4ba6b40e4842::t_876b87adff3f45 41-42,49
+  s_bb4ba6b40e4842::t_15f2b54e7f7ba1 45-47
+  s_bb4ba6b40e4842::t_de9e529ba91385 29-30
+docs/audits/2026-11-01-release-readiness/evidence/changed-files.txt
+  s_bb4ba6b40e4842::t_8998809cb421f6 1-223
+docs/audits/2026-11-01-release-readiness/evidence/commits.txt
+  s_bb4ba6b40e4842::t_4af03383d8f027 1-56
+docs/audits/2026-11-01-release-readiness/services-review.md
+  s_bb4ba6b40e4842::t_bb8999afce5f45 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee3f9b87e9384ce0d587b833563360a085bd4252",
+  "prompts": {},
+  "sessions": {
+    "s_bb4ba6b40e4842": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19846-cdc7-7de2-b8a6-c8cb3f55285d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
