@@ -1,0 +1,24 @@
+docs/releases/0.8.11/README.md
+  s_bb4ba6b40e4842::t_3542671835e1a4 16-18
+docs/audits/2026-11-01-release-readiness/README.md
+  s_bb4ba6b40e4842::t_3542671835e1a4 5
+  s_bb4ba6b40e4842::t_d63d218832c6ad 111-114
+spec/02-features.md
+  s_bb4ba6b40e4842::t_3542671835e1a4 1899
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be0e5737ccc3624563c42f940dc389fd574dd229",
+  "prompts": {},
+  "sessions": {
+    "s_bb4ba6b40e4842": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19846-cdc7-7de2-b8a6-c8cb3f55285d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
