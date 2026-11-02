@@ -64,6 +64,7 @@ and setting name `meeting_activity_detection_mode` (the Beta prompt mode emits
 `url_control` at ingestion and public projection before the client is released.
 Event-name allowlist checks alone do not establish this compatibility: an older
 dimension normalizer accepts the events but stores these values as `unknown`.
+The website regression in [`tests/telemetry-boundary.test.mjs`](https://github.com/moona3k/macparakeet-website/blob/f14f38ac7043a0bbeef01f2f6b905238b3cf5057/tests/telemetry-boundary.test.mjs) exercises real SQLite ingestion and public projection for all three values; it is companion-repository enforcement, not part of the app event-name check.
 
 ## Client delivery policy
 

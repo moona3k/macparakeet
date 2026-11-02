@@ -1,5 +1,7 @@
 ### Swift test results
 
+Tested commit: `d66cfae0f868c95be5fa37ec31e6f64c56cf362e`. This run predates integration of PR #1309 and the title fixes in `0146098b013e`; later focused results are attributed separately in the [release audit](../README.md).
+
 - Cases in xUnit XML: **8519**; failures: **0**; errors: **0**.
 - Skipped: not reported by this xUnit XML.
 - Sum of 8519 case durations: **1772.65s** (parallel tests overlap; this is not wall time).

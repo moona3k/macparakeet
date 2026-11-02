@@ -66,6 +66,8 @@ listed under Unreleased. The parent updated it to prepared CLI 5.2.0.
 
 ## Independent review of release-review fixes
 
+This follow-up reviewed the pending fixes subsequently committed as `ee3f9b87e`, relative to `bb1ebcc37974bfb363f2bec46250bc0532009f17`. It does not cover the later no-mistakes follow-up in `d66cfae0f`; the parent audit and fresh-review reports record that later verification.
+
 The final source pass reviewed the pending retained-YouTube-audio restoration,
 post-persistence cancellation, and corrupt-lock capture reconstruction fixes.
 No blocking finding remains in those changes.

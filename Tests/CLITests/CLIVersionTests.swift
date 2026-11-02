@@ -2,24 +2,25 @@ import XCTest
 @testable import CLI
 
 /// The CLI's `--version` and `spec --json` output are a public automation
-/// contract. These tests pin `CLI.cliVersion` to the latest *released* section
-/// header in `Sources/CLI/CHANGELOG.md`, so a forgotten bump can't silently
+/// contract. These tests pin `CLI.cliVersion` to the latest versioned source section
+/// header in `Sources/CLI/CHANGELOG.md`, including prepared candidates.
+/// A forgotten bump must not silently
 /// ship a binary that reports a stale version (the `2.9.0`-while-`2.10.0`-shipped
 /// drift caught in the 2026-06-21 audit).
 final class CLIVersionTests: XCTestCase {
-    func testCLIVersionMatchesLatestReleasedChangelogEntry() throws {
+    func testCLIVersionMatchesLatestVersionedChangelogEntry() throws {
         let changelog = try String(contentsOf: Self.changelogURL, encoding: .utf8)
-        let latestReleased = try XCTUnwrap(
-            Self.firstReleasedVersion(in: changelog),
-            "Could not find a released `## [x.y.z] -- date` header in CHANGELOG.md"
+        let latestVersioned = try XCTUnwrap(
+            Self.firstVersionedVersion(in: changelog),
+            "Could not find a versioned `## [x.y.z] -- date` header in CHANGELOG.md"
         )
 
         XCTAssertEqual(
             CLI.cliVersion,
-            latestReleased,
+            latestVersioned,
             """
-            CLI.cliVersion (\(CLI.cliVersion)) must equal the latest released \
-            CHANGELOG header ([\(latestReleased)]). Bump \
+            CLI.cliVersion (\(CLI.cliVersion)) must equal the latest versioned \
+            CHANGELOG header ([\(latestVersioned)]). Bump \
             `MacParakeetCLI.cliVersion` in lockstep with Sources/CLI/CHANGELOG.md.
             """
         )
@@ -48,7 +49,7 @@ final class CLIVersionTests: XCTestCase {
 
     /// Version string of the first `## [x.y.z] -- ...` header, skipping the
     /// `## [Unreleased]` section (whose bracket token is non-numeric).
-    private static func firstReleasedVersion(in changelog: String) -> String? {
+    private static func firstVersionedVersion(in changelog: String) -> String? {
         for rawLine in changelog.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard line.hasPrefix("## ["),

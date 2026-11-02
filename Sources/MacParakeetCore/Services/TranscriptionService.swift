@@ -2308,11 +2308,12 @@ public actor TranscriptionService:
         }
 
         // A probable calendar match does not name a manual recording. Protect
-        // calendar names only when the recording actually uses that title.
+        // confirmed calendar names only when the recording actually uses that title.
         let calendarTitle = Transcription.normalizedTitleOverride(from: transcription.calendarEventSnapshot?.title)
         if persistResult, source == .meeting,
            transcription.normalizedTitleOverride == nil,
-           calendarTitle != Transcription.normalizedTitleOverride(from: transcription.fileName),
+           (transcription.calendarEventSnapshot?.confidence != .confirmed
+            || calendarTitle != Transcription.normalizedTitleOverride(from: transcription.fileName)),
            let generatedTitle = try await generateMeetingTitleIfNeeded(
                transcriptText: derivationSource,
                currentTitle: transcription.fileName

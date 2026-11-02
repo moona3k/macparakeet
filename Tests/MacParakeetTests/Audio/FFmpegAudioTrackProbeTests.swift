@@ -149,13 +149,18 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
         let sandbox = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: sandbox) }
         let root = sandbox.appendingPathComponent("macparakeet", isDirectory: true)
+        let replacedLog = sandbox.appendingPathComponent("replaced-log")
+        let helperExitStatus = sandbox.appendingPathComponent("helper-exit-status")
         let ffmpeg = try makeFakeFFmpeg(
             in: sandbox,
             body: """
+                set -eu
+                trap 'helper_status=$?; printf "%s" "$helper_status" > "\(helperExitStatus.path)"' EXIT
                 echo '  Stream #0:1(eng): Audio: aac' >&2
                 for log in '\(root.path)'/macparakeet-audio-tracks-*.log; do
                   rm -f "$log"
                   mkdir "$log"
+                  printf '%s' "$log" > '\(replacedLog.path)'
                 done
                 """)
         let probe = FFmpegAudioTrackProbe(runProbe: { fileURL in
@@ -167,6 +172,15 @@ final class FFmpegAudioTrackProbeTests: XCTestCase {
             let tracks = try await probe.tracks(in: URL(fileURLWithPath: "/tmp/episode.mkv"))
             XCTFail("Expected an output read failure, got \(tracks)")
         } catch {
+            XCTAssertEqual(try String(contentsOf: helperExitStatus, encoding: .utf8), "0")
+            let expectedLogPath = try String(contentsOf: replacedLog, encoding: .utf8)
+            let readError = error as NSError
+            XCTAssertEqual(readError.domain, NSCocoaErrorDomain)
+            XCTAssertEqual(readError.code, NSFileReadUnknownError)
+            XCTAssertEqual(readError.userInfo[NSFilePathErrorKey] as? String, expectedLogPath)
+            let underlying = try XCTUnwrap(readError.userInfo[NSUnderlyingErrorKey] as? NSError)
+            XCTAssertEqual(underlying.domain, NSPOSIXErrorDomain)
+            XCTAssertEqual(underlying.code, Int(POSIXErrorCode.EISDIR.rawValue))
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), [])
         }
     }

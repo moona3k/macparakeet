@@ -2644,6 +2644,7 @@ final class TranscriptionServiceTests: XCTestCase {
         for (calendarTitle, usesCalendarTitle) in [
             ("Meeting May Hiring Plan", true), ("Meeting at 10:00", true), ("Meeting 6/17/2026", true),
             ("Unrelated Planning", false), ("  \n  ", false),
+            ("Meeting Jun 17, 2026 at 09:59", false),
         ] {
             let llm = MockLLMService()
             llm.summarizeResult = "Product Roadmap Review"

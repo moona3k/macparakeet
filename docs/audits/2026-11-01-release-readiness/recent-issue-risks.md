@@ -2,7 +2,7 @@
 
 Read-only assessment of issues #1292, #1266, and #1278 against the release review candidate. Source inspection initially used `ee3f9b87e`; the relevant production files were identical to `v0.8.10`. This report preserves the pre-fix assessment and suggested verification. The bounded #1292 repair subsequently landed in `d66cfae0f`; final implementation and test results are recorded in the [release receipt](README.md).
 
-Evidence sources: the preserved recent-issue snapshot at `/Users/dmoon/code/macparakeet/docs/audits/2026-11-01-recent-issue-validity.json`, current source, focused test source, and the issue-attached diagnostic log already tracked in the repository. No builds, tests, native audio actions, provider calls, or live model evaluation were performed for this triage. No branch files were edited. #1283/PR #1309 was left untouched.
+Evidence sources: the local-only `2026-11-01-recent-issue-validity.json` snapshot (SHA-256 `870ab7fa3dbe7be12a5ff3405a3061ebb15a1a712b9a2a80e07ed4d3f9679568`; not a committed artifact), with public originals [#1292](https://github.com/moona3k/macparakeet/issues/1292), [#1266](https://github.com/moona3k/macparakeet/issues/1266) and [#1278](https://github.com/moona3k/macparakeet/issues/1278), current source, focused test source, and the issue-attached diagnostic log already tracked in the repository. No builds, tests, native audio actions, provider calls, or live model evaluation were performed for this triage. No branch files were edited. #1283/PR #1309 was left untouched.
 
 ## #1292 — include the bounded temporary-output repair
 

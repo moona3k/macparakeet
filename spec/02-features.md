@@ -1896,7 +1896,9 @@ name to be replaced.
 Connection, timeout, and Local CLI failures receive one retry after a one-second
 pause. CLI errors are unstructured, so the bounded retry can also repeat a
 permanent CLI failure. Cancellation and opt-out stop further attempts; custom
-and calendar titles keep their existing protection. Rejection diagnostics use
+and names adopted from confirmed calendar selections keep their protection.
+Probable calendar matches do not suppress generation, even if their name
+coincides with the recording’s default timestamp title. Rejection diagnostics use
 persisted, content-free reason codes. This does not add a manual title action or
 regenerate titles when a saved summary is rerun.
 

@@ -42,7 +42,9 @@ Covered:
 - Native ScreenCaptureKit/AVFoundation late callbacks, microphone stalls, OS permission transitions, process termination, and filesystem failures were traced in source but were not induced.
 - No claim is made that existing tests passed at this head. No production source or unrelated workspace file was modified by this review.
 
-## Follow-up: uncommitted calendar-title guard
+## Follow-up: calendar-title guard
+
+The following notes describe the pre-commit review and correction. The final corrected production/test snapshot is preserved in commit `0146098b013e02d9e684d84163a08f541298e5d3`; references below to the working diff describe that historical review stage.
 
 Reviewed the later uncommitted `TranscriptionService` calendar-title guard and `testTranscribeMeetingProtectsCalendarTitlesThatResembleFallbacks`, including the optional calendar-snapshot fixture parameter. This follow-up does not change the verdict about committed `93e7b3944`.
 
