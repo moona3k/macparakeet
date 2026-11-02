@@ -43,7 +43,7 @@ public struct MeetingRecordingCapture: Sendable, Equatable {
         from folderURL: URL,
         cleanedMicConditionerFactory: @escaping @Sendable () -> any MicConditioning
     ) throws -> Self {
-        guard let lock = try MeetingRecordingLockFileStore().read(folderURL: folderURL) else {
+        guard let lock = try MeetingRecordingLockFileStore().readFinalizationCandidate(folderURL: folderURL) else {
             throw MeetingFinalizationOwnershipError.missingLock
         }
         guard lock.state == .awaitingTranscription,

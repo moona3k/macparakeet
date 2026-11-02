@@ -40,8 +40,17 @@ final class MeetingTitleGeneratorTests: XCTestCase {
         for title in [
             "2027 Budget Review", "Q3 2026 Revenue Forecast", "CAPEX Plan for 2027", "План бюджета на 2027 год",
             "May 2027 Budget Review", "MAY 2027 Budget Review", "Budget Review for Sept. 2027",
+            "Meeting 2026 Budget Planning", "Meeting Notes for Acme 2027",
         ] {
             XCTAssertEqual(try MeetingTitleGenerator.validatedTitle(from: title), title)
+        }
+    }
+
+    func testValidatedTitleRejectsGenericTitlesWithOnlyAYearAdded() {
+        for title in ["Meeting 2027", "DISCUSSION 2026", "Summary 2027", "Meeting notes 2027", "Audio transcript 2027"] {
+            XCTAssertThrowsError(try MeetingTitleGenerator.validatedTitle(from: title)) { error in
+                XCTAssertEqual(error as? MeetingTitleGenerator.RejectionReason, .generic, title)
+            }
         }
     }
 
@@ -139,11 +148,13 @@ final class MeetingTitleGeneratorTests: XCTestCase {
     }
 
     func testGenerationDoesNotRetryRejectedResponses() async throws {
-        let service = MockLLMService()
-        service.summarizeResult = "NO_TITLE"
-        let result = try await generate(makeGenerator(service))
-        XCTAssertNil(result)
-        XCTAssertEqual(service.summarizeCallCount, 1)
+        for response in ["NO_TITLE", "Meeting 2027"] {
+            let service = MockLLMService()
+            service.summarizeResult = response
+            let result = try await generate(makeGenerator(service))
+            XCTAssertNil(result)
+            XCTAssertEqual(service.summarizeCallCount, 1)
+        }
     }
 
     func testGenerationSkipsDisabledMissingProviderShortTranscriptAndCustomTitles() async throws {

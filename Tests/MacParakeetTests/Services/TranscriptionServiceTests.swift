@@ -2637,6 +2637,40 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(llm.summarizeCallCount, 0)
     }
 
+    func testTranscribeMeetingProtectsCalendarTitlesThatResembleFallbacks() async throws {
+        let transcript = "We reviewed the product roadmap launch plan, customer onboarding risks, and next milestones for the mobile beta release."
+        await mockSTT.configure(result: STTResult(text: transcript, words: timestampedWords(from: transcript)))
+
+        for (calendarTitle, usesCalendarTitle) in [
+            ("Meeting May Hiring Plan", true), ("Meeting at 10:00", true), ("Meeting 6/17/2026", true),
+            ("Unrelated Planning", false), ("  \n  ", false),
+            ("Meeting Jun 17, 2026 at 09:59", false),
+        ] {
+            let llm = MockLLMService()
+            llm.summarizeResult = "Product Roadmap Review"
+            let service = TranscriptionService(
+                audioProcessor: mockAudio, sttTranscriber: mockSTT, transcriptionRepo: transcriptionRepo,
+                llmService: llm, shouldAutoGenerateMeetingTitles: { true },
+                meetingArtifactStore: nil, meetingAutomationHookRunner: nil
+            )
+            var snapshot = makeCalendarSnapshot(attendeeCount: 1)
+            snapshot.title = calendarTitle
+            snapshot.confidence = usesCalendarTitle ? .confirmed : .probable
+            let name = usesCalendarTitle ? calendarTitle : "Meeting Jun 17, 2026 at 09:59"
+            let recording = try makeOneSourceMeetingRecording(displayName: name, calendarEventSnapshot: snapshot)
+            defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+            let result = try await service.transcribeMeeting(recording: recording)
+
+            let expectedTitle = usesCalendarTitle ? calendarTitle : llm.summarizeResult
+            XCTAssertEqual(result.fileName, expectedTitle, calendarTitle)
+            let saved = try XCTUnwrap(transcriptionRepo.fetch(id: result.id))
+            XCTAssertEqual(saved.fileName, expectedTitle, calendarTitle)
+            XCTAssertEqual(saved.calendarEventSnapshot?.title, calendarTitle)
+            XCTAssertEqual(llm.summarizeCallCount, usesCalendarTitle ? 0 : 1, calendarTitle)
+        }
+    }
+
     func testTranscribeMeetingUsesCapturedSpeechEngineSelection() async throws {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -4568,7 +4602,8 @@ final class TranscriptionServiceTests: XCTestCase {
         startedAt: Date? = nil,
         audioRetentionStartedAt: Date? = nil,
         titleOverride: String? = nil,
-        userNotes: String? = nil
+        userNotes: String? = nil,
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) throws -> MeetingRecordingOutput {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -4602,6 +4637,7 @@ final class TranscriptionServiceTests: XCTestCase {
             captureReport: captureReport,
             startContext: startContext,
             userNotes: userNotes,
+            calendarEventSnapshot: calendarEventSnapshot,
             meetingTypeId: meetingTypeId,
             startedAt: startedAt,
             audioRetentionStartedAt: audioRetentionStartedAt,

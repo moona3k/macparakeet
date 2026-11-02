@@ -98,9 +98,10 @@ The [GitHub release](https://github.com/moona3k/macparakeet/releases/tag/v0.8.10
 was published on October 14, 2026 from `394e630b4af70c814f1176902337a95c99b84f0c`.
 The standalone CLI is versioned separately; its published release is
 [CLI 5.1.0](https://github.com/moona3k/macparakeet/releases/tag/cli-v5.1.0).
-Source still reports CLI 5.1.0 while later fixes accumulate under
-[Unreleased](../Sources/CLI/CHANGELOG.md#unreleased); promote that section and
-bump the CLI version before distributing those fixes.
+Source reports CLI **5.2.0**, prepared for the next app release; see the
+[CLI changelog](../Sources/CLI/CHANGELOG.md). This version includes the
+additional activity-reminder trigger value and subsequent fixes. It has not
+yet been published as an app bundle or standalone CLI archive.
 This revision also adds opt-in **Beta** meeting recording reminders for the next
 app release; that feature is absent from the published 0.8.10 DMG. The feature
 flag is unconditional, so Release builds of this source include the Beta

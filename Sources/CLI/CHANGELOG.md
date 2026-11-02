@@ -94,6 +94,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-11-01 (prepared for the next MacParakeet release)
+
+This version is prepared in source; publication of the app and standalone CLI
+remain separate release steps.
+
 ### Added
 
 - `meetings show --json` can report `activity_detection` in
@@ -123,18 +128,18 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   context for the answer. Usage totals include both responses when both report
   usage; otherwise usage stays unknown. A failed replacement preserves saved cards.
 
-- A provider request that hits its idle timeout reports `errorType` `timeout`
-  with "The request timed out before the provider finished responding." It was
-  previously `connection` ("Connection failed: The request timed out.").
-- Non-streaming cloud LLM requests wait 300 seconds for the response body,
-  matching local providers. AI cleanup of a transcript longer than about
-  seven minutes was failing at 30 seconds.
-- AI cleanup of a long transcript is sent in sections of at most 12,000
-  characters and joined. Meetings are no longer skipped at 20,000 characters.
-
 - Processing meetings may appear before playback preparation completes, with
   unknown duration and an expected playback path. Source audio is already saved;
   completed meeting schemas and durations are unchanged (#1291).
+
+- Automatic meeting titles retry transient provider failures and accept valid
+  topic years and titles within the character limit. Generic labels with only
+  a year appended are rejected. Adopted calendar names and user-edited titles
+  remain protected (#1309 and release review).
+
+- File transcription creates the audio-track probe's temporary folder when
+  missing and propagates scratch-output creation/read errors instead of treating
+  unreadable output as a successful empty track list.
 
 ## [5.1.0] — 2026-10-12 (bundled with MacParakeet 0.8.10)
 
@@ -163,6 +168,15 @@ has its own release channel.
   shortcut configured in the app. Existing error/output schemas are unchanged.
 
 ### Fixed
+
+- A provider request that hits its idle timeout reports `errorType` `timeout`
+  with "The request timed out before the provider finished responding." It was
+  previously `connection` ("Connection failed: The request timed out.").
+- Non-streaming cloud LLM requests wait 300 seconds for the response body,
+  matching local providers. AI cleanup of a transcript longer than about
+  seven minutes was failing at 30 seconds.
+- AI cleanup of a long transcript is sent in sections of at most 12,000
+  characters and joined. Meetings are no longer skipped at 20,000 characters.
 
 - Saved Keychain credentials no longer open system password dialogs during CLI
   execution. Blocked access returns an error; grant this executable access in

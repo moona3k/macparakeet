@@ -138,7 +138,12 @@ struct MeetingTitleGenerator: Sendable {
             "no title",
             "not enough context",
         ]
-        guard !genericTitles.contains(lowercased), !lowercased.contains("not enough context") else {
+        // A year can qualify a topic, but adding one does not make a generic
+        // label useful. Preserve descriptive titles such as "2027 Budget Review".
+        let withoutTrailingYear = lowercased.replacingOccurrences(
+            of: #"\s+\d{4}$"#, with: "", options: .regularExpression
+        )
+        guard !genericTitles.contains(withoutTrailingYear), !lowercased.contains("not enough context") else {
             throw RejectionReason.generic
         }
         guard title.split(whereSeparator: \.isWhitespace).count >= minimumTitleWords else {

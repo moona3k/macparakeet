@@ -1888,10 +1888,17 @@ and enough transcript context. The prompt requests 2–8 words, but validation
 accepts longer titles within 70 characters so languages with more short words
 retain a complete title. Topic years (for example, `2027 Budget Review`) are
 allowed; generic, multiline, date/time, and overlong responses are rejected.
+Appending only a year to a generic label (for example, `Meeting 2027`) does not
+make it a useful title. A recording named from a saved calendar event keeps that
+name, including months or clock times. A probable calendar match that did not
+name the recording, or an empty event title, still allows a fallback recording
+name to be replaced.
 Connection, timeout, and Local CLI failures receive one retry after a one-second
 pause. CLI errors are unstructured, so the bounded retry can also repeat a
 permanent CLI failure. Cancellation and opt-out stop further attempts; custom
-and calendar titles keep their existing protection. Rejection diagnostics use
+and names adopted from confirmed calendar selections keep their protection.
+Probable calendar matches do not suppress generation, even if their name
+coincides with the recording’s default timestamp title. Rejection diagnostics use
 persisted, content-free reason codes. This does not add a manual title action or
 regenerate titles when a saved summary is rerun.
 

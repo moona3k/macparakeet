@@ -1,0 +1,56 @@
+bb1ebcc37974bfb363f2bec46250bc0532009f17 Upload diagnostic log: dictation-audio.log
+43ea2011ad22d381febb88bdf1851cdadec311b0 Replace Handy assets with original Bloom and Gong dictation sounds (#1302)
+928b4d07c92565b26f1bdebb5962f9fcac9c2580 Align app documentation and map GUI, CLI and agent capabilities (#1306)
+3c7126e6cf819354f15a27cc9ac7ff23b065066e Fix punctuation-bearing vocabulary and snippet matching (#1305)
+264c11c338b597a51f7719384b4a39d064de8406 Fix CLI history corrected transcript reads (#1304)
+5fe201369fb961a697ce628c9f43acc96f086bbf Add opt-in recording reminders for active meetings (#1267)
+79cf1ca928b53c3853a99f6832c197d664dcdd78 Fix compact Settings layout and simplify vocabulary alerts (#1303)
+dc9563f775498e2e89622958b055d90245b99ca6 Fix initial-loading race in the result editor layout test (#1298)
+3b2b04bbc4c0869fbf0103bff4efcc5959d44ee4 Restore saved-meeting recovery in transcript details (#1301)
+da4944627d095c2e0e26859ac6f9c8892b0bcbe8 Add configurable dictation start and stop sounds (#1270)
+af18eac608b65802bc83584513c315e02103bbed fix(meetings): read the AEC reference early so a leading echo cancels (#1248)
+7c74938ff0c063ce64cd445ea4b5aa0b16777b38 Merge pull request #1246 from dherthoge/fix/settings-search-index-rows
+c18e71836e78e1e41cd4cadad0f0d282c11c25cd Add opt-in URL controls for hands-free dictation (#1299)
+d44acb46e66a3e15c51146430bbad120b4bbc3cc Merge pull request #1293 from moona3k/fix/1286-synthetic-paste-state
+821e0ab99dd9dbf329002ba7e20d882db6a8bc0e Record final replay evidence and clarify cancellation recovery
+f0ef01df02b6e162cb707e50fb596472bb8b4295 Fix back-to-back meetings by queueing playback after capture settlement (#1295)
+a8d8a54f21b7e42e12c871213c396aa18ec48c43 Fix YouTube playback with separate video and audio (#1300)
+556ce1dea0ffa0c2ed6c1f646be5f2c681eb6642 Stop streaming retries after an interrupted flush fails
+3ec699152f78df8adccba0cbff5cb968c9790947 Keep vocabulary tools visible and report read failures (#1297)
+81a1cb51e31bde1e3cecb0d10609fd71b2a937bc Keep streaming interruption replay out of HID state
+6f1a10940532657b250285a440302c3ef6b7ebdf Merge pull request #1296: Fix bounded recovery for knowledge-card generation
+dd92c7d9311962740cae2376ecd494080cae1b08 fix: preserve initial card requests on unknown model windows
+2fa2f0090a7e7872c6f71625f9488684400a1b88 Fail unavailable native probes and clarify modifier state source
+197014defffef8efa8dedb6620bd6f43ab46ee39 Keep stored voice management discoverable in Settings search
+8d829dfd7219fe3fa4a8ff10db9824cdb544a0d8 Merge remote-tracking branch 'origin/main' into lgtm/pr-1246-20261030
+d3430a0a073549eeeba9255db24969b0f7c7a252 Merge pull request #1294: Move CI to macOS 15 and stabilize fixtures
+21d2b224a6808fc150ae4a1ebb601456dead78f6 docs: keep knowledge-card review links valid after merge
+a5f49001e06a2eee8a20612a00f436e2a3bcb1f6 Test foreign event metadata without assuming Quartz overwrites source data
+8e763d755d60abd6c1dd664567cb0b0aaa82318d Merge remote-tracking branch 'origin/fix/ci-macos15' into fix/knowledge-card-reliability
+c5fc1c8fa3c6b4aa068d618837c262eaefd14650 fix(cards): preserve initial allowance for unknown custom context windows
+f910acb2fe7326db76feef295a0870261e0dac92 Merge branch 'fix/ci-macos15' into fix/1286-synthetic-paste-state
+edc24e28cb713557c4cfd9079006e919ac7bd42c Preserve native probe consumers and record verified session paste delivery
+719c095a758b676309e896c4caf16ca3e3fab191 Make CI layout and speech fixtures independent of display and scheduling
+db8af5e4b73ee9d0c179a6427b7dc7a040c33232 Merge commit '7fbe4e3f933caac050b213fa81751bcf8bbd4feb' into fix/knowledge-card-reliability
+a08d52673787b7433a505a307b76e81cafe038d9 fix(cards): use one typed validator and repair regression fixtures
+2c8cd30df92f4572d2260627833e682822be8aa8 test(input): separate focused receiver from runner-authorized producer
+9523587de22e9830a76384c0db047da176ed4ae7 fix(cards): bound output recovery and wait for transient configuration locks
+06a5ae106a97513cf149441e9f95aaaeda68321f test(input): launch native receiver through Launch Services
+dc7368d2b094e6a17c81e0eaa30cd37b503b033e test(input): wait for native receiver readiness and cover peer recovery
+ab379ed5707172e3db7c0130d59f7e9b53a12dc8 Separate generated keyboard output from bare-Fn admission
+8273a6e5c5f99dd99f117442825ca31cbb882c70 Merge branch 'fix/ci-macos15' into fix/1286-synthetic-paste-state
+894b23d07ab423fedf7478c8c68f182d7baa6c05 Witness probe delivery and stale state after producer exit
+7fbe4e3f933caac050b213fa81751bcf8bbd4feb Move CI to macOS 15 before the Sonoma runner retirement
+ec041d7a56a85ab93162d5c12d417d077230a620 Qualify Quartz key-state separation for stale paste recovery
+a388b7d449c722875f24e26df35acecf881dd35e Upload diagnostic log: dictation-audio.log
+590b6c253bd27bc55723f0e8c8394b64467c09de Upload diagnostic log: dictation-audio.log
+7d40cadcf65c2dba8dbcf1b0fb20f4e8b01691b3 Upload diagnostic log: dictation-audio.log
+5d3ecf221579b43651d4f32dbae2b1a0a6d9d008 Merge pull request #1275 from moona3k/fix/voice-control-pause-fragment
+c8466d3d57a1d7e94271ef2f85c2547faa341ebf Keep paused Voice Control commands whole and log endpointer timing
+c507a36d42ee650c45fe64a09be8e44cb131f6fd Upload diagnostic log: dictation-audio.log
+c638c5d748f606969e40def2d5ecd51e2d9a7309 Upload diagnostic log: dictation-audio.log
+46525e683ce2514d01a694127eb96b1cddd5b548 Upload diagnostic log: dictation-audio.log
+9512f400b1238ef9c9e8f4ea4e1fdc8a1eabdd35 Point the Homebrew formula reference at CLI 5.1.0. (#1258)
+260e3ce3465d0e7b2260526eda46543bba96f706 docs: record the 0.8.10 cleanup fix in the release notes (#1256)
+34f5681f90565597735d3aceaf959244a57ebd4d Keep the full earlier idle pill title searchable and count both Format rows
+76d4f759ce3cd5e388585bff9dd4e6347396128c Index every Settings row so search finds "Pause media while dictating"

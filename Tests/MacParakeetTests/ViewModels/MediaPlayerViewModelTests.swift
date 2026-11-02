@@ -5,6 +5,27 @@ import XCTest
 
 final class MediaPlayerViewModelTests: XCTestCase {
 
+    @MainActor
+    func testLoadedDurationOnlyUpdatesTheCurrentPlayer() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: nil)
+        let previousPlayer = AVPlayer()
+        let currentPlayer = AVPlayer()
+        vm.player = currentPlayer
+        vm.durationMs = 500
+
+        vm.applyLoadedDuration(CMTime(seconds: 30, preferredTimescale: 1_000), for: previousPlayer)
+        XCTAssertEqual(vm.durationMs, 500, "A previous media load must not overwrite current metadata")
+
+        vm.applyLoadedDuration(CMTime(seconds: 12, preferredTimescale: 1_000), for: currentPlayer)
+        XCTAssertEqual(vm.durationMs, 12_000)
+        vm.applyLoadedDuration(.indefinite, for: currentPlayer)
+        XCTAssertEqual(vm.durationMs, 12_000)
+
+        vm.cleanup()
+        vm.applyLoadedDuration(CMTime(seconds: 20, preferredTimescale: 1_000), for: currentPlayer)
+        XCTAssertEqual(vm.durationMs, 0, "A completed cleanup must reject late metadata")
+    }
+
     // MARK: - Playback Mode Detection
 
     func testDetectPlaybackModeForYouTube() {
@@ -292,6 +313,209 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertTrue(vm.needsVideoStreamLoad)
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @MainActor
+    func testHidingDirectVideoLoadRestoresRetainedAudio() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: audioDirectory)
+        }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let started = expectation(description: "Direct video download started")
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let vm = MediaPlayerViewModel(videoStreamService: service, playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        // Navigating with Show Video already open loads video directly, without
+        // first calling prepare(for:) to install the retained audio player.
+        let load = Task { await vm.load(for: youtubeTranscription(filePath: audio.path)) }
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertNil(vm.player)
+
+        vm.cancelVideoPreparation()
+        let restoredPlayer = vm.player
+        XCTAssertEqual((restoredPlayer?.currentItem?.asset as? AVURLAsset)?.url, audio)
+        XCTAssertEqual(vm.playerState, .ready)
+
+        await service.finish()
+        await load.value
+
+        XCTAssertTrue(vm.player === restoredPlayer, "A late video result must not replace restored audio")
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @MainActor
+    func testHidingDirectVideoLoadPreparesLegacyRetainedAudio() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: audioDirectory)
+        }
+        let source = audioDirectory.appendingPathComponent("retained.webm")
+        let playable = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: source)
+        try Data([0]).write(to: playable)
+        let started = expectation(description: "Direct video download started")
+        let persisted = expectation(description: "Retained audio conversion persisted")
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let converter = StubPlaybackConverter(transformedPath: playable.path)
+        let vm = MediaPlayerViewModel(
+            videoStreamService: service, playbackConverter: converter, playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        let transcription = youtubeTranscription(filePath: source.path)
+        vm.onPlaybackFilePathConverted = { id, path, sourcePath in
+            XCTAssertEqual(id, transcription.id)
+            XCTAssertEqual(path, playable.path)
+            XCTAssertEqual(sourcePath, source.path)
+            persisted.fulfill()
+        }
+        let load = Task { await vm.load(for: transcription) }
+        await fulfillment(of: [started], timeout: 2)
+
+        vm.cancelVideoPreparation()
+        await service.finish()
+        await load.value
+        await fulfillment(of: [persisted], timeout: 2)
+
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, playable)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path), "The persistence owner controls source cleanup")
+    }
+
+    @MainActor
+    func testHidingFailedDirectVideoLoadRestoresRetainedAudio() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let vm = MediaPlayerViewModel(videoStreamService: FailingVideoStub(), playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+
+        await vm.load(for: youtubeTranscription(filePath: audio.path))
+
+        XCTAssertNil(vm.player)
+        XCTAssertFalse(vm.needsVideoStreamLoad)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed direct load should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, audio)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @MainActor
+    func testHidingFailedDirectVideoLoadPreparesLegacyRetainedAudio() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let source = audioDirectory.appendingPathComponent("retained.webm")
+        let playable = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: source)
+        try Data([0]).write(to: playable)
+        let persisted = expectation(description: "Retained audio conversion persisted")
+        let vm = MediaPlayerViewModel(
+            videoStreamService: FailingVideoStub(),
+            playbackConverter: StubPlaybackConverter(transformedPath: playable.path),
+            playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        let transcription = youtubeTranscription(filePath: source.path)
+        vm.onPlaybackFilePathConverted = { id, path, sourcePath in
+            XCTAssertEqual(id, transcription.id)
+            XCTAssertEqual(path, playable.path)
+            XCTAssertEqual(sourcePath, source.path)
+            persisted.fulfill()
+        }
+        await vm.load(for: transcription)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed direct load should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+        await fulfillment(of: [persisted], timeout: 2)
+
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, playable)
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path), "The persistence owner controls source cleanup")
+    }
+
+    @MainActor
+    func testHidingFailedVideoLoadKeepsExistingAudioPlayerUsable() async throws {
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer { try? FileManager.default.removeItem(at: audioDirectory) }
+        let audio = audioDirectory.appendingPathComponent("retained.m4a")
+        try Data([0]).write(to: audio)
+        let transcription = youtubeTranscription(filePath: audio.path)
+        let vm = MediaPlayerViewModel(videoStreamService: FailingVideoStub(), playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        await vm.prepare(for: transcription)
+        let audioPlayer = vm.player
+        await vm.load(for: transcription)
+        guard case .error = vm.playerState else {
+            return XCTFail("A failed preparation should show a retryable error")
+        }
+
+        vm.cancelVideoPreparation()
+
+        XCTAssertTrue(vm.player === audioPlayer, "Existing playable audio must not be rebuilt")
+        XCTAssertEqual(vm.playerState, .ready)
+        XCTAssertTrue(vm.needsVideoStreamLoad)
+        XCTAssertEqual(vm.videoPreparationStage, .extracting)
+    }
+
+    @MainActor
+    func testRestoredLegacyAudioCannotReplaceNewTranscriptAfterPersistenceWait() async throws {
+        let directory = try makeVideoPreparationDirectory()
+        let audioDirectory = try makeVideoPreparationDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: audioDirectory)
+        }
+        let source = audioDirectory.appendingPathComponent("old.webm")
+        let converted = audioDirectory.appendingPathComponent("old.m4a")
+        let current = audioDirectory.appendingPathComponent("current.m4a")
+        for url in [source, converted, current] { try Data([0]).write(to: url) }
+        let started = expectation(description: "Direct video download started")
+        let persistenceStarted = expectation(description: "Persistence suspended")
+        let persistenceReturned = expectation(description: "Persistence returned")
+        let persistenceGate = PlaybackPersistenceGate(started: persistenceStarted)
+        let service = SuspendedVideoStub(directory: directory, started: started)
+        let vm = MediaPlayerViewModel(
+            videoStreamService: service,
+            playbackConverter: StubPlaybackConverter(transformedPath: converted.path),
+            playbackRateDefaults: nil)
+        defer { vm.cleanup() }
+        vm.onPlaybackFilePathConverted = { _, _, _ in
+            await persistenceGate.wait()
+            persistenceReturned.fulfill()
+        }
+        let load = Task { await vm.load(for: youtubeTranscription(filePath: source.path)) }
+        await fulfillment(of: [started], timeout: 2)
+        vm.cancelVideoPreparation()
+        await service.finish()
+        await load.value
+        await fulfillment(of: [persistenceStarted], timeout: 2)
+
+        await vm.prepare(for: youtubeTranscription(filePath: current.path))
+        let currentPlayer = vm.player
+        await persistenceGate.finish()
+        await fulfillment(of: [persistenceReturned], timeout: 2)
+
+        XCTAssertTrue(vm.player === currentPlayer)
+        XCTAssertEqual((vm.player?.currentItem?.asset as? AVURLAsset)?.url, current)
     }
 
     @MainActor
@@ -641,6 +865,25 @@ private actor SuspendedVideoStub: VideoStreamProviding {
         }
         await onStageChange(.combining)
         return VideoPlaybackResource(url: directory.appendingPathComponent("playback.mp4"), temporaryDirectory: directory)
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+private actor PlaybackPersistenceGate {
+    let started: XCTestExpectation
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(started: XCTestExpectation) { self.started = started }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            started.fulfill()
+        }
     }
 
     func finish() {
