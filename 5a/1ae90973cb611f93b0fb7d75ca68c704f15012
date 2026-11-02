@@ -1,0 +1,25 @@
+docs/audits/2026-11-01-release-readiness/release-notes-review.md
+  s_bb4ba6b40e4842::t_7c942f8c593716 1-138
+  s_bb4ba6b40e4842::t_563dc38315d2e0 139-171
+docs/releases/0.8.11/github.md
+  s_bb4ba6b40e4842::t_4f84ce35cd7d3c 5,10,12,21
+  s_bb4ba6b40e4842::t_2b493effd7e737 22
+docs/releases/0.8.11/sparkle.html
+  s_bb4ba6b40e4842::t_4f84ce35cd7d3c 7,9,11,16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a1ae90973cb611f93b0fb7d75ca68c704f15012",
+  "prompts": {},
+  "sessions": {
+    "s_bb4ba6b40e4842": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19846-cdc7-7de2-b8a6-c8cb3f55285d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
