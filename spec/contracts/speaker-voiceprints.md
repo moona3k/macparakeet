@@ -17,7 +17,10 @@ merging into `main` does not establish meeting accuracy or authorize release.
 - `DiarizationService` normalizes and remaps offline speaker centroids into
   `SpeakerEmbedding` values, preserving the detected speaker IDs and durations.
 - `TranscriptionService` passes eligible meeting observations to
-  `SpeakerVoiceprintService` after the transcription is persisted. The service
+  `SpeakerVoiceprintService` after the transcription is persisted. With the
+  effective gate on, it also diarizes the microphone track and
+  `MeetingMicrophoneSpeakerResolver` classifies each microphone voice (see
+  [Owner Voice And The Microphone Track](#owner-voice-and-the-microphone-track)). The service
   uses the pure `SpeakerVoiceprintMatcher` and GRDB repositories for profiles,
   exemplars, links, enrollment candidates and the match journal.
 - `AppEnvironment` supplies feature/preference gating and starts
@@ -92,6 +95,50 @@ reads and deletion remain available after recognition is disabled.
   accents. `displayName` remains display text; SQLite `COLLATE NOCASE` does not
   define identity. Name collisions still require the enrollment pollution guard.
 
+## Owner Voice And The Microphone Track
+
+The microphone hears more than its owner: far-end audio played on speakers
+returns as echo that cancellation can miss, and colleagues in a room share the
+microphone. With the effective gate on, meeting finalization diarizes the
+microphone track as well and `MeetingMicrophoneSpeakerResolver` gives every
+microphone cluster one role:
+
+- **Echo** — within `tau` of a diarized system cluster with at least the match
+  gate of speech. Its words are attributed to that system cluster. Echo is
+  decided first, so a far-end voice can never be chosen as the owner.
+- **Owner** — the cluster recognised as the owner's saved voice (within the
+  effective `tau`), otherwise the remaining cluster with the most speech. Its
+  words keep the `microphone` id and the "Your name" label.
+- **Room voice** — any other cluster with at least the enrollment gate of
+  speech that is not within `tau` of the owner cluster. It becomes a diarized
+  `microphone:Sn` speaker labelled "Room N" and takes the ordinary identity
+  flows (suggestion, rename-and-remember, manual assignment) like a system
+  cluster, with capture domain `microphone`.
+
+Shorter clusters and an over-split owner fold into `microphone`, and an
+unclaimed microphone word stays `microphone`, so a single-voice headset meeting
+keeps the transcript it had before. Microphone diarization is best-effort: a
+failure other than cancellation leaves the track as one `microphone` speaker.
+With the gate off, nothing on the microphone track changes.
+
+The owner's cluster is retained as a candidate under speaker id `microphone`
+and is never offered a suggestion. `enrollOwnerVoice` is the single identity
+write a capture track accepts: it enrolls that candidate under the user's name
+(the "Your name" preference, or the label the user gave the `microphone` row —
+never the "Me" placeholder) with the same duration, cap, model and pollution
+rules as any enrollment, and records the profile as the owner through the
+`ownerVoiceProfileID` preference. That pointer is not biometric data; a pointer
+to a forgotten profile reads as unset, and forgetting that voice or all voices
+clears it. The owner's profile is excluded from suggestions for every other
+speaker. Each later evaluation measures the owner cluster against it and
+updates the profile's recognition metadata (`lastEvaluatedDistance`, and
+`lastMatchedAt` within the effective `tau`) so the voices screen shows whether
+the owner is being recognised. No journal row or link is written for the owner.
+
+"Your name" (`meetingOwnerName`) is a display label for the `microphone` track
+of new meetings, independent of voice profiles and consent. It is local free
+text: never telemetry, never a profile. Saved transcripts keep their labels.
+
 ## Local Storage And Lifecycle
 
 Migrations `v0.39-speaker-voiceprints`, `v0.40-speaker-match-journal` and
@@ -127,7 +174,7 @@ profile links remain, and a held link still blocks that voice for other speakers
 in the same transcript fingerprint. Re-applying the name records the identity
 again without adding a second sample from the same recording. Identity writes
 apply only to diarized clusters, never to the meeting `microphone` or `system`
-capture tracks. Correcting an assignment to a different profile unlearns this
+capture tracks, with one exception: the owner enrollment described below. Correcting an assignment to a different profile unlearns this
 recording's sample from the previous profile so a misclick cannot keep teaching
 the wrong name.
 
@@ -184,6 +231,7 @@ requires its own reviewed consent, deletion and compatibility design.
 ## Tests And Required Evidence
 
 Focused fixture coverage lives in `SpeakerEmbeddingTests`,
+`SpeakerOwnerVoiceTests`, `MeetingMicrophoneSpeakerTests`,
 `SpeakerVoiceprintMatcherTests`, `SpeakerProfileRepositoryTests`,
 `SpeakerEmbeddingCandidateRepositoryTests`, `SpeakerVoiceprintServiceTests` and
 `SpeakerVoiceprintWiringTests`. `VoiceProfileFeatureGateTests` and

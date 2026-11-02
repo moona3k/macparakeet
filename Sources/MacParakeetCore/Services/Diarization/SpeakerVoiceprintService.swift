@@ -77,6 +77,22 @@ public struct EnrolledVoice: Sendable, Equatable, Identifiable {
     }
 }
 
+extension SpeakerVoiceprintServicing {
+    public func ownerVoice() async throws -> SpeakerProfileCandidate? { nil }
+
+    public func ownerEnrollmentCandidate(
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) async throws -> SpeakerClusterObservation? { nil }
+
+    public func enrollOwnerVoice(
+        displayName: String,
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint,
+        allowMergeIntoExistingName: Bool
+    ) async throws -> SpeakerProfileEnrollment { .candidateUnavailable }
+}
+
 public protocol SpeakerVoiceprintServicing: Sendable {
     /// Names worth proposing, and the voices this run leaves available for
     /// enrollment. Applies nothing, and does no work when off.
@@ -104,6 +120,26 @@ public protocol SpeakerVoiceprintServicing: Sendable {
     /// Drops candidates past their window. Reads and writes prune too; this
     /// covers the user who stops recording and stops naming.
     func pruneExpiredCandidates() async throws
+
+    /// The voice the user enrolled as themselves, for telling them apart from
+    /// other voices on their own microphone. `nil` when off or never enrolled.
+    func ownerVoice() async throws -> SpeakerProfileCandidate?
+
+    /// The owner's retained microphone voice for this transcript, if any.
+    func ownerEnrollmentCandidate(
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) async throws -> SpeakerClusterObservation?
+
+    /// Enrolls the microphone track's own voice as the user. The one identity
+    /// write a capture track accepts: the microphone belongs to its owner, so
+    /// naming its main voice is the user naming themselves.
+    func enrollOwnerVoice(
+        displayName: String,
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint,
+        allowMergeIntoExistingName: Bool
+    ) async throws -> SpeakerProfileEnrollment
 
     /// Creates the profile or adds a sample. Refuses short clusters, and asks
     /// rather than merges when the name is taken by a voice that differs.
@@ -218,6 +254,9 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
     private let identity: SpeakerModelIdentity
     /// Read per call, so turning the preference off takes effect immediately.
     private let isEnabled: @Sendable () -> Bool
+    /// The profile enrolled as the user, held as a preference pointer.
+    private let ownerProfileID: @Sendable () -> UUID?
+    private let setOwnerProfileID: @Sendable (UUID?) -> Void
     private let now: @Sendable () -> Date
 
     public init(
@@ -228,6 +267,8 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         identity: SpeakerModelIdentity = DiarizationService.defaultModelIdentity,
         candidateRetention: TimeInterval = SpeakerEmbeddingCandidateRepository.defaultRetention,
         isEnabled: @escaping @Sendable () -> Bool,
+        ownerProfileID: @escaping @Sendable () -> UUID? = { nil },
+        setOwnerProfileID: @escaping @Sendable (UUID?) -> Void = { _ in },
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.profiles = profiles
@@ -237,6 +278,8 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         self.identity = identity
         self.candidateRetention = candidateRetention
         self.isEnabled = isEnabled
+        self.ownerProfileID = ownerProfileID
+        self.setOwnerProfileID = setOwnerProfileID
         self.now = now
     }
 
@@ -261,9 +304,16 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         // enrollment is the first one, when no profile exists yet and there is
         // nothing to score against.
         try retainCandidates(clusters, transcriptionId: transcriptionId, fingerprint: fingerprint)
+        try recordOwnerRecognition(clusters)
 
-        let candidates = try profileCandidates()
-        guard !candidates.isEmpty else {
+        // The owner's microphone voice is retained for enrollment and measured
+        // against the owner's profile above, never offered a name: the track
+        // already says who it is. The owner's profile is likewise kept out of
+        // suggestions for everyone else.
+        let clusters = clusters.filter { !AudioSource.isMeetingCaptureTrack($0.speakerId) }
+        let ownerId = ownerProfileID()
+        let candidates = try profileCandidates().filter { $0.profileId != ownerId }
+        guard !clusters.isEmpty, !candidates.isEmpty else {
             _ = try profiles.replaceSuggestions(
                 transcriptionId: transcriptionId, fingerprint: fingerprint.rawValue, with: []
             )
@@ -355,6 +405,84 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         try candidates.pruneExpired(now: now())
     }
 
+    // MARK: Owner voice
+
+    public func ownerVoice() async throws -> SpeakerProfileCandidate? {
+        guard isEnabled() else { return nil }
+        return try ownerCandidate()
+    }
+
+    public func ownerEnrollmentCandidate(
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) async throws -> SpeakerClusterObservation? {
+        guard isEnabled() else { return nil }
+        return try candidates.candidate(
+            transcriptionId: transcriptionId,
+            speakerId: AudioSource.microphone.rawValue,
+            fingerprint: fingerprint.rawValue,
+            now: now()
+        )?.observation
+    }
+
+    public func enrollOwnerVoice(
+        displayName: String,
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint,
+        allowMergeIntoExistingName: Bool
+    ) async throws -> SpeakerProfileEnrollment {
+        guard isEnabled() else { throw SpeakerVoiceprintServiceError.disabled }
+        guard
+            let observation = try candidates.candidate(
+                transcriptionId: transcriptionId, speakerId: AudioSource.microphone.rawValue,
+                fingerprint: fingerprint.rawValue, now: now()
+            )?.observation
+        else { return .candidateUnavailable }
+        let outcome = try enrollObservation(
+            displayName: displayName, observation: observation,
+            transcriptionId: transcriptionId, fingerprint: fingerprint,
+            allowMergeIntoExistingName: allowMergeIntoExistingName,
+            allowingOwnerTrack: true
+        )
+        switch outcome {
+        case .created(let profile), .addedExemplar(let profile), .alreadySampled(let profile):
+            setOwnerProfileID(profile.id)
+        default:
+            break
+        }
+        return outcome
+    }
+
+    /// The owner's profile, or nil when unset or forgotten since.
+    private func ownerCandidate() throws -> SpeakerProfileCandidate? {
+        guard let ownerId = ownerProfileID(), let profile = try profiles.profile(id: ownerId) else {
+            return nil
+        }
+        let references = try references(for: ownerId)
+        guard !references.isEmpty else { return nil }
+        return SpeakerProfileCandidate(
+            profileId: ownerId, displayName: profile.displayName, references: references
+        )
+    }
+
+    /// How close this meeting's microphone voice came to the owner's profile.
+    /// The same recognition metadata a suggestion writes, so the voices screen
+    /// can show whether the owner is being recognised, and at what distance.
+    private func recordOwnerRecognition(_ clusters: [SpeakerClusterObservation]) throws {
+        guard
+            let observation = clusters.first(where: { $0.speakerId == AudioSource.microphone.rawValue }),
+            observation.speechSeconds >= policy.minSpeechSecondsToMatch,
+            let owner = try ownerCandidate(),
+            let match = SpeakerVoiceprintMatcher.bestReference(from: observation, to: owner, policy: policy)
+        else { return }
+        let recognized = match.distance <= SpeakerVoiceprintMatcher.effectiveTau(for: match, policy: policy)
+        _ = try profiles.updateProfile(id: owner.profileId) {
+            $0.lastEvaluatedAt = now()
+            $0.lastEvaluatedDistance = match.distance
+            if recognized { $0.lastMatchedAt = now() }
+        }
+    }
+
     public func enrollCandidate(
         displayName: String,
         speakerId: String,
@@ -425,10 +553,12 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         observation: SpeakerClusterObservation,
         transcriptionId: UUID,
         fingerprint: TranscriptFingerprint,
-        allowMergeIntoExistingName: Bool
+        allowMergeIntoExistingName: Bool,
+        allowingOwnerTrack: Bool = false
     ) throws -> SpeakerProfileEnrollment {
         guard isEnabled() else { throw SpeakerVoiceprintServiceError.disabled }
-        guard !AudioSource.isMeetingCaptureTrack(observation.speakerId) else {
+        let isOwnerTrack = allowingOwnerTrack && observation.speakerId == AudioSource.microphone.rawValue
+        guard isOwnerTrack || !AudioSource.isMeetingCaptureTrack(observation.speakerId) else {
             return .candidateUnavailable
         }
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -850,6 +980,7 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
 
     public func forgetVoice(profileId: UUID) async throws {
         _ = try profiles.deleteProfile(id: profileId)
+        if ownerProfileID() == profileId { setOwnerProfileID(nil) }
     }
 
     /// Candidates go too. They are not owned by any profile, so no cascade
@@ -859,6 +990,7 @@ public actor SpeakerVoiceprintService: SpeakerVoiceprintServicing {
         try profiles.deleteAllProfiles()
         try candidates.deleteAll()
         try journal.deleteAll()
+        setOwnerProfileID(nil)
     }
 
     // MARK: Internals

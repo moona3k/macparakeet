@@ -160,6 +160,8 @@ public final class TranscriptionViewModel {
                 enrolledVoicesLoadToken &+= 1
                 enrolledVoices = []
                 voiceHolders = [:]
+                ownerVoiceLoadToken &+= 1
+                ownerVoiceAvailable = false
             }
             if let currentTranscription {
                 loadSpeakerAttribution(for: currentTranscription)
@@ -2192,6 +2194,10 @@ public final class TranscriptionViewModel {
                     fingerprint: projection.attribution.fingerprint
                 )
                 self.loadEnrolledVoices()
+                self.loadOwnerVoiceCandidate(
+                    transcriptionID: transcriptionID,
+                    fingerprint: projection.attribution.fingerprint
+                )
                 self.loadVoiceHolders(
                     transcriptionID: transcriptionID,
                     fingerprint: projection.attribution.fingerprint
@@ -2454,6 +2460,120 @@ public final class TranscriptionViewModel {
 
     private var voiceEnrollmentLoadToken = 0
     public private(set) var isApplyingVoiceIdentity = false
+
+    // MARK: Owner voice
+
+    /// This transcript still holds a sample of the microphone's own voice that
+    /// the user can save as themselves.
+    public internal(set) var ownerVoiceAvailable = false
+    private var ownerVoiceLoadToken = 0
+    /// The "Your name" setting; injectable for tests.
+    var meetingOwnerName: @Sendable () -> String? = { UserDefaultsAppRuntimePreferences.meetingOwnerName() }
+
+    /// The name the user's own voice would be saved under: the "Your name"
+    /// setting, else what they renamed the microphone row to. `nil` while the
+    /// row still reads "Me" — a voice is never saved under a placeholder.
+    public var ownerVoiceName: String? {
+        if let name = meetingOwnerName() { return name }
+        guard
+            let label = speakerAttribution?.speakers
+                .first(where: { $0.id == AudioSource.microphone.rawValue })?.label
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !label.isEmpty, label != AudioSource.microphone.displayLabel
+        else { return nil }
+        return label
+    }
+
+    private func loadOwnerVoiceCandidate(transcriptionID: UUID, fingerprint: TranscriptFingerprint) {
+        guard currentTranscription?.sourceType == .meeting, let speakerVoiceprints else { return }
+        ownerVoiceLoadToken &+= 1
+        let token = ownerVoiceLoadToken
+        Task { [weak self] in
+            let observation = try? await speakerVoiceprints.ownerEnrollmentCandidate(
+                transcriptionId: transcriptionID, fingerprint: fingerprint
+            )
+            guard let self, self.ownerVoiceLoadToken == token,
+                self.currentTranscription?.id == transcriptionID,
+                self.speakerAttribution?.fingerprint == fingerprint
+            else { return }
+            self.ownerVoiceAvailable = observation != nil
+        }
+    }
+
+    /// Saves the microphone's own voice as the user, under `ownerVoiceName`.
+    /// Later meetings use it to tell the user apart from room voices and echo.
+    public func rememberOwnerVoice() {
+        guard currentTranscription?.sourceType == .meeting, !isApplyingVoiceIdentity, ownerVoiceAvailable,
+            let speakerVoiceprints,
+            let transcriptionId = currentTranscription?.id,
+            let fingerprint = speakerAttribution?.fingerprint,
+            let name = ownerVoiceName
+        else { return }
+        let microphoneID = AudioSource.microphone.rawValue
+        isApplyingVoiceIdentity = true
+        Task { [weak self] in
+            defer { self?.isApplyingVoiceIdentity = false }
+            let outcome: SpeakerProfileEnrollment
+            do {
+                outcome = try await speakerVoiceprints.enrollOwnerVoice(
+                    displayName: name, transcriptionId: transcriptionId,
+                    fingerprint: fingerprint, allowMergeIntoExistingName: false
+                )
+            } catch {
+                guard let self, self.currentTranscription?.id == transcriptionId else { return }
+                self.voiceEnrollmentMessage = .init(
+                    text: "Could not remember your voice.", kind: .failure, speakerId: microphoneID
+                )
+                return
+            }
+            guard let self, self.currentTranscription?.id == transcriptionId,
+                self.speakerAttribution?.fingerprint == fingerprint
+            else { return }
+            self.voiceEnrollmentMessage = Self.ownerVoiceMessage(for: outcome, name: name)
+            if case .created = outcome { self.ownerVoiceAvailable = false }
+            if case .addedExemplar = outcome { self.ownerVoiceAvailable = false }
+            self.loadEnrolledVoices()
+        }
+    }
+
+    static func ownerVoiceMessage(for outcome: SpeakerProfileEnrollment, name: String) -> VoiceProfileMessage? {
+        let microphoneID = AudioSource.microphone.rawValue
+        switch outcome {
+        case .created, .addedExemplar:
+            return .init(
+                text: "Your voice is saved as \(name). Later meetings will tell you apart from other voices "
+                    + "your microphone hears.",
+                kind: .success, speakerId: microphoneID
+            )
+        case .alreadySampled:
+            return .init(
+                text: "Your voice already has a sample from this recording.", kind: .success, speakerId: microphoneID
+            )
+        case .needsDisambiguation:
+            return .init(
+                text: "A saved voice called \(name) sounds different from this one. Change Your name, or rename "
+                    + "that voice in Settings \u{2192} Voice profiles.",
+                kind: .failure, speakerId: microphoneID
+            )
+        case .rejectedTooShort:
+            return .init(
+                text: "Not enough of your speech in this recording to remember your voice.",
+                kind: .failure, speakerId: microphoneID
+            )
+        case .rejectedProfileFull:
+            return .init(
+                text: "\(name) already has the maximum number of voice samples.", kind: .failure,
+                speakerId: microphoneID
+            )
+        case .candidateUnavailable:
+            return .init(
+                text: "This recording no longer holds a sample of your voice.", kind: .failure,
+                speakerId: microphoneID
+            )
+        case .rejectedEmptyName:
+            return nil
+        }
+    }
 
     public func dismissVoiceEnrollment() {
         voiceEnrollmentLoadToken &+= 1

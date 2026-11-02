@@ -602,7 +602,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             },
             shouldDiarize: { resolvedSpeakerDetection.enabled },
             shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
-            diarizationService: TranscribeCommand.makeDiarizationService(for: resolvedSpeakerDetection)
+            diarizationService: TranscribeCommand.makeDiarizationService(for: resolvedSpeakerDetection),
+            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) }
         )
     }
 

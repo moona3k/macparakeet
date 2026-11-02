@@ -1416,12 +1416,27 @@ struct SettingsView: View {
 
                 Divider()
 
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                    rowText(
+                        title: "Your name",
+                        detail: "Shown instead of \u{201C}Me\u{201D} for your microphone in new meeting transcripts. "
+                            + "Leave empty to keep \u{201C}Me\u{201D}. Earlier transcripts keep their labels."
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    TextField("Me", text: $viewModel.meetingOwnerName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                        .accessibilityLabel("Your name")
+                }
+
+                Divider()
+
                 settingsToggleRow(
                     title: "Speaker detection",
                     detail: AppFeatures.isVoiceProfilesAvailable()
                         ? "Split captured system audio into other speakers after recording when audio is clear."
                         : "Automatically label up to eight other speakers in system audio after recording. "
-                            + "Your microphone stays labeled Me.",
+                            + "Your microphone stays labeled with your name, or Me.",
                     isOn: $viewModel.meetingSpeakerDiarization
                 )
 
@@ -1556,7 +1571,9 @@ struct SettingsView: View {
 
             settingsToggleRow(
                 title: "Remember speakers",
-                detail: "Suggest a name in later meetings once you have named someone. Suggestions always need your confirmation, and voice samples never leave this Mac.",
+                detail: "Suggest a name in later meetings once you have named someone. Also separates your voice "
+                    + "from other voices your microphone hears: people in the room and call audio from your speakers. "
+                    + "Suggestions always need your confirmation, and voice samples never leave this Mac.",
                 isBeta: true,
                 isOn: Binding(
                     get: { viewModel.rememberSpeakers },

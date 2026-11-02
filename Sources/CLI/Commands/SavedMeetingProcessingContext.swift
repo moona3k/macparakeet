@@ -55,7 +55,8 @@ struct SavedMeetingProcessingContext {
             shouldDiarizeMeetings: { preferences.shouldDiarizeMeetings },
             fileSpeechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) },
             diarizationService: DiarizationServiceFactory.live.make(speakerConstraint: nil),
-            meetingArtifactStore: artifactStore
+            meetingArtifactStore: artifactStore,
+            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) }
         )
         completionService = SavedAudioAutoPromptCompletionService(
             promptRepo: promptRepo,

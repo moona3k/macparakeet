@@ -19,8 +19,16 @@ voice. Ordinary transcript editing continues to work without voice profiles.
 This version covers meeting recordings. It does not group recurring unnamed voices
 across historical recordings or offer a configurable recurrence threshold. Those
 parts of [issue #662](https://github.com/moona3k/macparakeet/issues/662) remain outside
-this implementation's scope. Temporary samples and identity writes apply to
-diarized system-audio clusters, not the microphone (`Me`) capture track.
+this implementation's scope.
+
+With **Remember speakers** on, your microphone's audio is separated too: your own
+voice, other people in the room ("Room 1") and call audio that came back through
+your speakers, which is credited to the person on the call instead of to you. To
+let MacParakeet recognise you even when someone else in the room talks more, set
+**Your name** in Settings (or rename `Me` in a transcript) and choose **Remember
+My Voice** from the `Me` row's menu. That stores one sample of your voice, the
+same way as for anyone else, and marks it as yours. Your voice is never offered
+as a suggestion for other speakers.
 
 ## What is stored locally
 

@@ -5463,6 +5463,23 @@ struct TranscriptResultView: View {
                                 )
                             }
 
+                            // The microphone's own voice is the user. Saving it is
+                            // the one voice action the capture track offers, and
+                            // only under a real name, never the "Me" placeholder.
+                            if AudioSource(rawValue: speaker.id) == .microphone,
+                                viewModel.ownerVoiceAvailable
+                            {
+                                if let name = viewModel.ownerVoiceName {
+                                    Button("Remember My Voice as \(name)") {
+                                        viewModel.rememberOwnerVoice()
+                                    }
+                                    .disabled(viewModel.isApplyingVoiceIdentity)
+                                } else {
+                                    Button("Remember My Voice (rename Me or set Your name first)") {}
+                                        .disabled(true)
+                                }
+                            }
+
                             // Sits beside the other whole-speaker actions because
                             // that is its scope: the name applies everywhere this
                             // speaker talks, not to one turn.

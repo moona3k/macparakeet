@@ -29,6 +29,15 @@ struct MeetingTranscriptFinalizer {
         }
     }
 
+    /// Microphone-track voices, already resolved into the owner, room voices
+    /// and echo by `MeetingMicrophoneSpeakerResolver`.
+    struct MicrophoneAttribution: Sendable {
+        /// Final-id segments on the meeting timeline: `microphone`, a
+        /// `microphone:Sn` room voice, or the `system:Sn` cluster heard as echo.
+        let segments: [SpeakerSegment]
+        let roomSpeakers: [SpeakerInfo]
+    }
+
     struct FinalizedTranscript: Sendable {
         let rawTranscript: String
         let words: [WordTimestamp]
@@ -39,7 +48,9 @@ struct MeetingTranscriptFinalizer {
 
     static func finalize(
         sourceTranscripts: [SourceTranscript],
-        systemDiarization: SystemDiarization? = nil
+        systemDiarization: SystemDiarization? = nil,
+        microphoneAttribution: MicrophoneAttribution? = nil,
+        microphoneLabel: String = AudioSource.microphone.displayLabel
     ) -> FinalizedTranscript {
         let normalized = sourceTranscripts.sorted { lhs, rhs in
             if lhs.startOffsetMs == rhs.startOffsetMs {
@@ -64,7 +75,14 @@ struct MeetingTranscriptFinalizer {
             microphoneWords: shiftedWordsBySource[.microphone] ?? [],
             systemWords: systemWords
         )
-        let microphoneWords = sourceReconciliation.microphoneWords
+        let microphoneWords: [WordTimestamp]
+        if let microphoneAttribution, !microphoneAttribution.segments.isEmpty {
+            microphoneWords = attributeMicrophoneWords(
+                sourceReconciliation.microphoneWords, segments: microphoneAttribution.segments
+            )
+        } else {
+            microphoneWords = sourceReconciliation.microphoneWords
+        }
         let finalizedSystemWords: [WordTimestamp]
         if let systemDiarization {
             finalizedSystemWords = attributeSystemWords(systemWords, segments: systemDiarization.segments)
@@ -81,7 +99,12 @@ struct MeetingTranscriptFinalizer {
             return $0.startMs < $1.startMs
         }
 
-        let speakers = activeSpeakers(from: mergedWords, systemDiarization: systemDiarization)
+        let speakers = activeSpeakers(
+            from: mergedWords,
+            systemDiarization: systemDiarization,
+            roomSpeakers: microphoneAttribution?.roomSpeakers ?? [],
+            microphoneLabel: microphoneLabel
+        )
         let diarizationSegments = buildDiarizationSegments(from: mergedWords)
         let rawTranscript = finalTranscriptText(
             from: normalized,
@@ -123,6 +146,29 @@ struct MeetingTranscriptFinalizer {
             }
     }
 
+    /// Assigns microphone-track words to the voices the resolver found.
+    ///
+    /// Unlike the system track, an unclaimed microphone word goes back to the
+    /// owner: the microphone is theirs, and that is what every word said before
+    /// this split.
+    private static func attributeMicrophoneWords(
+        _ words: [WordTimestamp],
+        segments: [SpeakerSegment]
+    ) -> [WordTimestamp] {
+        let unassigned = words.map { word in
+            var word = word
+            word.speakerId = nil
+            return word
+        }
+        return SpeakerMerger.mergeWordTimestampsWithSpeakers(words: unassigned, segments: segments)
+            .map { word in
+                guard word.speakerId == nil else { return word }
+                var word = word
+                word.speakerId = AudioSource.microphone.rawValue
+                return word
+            }
+    }
+
     private static func shiftedWords(
         for result: STTResult,
         source: AudioSource,
@@ -141,14 +187,17 @@ struct MeetingTranscriptFinalizer {
 
     private static func activeSpeakers(
         from words: [WordTimestamp],
-        systemDiarization: SystemDiarization?
+        systemDiarization: SystemDiarization?,
+        roomSpeakers: [SpeakerInfo],
+        microphoneLabel: String
     ) -> [SpeakerInfo] {
         let activeIDs = Set(words.compactMap(\.speakerId))
         var speakers: [SpeakerInfo] = []
 
         if activeIDs.contains(AudioSource.microphone.rawValue) {
-            speakers.append(SpeakerInfo(id: AudioSource.microphone.rawValue, label: AudioSource.microphone.displayLabel))
+            speakers.append(SpeakerInfo(id: AudioSource.microphone.rawValue, label: microphoneLabel))
         }
+        speakers.append(contentsOf: roomSpeakers.filter { activeIDs.contains($0.id) })
 
         let clusters = systemDiarization?.speakers.filter { activeIDs.contains($0.id) } ?? []
 
@@ -271,6 +320,8 @@ struct MeetingTranscriptFinalizer {
         switch id {
         case AudioSource.microphone.rawValue:
             return 0
+        case let value? where value.hasPrefix("\(AudioSource.microphone.rawValue):"):
+            return 0
         case AudioSource.system.rawValue:
             return 1
         case let value? where value.hasPrefix("\(AudioSource.system.rawValue):"):
@@ -316,6 +367,8 @@ struct MeetingTranscriptFinalizer {
     private static func source(for speakerID: String?) -> AudioSource? {
         switch speakerID {
         case AudioSource.microphone.rawValue:
+            return .microphone
+        case let value? where value.hasPrefix("\(AudioSource.microphone.rawValue):"):
             return .microphone
         case AudioSource.system.rawValue:
             return .system

@@ -544,3 +544,22 @@ differentiator, but honestly:
    feature. But BIPA and the GDPR do not distinguish a useful print from a dormant one,
    and this is the first privacy invariant the series loosens rather than tightens, so it
    must be explicit in the promoted ADR before official release.
+
+## Amendment (2026-11-02): owner voice and microphone diarization
+
+The microphone track is no longer assumed to hold only the owner. A real
+speaker-phone meeting (16 min, AEC "cleanedUsed") produced a 316 s microphone
+cluster at cosine 0.18 from the far-end system cluster — echo, every word
+of which was labelled `Me` — beside the owner's 516 s cluster (0.80–0.93 from
+the far end). With the effective gate on, the microphone track is now diarized
+and resolved into owner, room voices and echo, and the owner can enroll their
+own voice (`spec/contracts/speaker-voiceprints.md#owner-voice-and-the-microphone-track`).
+
+Local evidence from that one meeting, not a release evaluation: enrolling from
+the first half, the held-out second half recognised the owner at 0.070; the
+far-end voices scored 0.88 and 1.00 against the owner profile. In the
+enrollment half the echo cluster out-talked the owner (216 s vs 203 s), so
+choosing the owner by speech alone would have enrolled the far end. Two
+5–6 s clips from another day scored 0.31 and 0.62 — not recognised; brief
+speech is unresolved. Cross-day, cross-device and in-room evaluation remain
+release gates.
