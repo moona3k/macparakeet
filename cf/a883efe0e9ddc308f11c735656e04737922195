@@ -1,0 +1,46 @@
+spec/02-features.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 1899-1901
+docs/audits/2026-11-01-release-readiness/evidence/full-test-summary.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 3-4
+docs/audits/2026-11-01-release-readiness/fresh-capture-review.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 45-47
+docs/audits/2026-11-01-release-readiness/recent-issue-risks.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 5
+spec/contracts/youtube-video-playback.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 39-43
+spec/contracts/telemetry-v1.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 67
+docs/releases/0.8.11/README.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 10,12-14
+  s_bb4ba6b40e4842::t_c1b44cd0b601a4 15-16
+docs/audits/2026-11-01-release-readiness/interaction-review.md
+  s_bb4ba6b40e4842::t_3f2d6e725af662 69-70
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_bb4ba6b40e4842::t_3ee89b120a64ef 2311,2315-2316
+Tests/CLITests/CLIVersionTests.swift
+  s_bb4ba6b40e4842::t_323ab8c5753d19 5-7,11,13-15,20,22-23,52
+Tests/MacParakeetTests/Audio/FFmpegAudioTrackProbeTests.swift
+  s_bb4ba6b40e4842::t_46ccbe6acce3d0 152-153,157-158,163,175-183
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_bb4ba6b40e4842::t_9b2d231eccad3f 2647
+docs/audits/2026-11-01-release-readiness/README.md
+  s_bb4ba6b40e4842::t_8929f260e23eb7 5,7,99-110
+docs/audits/2026-11-01-release-readiness/fresh-title-services-review.md
+  s_bb4ba6b40e4842::t_493d7b989c41d5 56-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cfa883efe0e9ddc308f11c735656e04737922195",
+  "prompts": {},
+  "sessions": {
+    "s_bb4ba6b40e4842": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19846-cdc7-7de2-b8a6-c8cb3f55285d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
