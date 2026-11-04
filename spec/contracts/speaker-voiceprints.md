@@ -35,7 +35,14 @@ merging into `main` does not establish meeting accuracy or authorize release.
 
 The default Nemotron 3 service emits anonymous activity and no reusable speaker
 embeddings. When experimental voice profiles are available, the shared factory
-selects the existing Community-1/WeSpeaker service instead. Its aggregation
+selects `HybridDiarizationService`: Nemotron supplies the segments (turn timing
+and overlap) and each Nemotron speaker carries the embedding of the
+Community-1/WeSpeaker cluster covering at least 60% of its speech, one voice
+per speaker. Stretches only Community-1 heard keep their mapped speaker. When
+Nemotron merges two distinct voices (a second voice of ≥ 15 s and ≥ 20% of a
+speaker), or either model fails, the Community-1 result is used unchanged, and
+Nemotron's own constraint fallback (which already carries embeddings) is
+returned as is. All embeddings are therefore Community-1's. Its aggregation
 revision is `fluidaudio-0.17.7`. That upgrade changes Community-1 embeddings of
 windows with digital silence. Profiles enrolled under `fluidaudio-0.17.4` stay
 comparable with new runs under the stricter cross-aggregation threshold

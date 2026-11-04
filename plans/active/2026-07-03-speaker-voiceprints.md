@@ -563,3 +563,21 @@ choosing the owner by speech alone would have enrolled the far end. Two
 5–6 s clips from another day scored 0.31 and 0.62 — not recognised; brief
 speech is unresolved. Cross-day, cross-device and in-room evaluation remain
 release gates.
+
+## Amendment (2026-11-04): hybrid diarization for voice profiles
+
+With voice profiles available the app no longer trades Nemotron's timing for
+Community-1's embeddings; `HybridDiarizationService` fuses them (contract
+§ backend). Local evidence, two meetings, not a release evaluation; reference
+is per-word agreement with Community-1, Nemotron and SpeechBrain ECAPA
+(spectral clustering), so it is not ground truth:
+
+| Meeting | Community-1 | Hybrid |
+|---|---|---|
+| 23 min, two people sharing one microphone: words all three agree on | 99.7% | 99.9% |
+| same: words a majority agree on | 98.1% | 97.6% |
+| 16 min call: speakers in the transcript | owner, far end, a 26-word spurious cluster, 3 unattributed words | owner, far end |
+
+Before gap filling the hybrid scored 97.1% on majority words: Nemotron left
+~100 s of in-room speech unassigned and those words defaulted to the owner.
+A listening review of the disputed passages is the pending tie-breaker.

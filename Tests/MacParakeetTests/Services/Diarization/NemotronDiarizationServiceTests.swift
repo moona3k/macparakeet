@@ -323,7 +323,7 @@ final class NemotronDiarizationServiceTests: XCTestCase {
 
     func testExperimentalVoiceProfilesKeepEmbeddingCompatibleBackend() async {
         let automatic = DiarizationServiceFactory.makeLiveService(speakerConstraint: nil, voiceProfilesAvailable: true)
-        XCTAssertTrue(automatic is DiarizationService)
+        XCTAssertTrue(automatic is HybridDiarizationService)
         let explicit = DiarizationServiceFactory.makeLiveService(
             speakerConstraint: .exact(12), voiceProfilesAvailable: true)
         XCTAssertTrue(explicit is DiarizationService)

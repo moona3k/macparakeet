@@ -125,10 +125,11 @@ public struct DiarizationServiceFactory: Sendable {
         if let constraint {
             return DiarizationService(speakerConstraint: constraint)
         }
-        // Voice profiles require Community-1's embeddings. Nemotron emits
-        // activity channels, not compatible identity embeddings.
+        // Voice profiles require Community-1's embeddings, which Nemotron does
+        // not emit. The hybrid keeps Nemotron's turn timing and takes identity
+        // from Community-1, falling back to Community-1 alone when they conflict.
         if voiceProfilesAvailable {
-            return DiarizationService()
+            return HybridDiarizationService()
         }
         return NemotronDiarizationService()
     }
