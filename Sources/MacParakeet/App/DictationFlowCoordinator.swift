@@ -205,6 +205,8 @@ final class DictationFlowCoordinator {
     private var overlayController: (any DictationOverlayControlling)?
     private var overlayViewModel: DictationOverlayViewModel?
     private var idlePillController: IdlePillController?
+    /// Set when the idle pill was removed because `.notch` took over, so leaving `.notch` restores it.
+    private var idlePillHiddenForNotch = false
     private var readyDismissTimer: DispatchWorkItem?
     private var recordingTask: Task<Void, Never>?
     private var actionTask: Task<Void, Never>?
@@ -273,7 +275,14 @@ final class DictationFlowCoordinator {
         mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
         playCaptureCue: @escaping @MainActor (AppSound) -> Void = { SoundManager.shared.play($0) },
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
-            DictationOverlayController(viewModel: $0)
+            // `.notch` merges with the camera housing; every other case (and any
+            // Mac without a usable notch) keeps the classic pill.
+            if DictationOverlayPlacement.current() == .notch,
+                let notch = NotchOverlayController(viewModel: $0)
+            {
+                return notch
+            }
+            return DictationOverlayController(viewModel: $0)
         },
         shouldSuppressIdlePill: @escaping () -> Bool = { false },
         isStartSuppressed: @escaping () -> Bool = { false },
@@ -433,6 +442,13 @@ final class DictationFlowCoordinator {
     }
 
     private func repositionDictationOverlays() {
+        if idlePillController != nil, NotchScreens.notchIsActive() {
+            hideIdlePill()
+            idlePillHiddenForNotch = true
+        } else if idlePillHiddenForNotch, !NotchScreens.notchIsActive() {
+            idlePillHiddenForNotch = false
+            showIdlePill()
+        }
         idlePillController?.reposition()
         overlayController?.reposition()
     }
@@ -453,6 +469,8 @@ final class DictationFlowCoordinator {
         guard idlePillController == nil else { return }
         guard overlayController == nil else { return }
         guard !shouldSuppressIdlePill() else { return }
+        // The camera housing is the affordance in `.notch` mode; no idle nub.
+        guard !NotchScreens.notchIsActive() else { return }
         let vm = IdlePillViewModel()
         vm.onStartDictation = { [weak self] in
             _ = self?.startDictation(mode: .persistent, trigger: .pillClick)
