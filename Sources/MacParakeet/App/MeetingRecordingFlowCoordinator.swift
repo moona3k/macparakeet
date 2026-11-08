@@ -113,7 +113,7 @@ final class MeetingRecordingFlowCoordinator {
     private let meetingTranscriptionQueue: MeetingTranscriptionQueue
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
-    private var pillController: MeetingRecordingPillController?
+    private var pillController: (any MeetingPillControlling)?
     /// Long-lived view model shared with the Transcribe-tab tile so the tile
     /// can render live recording state. Owned by `AppEnvironmentConfigurer`,
     /// passed in via init. Reset to `.idle` (not nilled) on flow teardown.
@@ -745,8 +745,18 @@ final class MeetingRecordingFlowCoordinator {
             }
             panelViewModel = panelVM
 
+            // Re-evaluate the surface per meeting: notch wing only while the notch
+            // placement resolves to a real notch; otherwise the classic pill.
+            let wantsNotch = MeetingNotchController.isAvailable()
+            if let existing = pillController, !existing.isVisible,
+                (existing is MeetingNotchController) != wantsNotch
+            {
+                pillController = nil
+            }
             if pillController == nil {
-                pillController = MeetingRecordingPillController(viewModel: vm)
+                pillController =
+                    (wantsNotch ? MeetingNotchController(viewModel: vm) : nil)
+                    ?? MeetingRecordingPillController(viewModel: vm)
             }
             pillController?.onClick = { [weak self] in
                 self?.showMeetingPanel()

@@ -60,7 +60,7 @@ enum NotchScreens {
 
 // MARK: - Panel
 
-private final class NotchPanel: NSPanel {
+final class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     /// AppKit must not push the panel below the menu bar.
@@ -170,6 +170,7 @@ final class NotchOverlayController: DictationOverlayControlling {
         panel.setFrame(frame, display: false)
         panel.orderFront(nil)
         self.panel = panel
+        NotchOccupancy.shared.dictationActive = true
         observe()
         // Expand on the next runloop turn so the width change animates from the notch.
         DispatchQueue.main.async { [layout] in layout.expanded = true }
@@ -178,6 +179,7 @@ final class NotchOverlayController: DictationOverlayControlling {
     func hide() {
         guard let panel else { return }
         self.panel = nil
+        NotchOccupancy.shared.dictationActive = false
         shrinkTask?.cancel()
         // Collapse back into the notch, then remove the window.
         layout.expanded = false
