@@ -303,7 +303,9 @@ private struct NotchOverlayView: View {
 
     private func bar(width: CGFloat) -> some View {
         ZStack {
-            UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12)
+            // Square bottom corners while a sheet hangs below, so the two read as one shape.
+            let radius: CGFloat = layout.sheet == .none ? 12 : 0
+            UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius)
                 .fill(Color.black)
             HStack(spacing: 0) {
                 leading
@@ -325,8 +327,7 @@ private struct NotchOverlayView: View {
         case .recording:
             HStack(spacing: 8) {
                 Circle().fill(Color.red).frame(width: 7, height: 7)
-                WaveformView(audioLevel: viewModel.audioLevel, barCount: 10)
-                    .scaleEffect(0.8)
+                NotchWaveform(viewModel: viewModel)
                     .frame(width: 44)
             }
         case .countdown:
@@ -347,9 +348,7 @@ private struct NotchOverlayView: View {
     @ViewBuilder private var trailing: some View {
         switch presentation.glyph {
         case .recording:
-            Text(viewModel.formattedElapsed)
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.9))
+            NotchElapsedLabel(viewModel: viewModel)
         case .countdown:
             Button(action: { viewModel.onUndo?() }) {
                 Text("Undo")
@@ -431,5 +430,25 @@ private struct NotchOverlayView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityHint(hint.map { "Shortcut \($0)" } ?? "")
+    }
+}
+
+
+/// Own views so the 20+ Hz audio level (and the 1 Hz timer) invalidate only
+/// themselves, not the whole notch body.
+private struct NotchWaveform: View {
+    let viewModel: DictationOverlayViewModel
+    var body: some View {
+        WaveformView(audioLevel: viewModel.audioLevel, barCount: 10)
+            .scaleEffect(0.8)
+    }
+}
+
+private struct NotchElapsedLabel: View {
+    let viewModel: DictationOverlayViewModel
+    var body: some View {
+        Text(viewModel.formattedElapsed)
+            .font(.system(size: 12, weight: .medium).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.9))
     }
 }
