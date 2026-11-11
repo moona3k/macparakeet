@@ -446,7 +446,14 @@ actor TitaNetModelCoordinator {
                     self.finish(key: key, flightID: flightID, result: result)
                 }
             }
-            try await wait(key: key, flightID: flightID)
+            do {
+                try await wait(key: key, flightID: flightID)
+            } catch {
+                // A caller cancelled as the work failed reports cancellation,
+                // not the work's error, which callers may treat as non-fatal.
+                try Task.checkCancellation()
+                throw error
+            }
             // `finish` can resume a caller with success just before its
             // cancellation handler runs; a cancelled caller must not go on.
             try Task.checkCancellation()

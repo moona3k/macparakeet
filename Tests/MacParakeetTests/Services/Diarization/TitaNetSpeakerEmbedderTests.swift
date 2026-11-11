@@ -200,7 +200,8 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
     func testCallerWaitingForAbandonedWorkCanCancel() async throws {
         let coordinator = TitaNetModelCoordinator()
         let log = WorkLog()
-        let work = slowToStopWork(log: log, stopDelay: 5_000_000_000)
+        let gate = Gate()
+        let work = slowToStopWork(log: log, stopping: { await gate.wait() })
         let first = Task { try await coordinator.run(key: "k", work) }
         try await waitForWaiters(1, on: coordinator)
         first.cancel()
@@ -214,21 +215,30 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
             XCTFail("a cancelled caller must not succeed")
         } catch is CancellationError {}
         XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 1)
-        let events = await log.events
-        XCTAssertEqual(events, ["start 1"])
+        let pending = await log.events
+        XCTAssertEqual(pending, ["start 1"])
+        // Let the abandoned work stop so nothing outlives the test.
+        await gate.release()
+        try await waitUntil { await log.events == ["start 1", "stopped 1"] }
+        let remaining = await coordinator.waiterCount(key: "k")
+        XCTAssertEqual(remaining, 0)
     }
 
-    /// The first attempt ignores cancellation for `stopDelay`, as a compile in
-    /// progress would; later attempts succeed at once.
+    /// The first attempt, once cancelled, takes until `stopping` returns to
+    /// stop, as a compile in progress would; later attempts succeed at once.
+    /// The default is a 0.3 s delay that cancellation cannot cut short.
     private func slowToStopWork(
-        log: WorkLog, stopDelay: UInt64 = 300_000_000
+        log: WorkLog,
+        stopping: @escaping @Sendable () async -> Void = {
+            // An unstructured task does not inherit the cancellation.
+            await Task { try? await Task.sleep(nanoseconds: 300_000_000) }.value
+        }
     ) -> @Sendable () async throws -> Void {
         {
             let attempt = await log.started()
             guard attempt == 1 else { return }
             do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch {
-                // Not cancellable: an unstructured task does not inherit it.
-                await Task { try? await Task.sleep(nanoseconds: stopDelay) }.value
+                await stopping()
                 await log.cancelled()
                 throw error
             }
@@ -372,6 +382,21 @@ private actor WorkLog {
     func cancelled() {
         cancellations += 1
         events.append("stopped \(starts)")
+    }
+}
+
+/// Holds the work back until the test releases it; not cancellable.
+private actor Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+    func release() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters = []
     }
 }
 
