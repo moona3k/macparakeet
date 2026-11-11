@@ -131,6 +131,94 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
         XCTAssertTrue(first.isModelAvailable())
     }
 
+    /// A cancelled caller that was the only one waiting stops at once and
+    /// takes the shared work (download or compile) down with it.
+    func testCancellingTheOnlyWaiterCancelsTheSharedWork() async throws {
+        let coordinator = TitaNetModelCoordinator()
+        let log = WorkLog()
+        let caller = Task {
+            try await coordinator.run(key: "k") {
+                await log.started()
+                do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch {
+                    await log.cancelled()
+                    throw error
+                }
+            }
+        }
+        try await waitForWaiters(1, on: coordinator)
+        caller.cancel()
+        do {
+            try await caller.value
+            XCTFail("a cancelled caller must not succeed")
+        } catch is CancellationError {}
+        try await waitUntil { await log.cancellations == 1 }
+    }
+
+    /// Another caller still needs the work, so cancelling one caller only
+    /// releases that caller.
+    func testCancellingOneOfTwoWaitersKeepsTheSharedWork() async throws {
+        let coordinator = TitaNetModelCoordinator()
+        let log = WorkLog()
+        let work: @Sendable () async throws -> Void = {
+            await log.started()
+            do { try await Task.sleep(nanoseconds: 300_000_000) } catch {
+                await log.cancelled()
+                throw error
+            }
+        }
+        let leaving = Task { try await coordinator.run(key: "k", work) }
+        let staying = Task { try await coordinator.run(key: "k", work) }
+        try await waitForWaiters(2, on: coordinator)
+        leaving.cancel()
+        do {
+            try await leaving.value
+            XCTFail("a cancelled caller must not succeed")
+        } catch is CancellationError {}
+        try await staying.value
+        let starts = await log.starts
+        let cancellations = await log.cancellations
+        XCTAssertEqual(starts, 1)
+        XCTAssertEqual(cancellations, 0)
+    }
+
+    /// A caller arriving while abandoned work is still stopping waits for it,
+    /// then runs the work afresh rather than inheriting the cancellation.
+    func testNewCallerAfterAbandonedWorkStartsAfresh() async throws {
+        let coordinator = TitaNetModelCoordinator()
+        let log = WorkLog()
+        let work: @Sendable () async throws -> Void = {
+            let attempt = await log.started()
+            guard attempt == 1 else { return }
+            do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch {
+                // Slow to stop, as a compile in progress would be.
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                await log.cancelled()
+                throw error
+            }
+        }
+        let first = Task { try await coordinator.run(key: "k", work) }
+        try await waitForWaiters(1, on: coordinator)
+        first.cancel()
+        _ = await first.result
+        try await coordinator.run(key: "k", work)
+        let starts = await log.starts
+        let cancellations = await log.cancellations
+        XCTAssertEqual(starts, 2)
+        XCTAssertEqual(cancellations, 1)
+    }
+
+    private func waitForWaiters(_ count: Int, on coordinator: TitaNetModelCoordinator) async throws {
+        try await waitUntil { await coordinator.waiterCount(key: "k") == count }
+    }
+
+    private func waitUntil(_ condition: @Sendable () async -> Bool) async throws {
+        for _ in 0..<500 {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("timed out")
+    }
+
     private func writeRamp(samples: Int) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).wav")
         let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
@@ -242,6 +330,13 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
         } catch TitaNetSpeakerEmbedderError.invalidModelArchive {}
         XCTAssertFalse(embedder.isModelAvailable())
     }
+}
+
+private actor WorkLog {
+    private(set) var starts = 0
+    private(set) var cancellations = 0
+    @discardableResult func started() -> Int { starts += 1; return starts }
+    func cancelled() { cancellations += 1 }
 }
 
 private actor FetchCounter {

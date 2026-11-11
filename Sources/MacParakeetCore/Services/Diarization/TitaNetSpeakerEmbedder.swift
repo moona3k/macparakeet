@@ -124,12 +124,16 @@ public actor TitaNetSpeakerEmbedder {
     private let archiveBytes: Int
     private let archiveSHA256: String
     private let fetch: @Sendable (URL) async throws -> Data
-    /// Installs and loads are coordinated per model directory across every
+    /// Installs and compiles are coordinated per model directory across every
     /// embedder in the process: the factory makes one per diarization service,
     /// and two of them compiling into the same directory would delete each
     /// other's bundle. Actor isolation alone would not help either, since a
     /// second caller re-enters across each `await`.
     private static let coordinator = TitaNetModelCoordinator()
+    /// This embedder's own model instance. Only the files are shared: an
+    /// `MLModel` is not shared across embedders, so its predictions only ever
+    /// run serialized on this actor.
+    private var model: MLModel?
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TitaNetEmbedder")
 
     public init(
@@ -167,9 +171,10 @@ public actor TitaNetSpeakerEmbedder {
     /// callers share one download.
     public func prepareModel() async throws {
         guard !isModelAvailable() else { return }
-        try await Self.coordinator.install(key: modelDirectory.standardizedFileURL.path) {
+        try await Self.coordinator.run(key: "install:" + modelDirectory.standardizedFileURL.path) {
             try await self.install()
         }
+        guard isModelAvailable() else { throw TitaNetSpeakerEmbedderError.modelMissing(packageURL) }
     }
 
     private func install() async throws {
@@ -201,33 +206,45 @@ public actor TitaNetSpeakerEmbedder {
         logger.notice("titanet_model_installed bytes=\(data.count, privacy: .public)")
     }
 
-    /// Loads the compiled model, downloading the package and compiling it once
-    /// when needed. Concurrent callers share one load, so a second compile can
-    /// never delete the bundle the first is reading.
+    /// This embedder's model, downloading the package and compiling it once
+    /// when needed. Concurrent embedders share one compile, so a second compile
+    /// can never delete the bundle the first is reading; each then loads its
+    /// own instance from the compiled bundle.
     func loadedModel() async throws -> MLModel {
-        try await Self.coordinator.model(key: modelDirectory.standardizedFileURL.path) {
-            try await self.load()
-        }
-    }
-
-    private func load() async throws -> MLModel {
-        let files = FileManager.default
-        if !files.fileExists(atPath: compiledModelURL.path) {
-            if !files.fileExists(atPath: packageURL.path) {
-                try await prepareModel()
+        if let model { return model }
+        if !FileManager.default.fileExists(atPath: compiledModelURL.path) {
+            try await Self.coordinator.run(key: "compile:" + modelDirectory.standardizedFileURL.path) {
+                try await self.compile()
             }
-            guard files.fileExists(atPath: packageURL.path) else {
-                throw TitaNetSpeakerEmbedderError.modelMissing(packageURL)
-            }
-            let compiled = try await MLModel.compileModel(at: packageURL)
-            try? files.removeItem(at: compiledModelURL)
-            try files.moveItem(at: compiled, to: compiledModelURL)
         }
+        guard FileManager.default.fileExists(atPath: compiledModelURL.path) else {
+            throw TitaNetSpeakerEmbedderError.modelMissing(compiledModelURL)
+        }
+        // A concurrent call on this actor may have loaded it across the await.
+        if let model { return model }
         let configuration = MLModelConfiguration()
         // FP32 export: the spectrogram front end overflows in FP16, which the
         // Neural Engine would force. CPU+GPU runs a 10 s window in ~8 ms.
         configuration.computeUnits = .cpuAndGPU
-        return try MLModel(contentsOf: compiledModelURL, configuration: configuration)
+        let loaded = try MLModel(contentsOf: compiledModelURL, configuration: configuration)
+        model = loaded
+        return loaded
+    }
+
+    private func compile() async throws {
+        let files = FileManager.default
+        guard !files.fileExists(atPath: compiledModelURL.path) else { return }
+        if !files.fileExists(atPath: packageURL.path) {
+            try await prepareModel()
+        }
+        guard files.fileExists(atPath: packageURL.path) else {
+            throw TitaNetSpeakerEmbedderError.modelMissing(packageURL)
+        }
+        let compiled = try await MLModel.compileModel(at: packageURL)
+        defer { try? files.removeItem(at: compiled) }
+        try Task.checkCancellation()
+        try? files.removeItem(at: compiledModelURL)
+        try files.moveItem(at: compiled, to: compiledModelURL)
     }
 
     /// One speaker's voiceprint and the speech it was actually made from.
@@ -390,32 +407,81 @@ public actor TitaNetSpeakerEmbedder {
     }
 }
 
-/// Process-wide single flight for TitaNet installs and loads, keyed by model
-/// directory. A loaded model is kept and shared; concurrent requests for the
-/// same directory await one task. It is reentrant across `await`, so a load that
-/// triggers an install does not deadlock.
+/// Process-wide single flight for TitaNet installs and compiles, keyed by
+/// model directory. Concurrent callers for the same key share one task.
+///
+/// Cancellation is per caller: a cancelled caller stops waiting at once, and
+/// the shared work is cancelled only when its last caller has gone. The key
+/// stays taken until that abandoned work has actually stopped, so a new caller
+/// waits for it and then starts afresh instead of racing it in the same
+/// directory. Reentrant across `await`, so an install started by a compile
+/// does not deadlock.
 actor TitaNetModelCoordinator {
-    private var installs: [String: Task<Void, Error>] = [:]
-    private var loads: [String: Task<MLModel, Error>] = [:]
-    private var models: [String: MLModel] = [:]
-
-    func install(key: String, _ work: @escaping @Sendable () async throws -> Void) async throws {
-        if let running = installs[key] { return try await running.value }
-        let task = Task { try await work() }
-        installs[key] = task
-        defer { installs[key] = nil }
-        try await task.value
+    private struct Flight {
+        let id: UUID
+        let task: Task<Void, Error>
+        var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+        var abandoned = false
     }
 
-    func model(key: String, _ work: @escaping @Sendable () async throws -> MLModel) async throws -> MLModel {
-        if let model = models[key] { return model }
-        if let running = loads[key] { return try await running.value }
-        let task = Task { try await work() }
-        loads[key] = task
-        defer { loads[key] = nil }
-        let model = try await task.value
-        models[key] = model
-        return model
+    private var flights: [String: Flight] = [:]
+
+    func run(key: String, _ work: @escaping @Sendable () async throws -> Void) async throws {
+        while let flight = flights[key], flight.abandoned {
+            _ = await flight.task.result
+        }
+        try Task.checkCancellation()
+        let flightID: UUID
+        if let flight = flights[key] {
+            flightID = flight.id
+        } else {
+            flightID = UUID()
+            let task = Task { try await work() }
+            flights[key] = Flight(id: flightID, task: task)
+            Task {
+                let result = await task.result
+                self.finish(key: key, flightID: flightID, result: result)
+            }
+        }
+        let waiterID = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard flights[key]?.id == flightID else {
+                    // Finished before this caller registered; the caller checks
+                    // the files it needed.
+                    continuation.resume()
+                    return
+                }
+                flights[key]?.waiters[waiterID] = continuation
+            }
+        } onCancel: {
+            Task { await self.leave(key: key, flightID: flightID, waiterID: waiterID) }
+        }
+    }
+
+    /// Callers currently waiting on `key`'s work (for tests).
+    func waiterCount(key: String) -> Int {
+        flights[key]?.waiters.count ?? 0
+    }
+
+    private func leave(key: String, flightID: UUID, waiterID: UUID) {
+        guard var flight = flights[key], flight.id == flightID,
+            let continuation = flight.waiters.removeValue(forKey: waiterID)
+        else { return }
+        continuation.resume(throwing: CancellationError())
+        if flight.waiters.isEmpty {
+            flight.abandoned = true
+            flight.task.cancel()
+        }
+        flights[key] = flight
+    }
+
+    private func finish(key: String, flightID: UUID, result: Result<Void, Error>) {
+        guard let flight = flights[key], flight.id == flightID else { return }
+        flights[key] = nil
+        for continuation in flight.waiters.values {
+            continuation.resume(with: result)
+        }
     }
 }
 
