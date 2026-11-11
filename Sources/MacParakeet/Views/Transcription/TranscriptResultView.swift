@@ -5576,6 +5576,7 @@ struct TranscriptResultView: View {
         renameButtonOpacity: Double = SpeakerRenameAccessibility.renameButtonOpacity(isVisuallyRevealed: true)
     ) -> some View {
         if let draft = speakerRename.draft, draft.speakerID == speaker.id, draft.contextID == contextID {
+          HStack(spacing: 4) {
             TextField(
                 "Name",
                 text: Binding(
@@ -5611,6 +5612,14 @@ struct TranscriptResultView: View {
             .accessibilityLabel(SpeakerRenameAccessibility.speakerNameFieldLabel)
             .accessibilityHint(SpeakerRenameAccessibility.speakerNameFieldHint)
             .accessibilityIdentifier(SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: contextID))
+            if let suggestion = viewModel.voiceSuggestion(forSpeaker: speaker.id) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .help("Sounds like \(suggestion.displayName)'s saved voice. Press Return to confirm.")
+                    .accessibilityLabel("Suggested from \(suggestion.displayName)'s saved voice")
+            }
+          }
         } else {
             HStack(spacing: 6) {
                 Text(speaker.label)
@@ -5641,10 +5650,21 @@ struct TranscriptResultView: View {
     }
 
     private func beginSpeakerRename(_ speaker: SpeakerInfo, contextID: String) {
+        let wasEditing = speakerRename.draft?.speakerID == speaker.id && speakerRename.draft?.contextID == contextID
         if let previous = speakerRename.begin(speaker, contextID: contextID, savePrevious: saveSpeakerRename) {
             if focusedSpeakerRenameContext == previous.contextID {
                 focusedSpeakerRenameContext = nil
             }
+        }
+        // A recognised voice opens the editor on its name: Return accepts it,
+        // typing replaces it. Only over the untouched label — never over a
+        // name the user was already part-way through typing.
+        if !wasEditing,
+            let suggestion = viewModel.voiceSuggestion(forSpeaker: speaker.id),
+            speakerRename.draft?.contextID == contextID,
+            speakerRename.draft?.label == speaker.label
+        {
+            speakerRename.updateLabel(suggestion.displayName, contextID: contextID)
         }
     }
 
@@ -5663,6 +5683,15 @@ struct TranscriptResultView: View {
     private func saveSpeakerRename(_ draft: SpeakerRenameState.Draft) -> Bool {
         let trimmed = draft.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
+        if let suggestion = viewModel.confirmsVoiceSuggestion(speakerId: draft.speakerID, label: trimmed) {
+            // The banner's "Yes": applies the label and teaches the profile.
+            voiceProfileRenameContexts[draft.speakerID] = draft.contextID
+            viewModel.confirmVoiceSuggestion(suggestion)
+            if transcriptDisplayMode == .timed {
+                scheduleSegmentCacheRebuild()
+            }
+            return true
+        }
         guard viewModel.renameSpeaker(id: draft.speakerID, to: trimmed) else { return false }
         // Remembered before the offer lands: it arrives asynchronously, by
         // which time the editor that produced it is gone.

@@ -418,6 +418,27 @@ final class TranscriptionVoiceEnrollmentTests: XCTestCase {
         }
     }
 
+    /// The rename editor starts from the proposed name, and typing that name
+    /// (any case, any padding) counts as confirming it; another name does not.
+    func testTypedNameMatchingTheSuggestionConfirmsIt() async throws {
+        let transcription = makeTranscription()
+        let service = StubVoiceprintService(
+            candidate: observation(), suggestions: [suggestion()]
+        )
+        let viewModel = try await configured(transcription, voiceprints: service)
+        try await waitUntil { !viewModel.voiceSuggestions.isEmpty }
+
+        XCTAssertEqual(viewModel.voiceSuggestion(forSpeaker: "S1")?.displayName, "Sarah")
+        XCTAssertNil(viewModel.voiceSuggestion(forSpeaker: "S2"))
+        XCTAssertNotNil(viewModel.confirmsVoiceSuggestion(speakerId: "S1", label: "  sarah "))
+        XCTAssertNil(viewModel.confirmsVoiceSuggestion(speakerId: "S1", label: "Sara"))
+        XCTAssertNil(viewModel.confirmsVoiceSuggestion(speakerId: "S2", label: "Sarah"))
+
+        viewModel.confirmVoiceSuggestion(try XCTUnwrap(viewModel.confirmsVoiceSuggestion(speakerId: "S1", label: "Sarah")))
+        try await waitUntil { service.confirmed == ["S1"] }
+        XCTAssertNil(viewModel.voiceSuggestion(forSpeaker: "S1"))
+    }
+
     /// The legacy branch handles transcripts the correction layer cannot own.
     /// Returning without reporting would drop a suggestion the user accepted
     /// and never record it.

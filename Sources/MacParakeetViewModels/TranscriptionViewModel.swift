@@ -2810,6 +2810,25 @@ public final class TranscriptionViewModel {
     /// answer. That order matters: a crash between the two leaves a correct
     /// label and a profile that did not learn, rather than a profile taught by
     /// an answer the transcript never shows.
+    /// The name the matcher proposed for this speaker, if one is waiting.
+    /// The rename editor starts from it, so naming a speaker the app already
+    /// recognised is one keystroke rather than a banner hunt.
+    public func voiceSuggestion(forSpeaker speakerId: String) -> SpeakerVoiceprintSuggestion? {
+        voiceSuggestions.first { $0.speakerId == speakerId }
+    }
+
+    /// Typing the proposed name is the same answer as pressing "Yes" on the
+    /// banner, and must be recorded as one: a plain rename would apply the
+    /// label but leave the suggestion unanswered and the voice unlearned.
+    /// Compared by the profile's normalized key, so case and padding agree with
+    /// how names are matched everywhere else.
+    public func confirmsVoiceSuggestion(speakerId: String, label: String) -> SpeakerVoiceprintSuggestion? {
+        guard let suggestion = voiceSuggestion(forSpeaker: speakerId) else { return nil }
+        let typed = SpeakerProfile.normalizedName(for: label)
+        guard !typed.isEmpty, typed == SpeakerProfile.normalizedName(for: suggestion.displayName) else { return nil }
+        return suggestion
+    }
+
     public func confirmVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) {
         guard currentTranscription?.sourceType == .meeting,
             !isApplyingVoiceIdentity,
