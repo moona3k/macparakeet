@@ -183,28 +183,56 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
 
     /// A caller arriving while abandoned work is still stopping waits for it,
     /// then runs the work afresh rather than inheriting the cancellation.
-    func testNewCallerAfterAbandonedWorkStartsAfresh() async throws {
+    func testNewCallerAfterAbandonedWorkWaitsThenStartsAfresh() async throws {
         let coordinator = TitaNetModelCoordinator()
         let log = WorkLog()
-        let work: @Sendable () async throws -> Void = {
-            let attempt = await log.started()
-            guard attempt == 1 else { return }
-            do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch {
-                // Slow to stop, as a compile in progress would be.
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                await log.cancelled()
-                throw error
-            }
-        }
+        let work = slowToStopWork(log: log)
         let first = Task { try await coordinator.run(key: "k", work) }
         try await waitForWaiters(1, on: coordinator)
         first.cancel()
         _ = await first.result
         try await coordinator.run(key: "k", work)
-        let starts = await log.starts
-        let cancellations = await log.cancellations
-        XCTAssertEqual(starts, 2)
-        XCTAssertEqual(cancellations, 1)
+        let events = await log.events
+        XCTAssertEqual(events, ["start 1", "stopped 1", "start 2"])
+    }
+
+    /// Waiting for abandoned work to stop is itself cancellable.
+    func testCallerWaitingForAbandonedWorkCanCancel() async throws {
+        let coordinator = TitaNetModelCoordinator()
+        let log = WorkLog()
+        let work = slowToStopWork(log: log, stopDelay: 5_000_000_000)
+        let first = Task { try await coordinator.run(key: "k", work) }
+        try await waitForWaiters(1, on: coordinator)
+        first.cancel()
+        _ = await first.result
+        let second = Task { try await coordinator.run(key: "k", work) }
+        try await waitForWaiters(1, on: coordinator)
+        let cancelledAt = Date()
+        second.cancel()
+        do {
+            try await second.value
+            XCTFail("a cancelled caller must not succeed")
+        } catch is CancellationError {}
+        XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 1)
+        let events = await log.events
+        XCTAssertEqual(events, ["start 1"])
+    }
+
+    /// The first attempt ignores cancellation for `stopDelay`, as a compile in
+    /// progress would; later attempts succeed at once.
+    private func slowToStopWork(
+        log: WorkLog, stopDelay: UInt64 = 300_000_000
+    ) -> @Sendable () async throws -> Void {
+        {
+            let attempt = await log.started()
+            guard attempt == 1 else { return }
+            do { try await Task.sleep(nanoseconds: 30_000_000_000) } catch {
+                // Not cancellable: an unstructured task does not inherit it.
+                await Task { try? await Task.sleep(nanoseconds: stopDelay) }.value
+                await log.cancelled()
+                throw error
+            }
+        }
     }
 
     private func waitForWaiters(_ count: Int, on coordinator: TitaNetModelCoordinator) async throws {
@@ -335,8 +363,16 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
 private actor WorkLog {
     private(set) var starts = 0
     private(set) var cancellations = 0
-    @discardableResult func started() -> Int { starts += 1; return starts }
-    func cancelled() { cancellations += 1 }
+    private(set) var events: [String] = []
+    @discardableResult func started() -> Int {
+        starts += 1
+        events.append("start \(starts)")
+        return starts
+    }
+    func cancelled() {
+        cancellations += 1
+        events.append("stopped \(starts)")
+    }
 }
 
 private actor FetchCounter {

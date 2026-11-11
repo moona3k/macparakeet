@@ -413,42 +413,58 @@ public actor TitaNetSpeakerEmbedder {
 /// Cancellation is per caller: a cancelled caller stops waiting at once, and
 /// the shared work is cancelled only when its last caller has gone. The key
 /// stays taken until that abandoned work has actually stopped, so a new caller
-/// waits for it and then starts afresh instead of racing it in the same
-/// directory. Reentrant across `await`, so an install started by a compile
-/// does not deadlock.
+/// waits for it (still cancellable) and then starts afresh instead of racing
+/// it in the same directory. Reentrant across `await`, so an install started
+/// by a compile does not deadlock.
 actor TitaNetModelCoordinator {
     private struct Flight {
         let id: UUID
         let task: Task<Void, Error>
         var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+        /// Cancelled because its last caller left. Callers arriving now wait
+        /// for it to stop, then start new work.
         var abandoned = false
     }
 
     private var flights: [String: Flight] = [:]
 
     func run(key: String, _ work: @escaping @Sendable () async throws -> Void) async throws {
-        while let flight = flights[key], flight.abandoned {
-            _ = await flight.task.result
-        }
-        try Task.checkCancellation()
-        let flightID: UUID
-        if let flight = flights[key] {
-            flightID = flight.id
-        } else {
-            flightID = UUID()
-            let task = Task { try await work() }
-            flights[key] = Flight(id: flightID, task: task)
-            Task {
-                let result = await task.result
-                self.finish(key: key, flightID: flightID, result: result)
+        while true {
+            try Task.checkCancellation()
+            let flightID: UUID
+            let waitingForAbandoned: Bool
+            if let flight = flights[key] {
+                flightID = flight.id
+                waitingForAbandoned = flight.abandoned
+            } else {
+                flightID = UUID()
+                waitingForAbandoned = false
+                let task = Task { try await work() }
+                flights[key] = Flight(id: flightID, task: task)
+                Task {
+                    let result = await task.result
+                    self.finish(key: key, flightID: flightID, result: result)
+                }
             }
+            try await wait(key: key, flightID: flightID)
+            // `finish` can resume a caller with success just before its
+            // cancellation handler runs; a cancelled caller must not go on.
+            try Task.checkCancellation()
+            if !waitingForAbandoned { return }
         }
+    }
+
+    /// Callers currently waiting on `key` (for tests).
+    func waiterCount(key: String) -> Int {
+        flights[key]?.waiters.count ?? 0
+    }
+
+    private func wait(key: String, flightID: UUID) async throws {
         let waiterID = UUID()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 guard flights[key]?.id == flightID else {
-                    // Finished before this caller registered; the caller checks
-                    // the files it needed.
+                    // Already finished; the caller checks the files it needed.
                     continuation.resume()
                     return
                 }
@@ -459,17 +475,12 @@ actor TitaNetModelCoordinator {
         }
     }
 
-    /// Callers currently waiting on `key`'s work (for tests).
-    func waiterCount(key: String) -> Int {
-        flights[key]?.waiters.count ?? 0
-    }
-
     private func leave(key: String, flightID: UUID, waiterID: UUID) {
         guard var flight = flights[key], flight.id == flightID,
             let continuation = flight.waiters.removeValue(forKey: waiterID)
         else { return }
         continuation.resume(throwing: CancellationError())
-        if flight.waiters.isEmpty {
+        if !flight.abandoned, flight.waiters.isEmpty {
             flight.abandoned = true
             flight.task.cancel()
         }
@@ -480,7 +491,9 @@ actor TitaNetModelCoordinator {
         guard let flight = flights[key], flight.id == flightID else { return }
         flights[key] = nil
         for continuation in flight.waiters.values {
-            continuation.resume(with: result)
+            // Callers of abandoned work were only waiting for it to stop; they
+            // start afresh rather than inherit its cancellation.
+            if flight.abandoned { continuation.resume() } else { continuation.resume(with: result) }
         }
     }
 }
