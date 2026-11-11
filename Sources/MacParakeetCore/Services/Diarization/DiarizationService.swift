@@ -122,14 +122,18 @@ public struct DiarizationServiceFactory: Sendable {
     static func makeLiveService(
         speakerConstraint constraint: SpeakerDiarizationConstraint?, voiceProfilesAvailable: Bool
     ) -> any DiarizationServiceProtocol {
+        // Voice profiles match TitaNet voiceprints, recomputed per speaker from
+        // whatever clustering ran (see `TitaNetVoiceprintDiarizationService`).
         if let constraint {
-            return DiarizationService(speakerConstraint: constraint)
+            let service = DiarizationService(speakerConstraint: constraint)
+            return voiceProfilesAvailable ? TitaNetVoiceprintDiarizationService(inner: service) : service
         }
-        // Voice profiles require Community-1's embeddings, which Nemotron does
-        // not emit. The hybrid keeps Nemotron's turn timing and takes identity
-        // from Community-1, falling back to Community-1 alone when they conflict.
+        // Voice profiles need clusters that are one person each, which
+        // Community-1 identity gives. The hybrid keeps Nemotron's turn timing
+        // and takes identity from Community-1, falling back to Community-1
+        // alone when they conflict.
         if voiceProfilesAvailable {
-            return HybridDiarizationService()
+            return TitaNetVoiceprintDiarizationService(inner: HybridDiarizationService())
         }
         return NemotronDiarizationService()
     }

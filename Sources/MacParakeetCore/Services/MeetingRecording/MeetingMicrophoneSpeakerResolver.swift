@@ -41,7 +41,7 @@ enum MeetingMicrophoneSpeakerResolver {
         startOffsetMs: Int,
         systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?,
         ownerVoice: SpeakerProfileCandidate?,
-        policy: SpeakerMatchPolicy = .v1
+        policy: SpeakerMatchPolicy = SpeakerVoiceprintModel.policy
     ) -> Resolution {
         let clusterIDs = diarization.speakers.map(\.id)
         func observation(_ id: String, as speakerId: String) -> SpeakerClusterObservation? {

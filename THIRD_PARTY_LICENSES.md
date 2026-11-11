@@ -99,6 +99,18 @@ declared license, and included license filenames in the generated manifest.
 - Used for: Local speaker activity detection, up to eight speakers per analyzed source
 - Model files download separately. Attribution and the license text are included in [`NemotronDiarization.txt`](Sources/MacParakeet/Resources/Legal/NemotronDiarization.txt), copied into app bundles under `Contents/Resources/Legal/`.
 
+### NVIDIA TitaNet-Large
+
+- License: CC-BY-4.0 (<https://creativecommons.org/licenses/by/4.0/>)
+- Copyright: NVIDIA Corporation
+- Source: <https://huggingface.co/nvidia/speakerverification_en_titanet_large>
+- Changes: converted from the NeMo checkpoint to Core ML (FP32) by
+  `scripts/models/export_titanet_coreml.py`, with the mel-spectrogram front end
+  re-expressed as convolutions; weights unchanged
+- Distribution: downloaded on first use from a pinned, checksum-verified
+  release asset (`titanet-large-coreml-v1`); not bundled in the app
+- Used for: speaker voiceprints for voice profiles (matching saved voices)
+
 ### WhisperKit
 
 - License: MIT License
