@@ -71,10 +71,21 @@ private final class StubVoiceprintService: SpeakerVoiceprintServicing, @unchecke
         transcriptionId: UUID, fingerprint: TranscriptFingerprint
     ) async throws -> SpeakerClusterObservation? { ownerCandidate }
 
+    private var storedOwnerEnrollments: [(String, Bool)] = []
+    var ownerEnrollments: [(String, Bool)] {
+        lock.lock(); defer { lock.unlock() }
+        return storedOwnerEnrollments
+    }
+
     func enrollOwnerVoice(
         displayName: String, transcriptionId: UUID, fingerprint: TranscriptFingerprint,
         allowMergeIntoExistingName: Bool
-    ) async throws -> SpeakerProfileEnrollment { ownerOutcome }
+    ) async throws -> SpeakerProfileEnrollment {
+        lock.lock()
+        storedOwnerEnrollments.append((displayName, allowMergeIntoExistingName))
+        lock.unlock()
+        return ownerOutcome
+    }
 
     init(
         candidate: SpeakerClusterObservation?,
@@ -485,6 +496,9 @@ final class TranscriptionVoiceEnrollmentTests: XCTestCase {
             viewModel.rememberOwnerVoice()
 
             try await waitUntil { !viewModel.ownerVoiceAvailable && !viewModel.isApplyingVoiceIdentity }
+            // It really enrolled, under the owner's name, without merging.
+            XCTAssertEqual(service.ownerEnrollments.map(\.0), ["Liam"])
+            XCTAssertEqual(service.ownerEnrollments.map(\.1), [false])
         }
     }
 

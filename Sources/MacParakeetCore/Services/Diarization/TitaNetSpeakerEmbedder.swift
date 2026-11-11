@@ -124,11 +124,12 @@ public actor TitaNetSpeakerEmbedder {
     private let archiveBytes: Int
     private let archiveSHA256: String
     private let fetch: @Sendable (URL) async throws -> Data
-    private var model: MLModel?
-    /// One in-flight install and one in-flight load. Actor isolation alone does
-    /// not serialize them: a second caller re-enters across each `await`.
-    private var installing: Task<Void, Error>?
-    private var loading: Task<MLModel, Error>?
+    /// Installs and loads are coordinated per model directory across every
+    /// embedder in the process: the factory makes one per diarization service,
+    /// and two of them compiling into the same directory would delete each
+    /// other's bundle. Actor isolation alone would not help either, since a
+    /// second caller re-enters across each `await`.
+    private static let coordinator = TitaNetModelCoordinator()
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TitaNetEmbedder")
 
     public init(
@@ -166,11 +167,9 @@ public actor TitaNetSpeakerEmbedder {
     /// callers share one download.
     public func prepareModel() async throws {
         guard !isModelAvailable() else { return }
-        if let installing { return try await installing.value }
-        let task = Task { try await self.install() }
-        installing = task
-        defer { installing = nil }
-        try await task.value
+        try await Self.coordinator.install(key: modelDirectory.standardizedFileURL.path) {
+            try await self.install()
+        }
     }
 
     private func install() async throws {
@@ -206,14 +205,9 @@ public actor TitaNetSpeakerEmbedder {
     /// when needed. Concurrent callers share one load, so a second compile can
     /// never delete the bundle the first is reading.
     func loadedModel() async throws -> MLModel {
-        if let model { return model }
-        if let loading { return try await loading.value }
-        let task = Task { try await self.load() }
-        loading = task
-        defer { loading = nil }
-        let loaded = try await task.value
-        model = loaded
-        return loaded
+        try await Self.coordinator.model(key: modelDirectory.standardizedFileURL.path) {
+            try await self.load()
+        }
     }
 
     private func load() async throws -> MLModel {
@@ -270,16 +264,25 @@ public actor TitaNetSpeakerEmbedder {
             guard Double(total) / Double(Self.sampleRate) >= Self.minimumVoiceprintSeconds else { continue }
             if model == nil { model = try await loadedModel() }
             guard let model,
-                let vector = try embed(regions: regions, total: total, audio: audio, model: model),
-                let embedding = SpeakerEmbedding(rawVector: Self.padded(vector), identity: SpeakerVoiceprintModel.identity)
+                let embedded = try embed(regions: regions, total: total, audio: audio, model: model),
+                let embedding = SpeakerEmbedding(
+                    rawVector: Self.padded(embedded.vector), identity: SpeakerVoiceprintModel.identity
+                )
             else { continue }
-            result[speakerId] = Voiceprint(embedding: embedding, speechMs: total * 1000 / Self.sampleRate)
+            // The evidence actually in the vector: a dropped tail or windows
+            // skipped by the cap are not counted.
+            result[speakerId] = Voiceprint(
+                embedding: embedding, speechMs: embedded.samples * 1000 / Self.sampleRate
+            )
         }
         return result
     }
 
-    /// Embeds the selected windows of a speaker's concatenated speech.
-    func embed(regions: [Range<Int>], total: Int, audio: SpeechAudio, model: MLModel) throws -> [Float]? {
+    /// Embeds the selected windows of a speaker's concatenated speech; returns
+    /// the summed vector and how many samples it was made from.
+    func embed(
+        regions: [Range<Int>], total: Int, audio: SpeechAudio, model: MLModel
+    ) throws -> (vector: [Float], samples: Int)? {
         var windows = Self.windows(count: total)
         guard !windows.isEmpty else { return nil }
         if windows.count > Self.maxWindowsPerSpeaker {
@@ -291,6 +294,7 @@ public actor TitaNetSpeakerEmbedder {
         let input = try MLMultiArray(shape: [1, NSNumber(value: Self.windowSamples)], dataType: .float32)
         let length = try MLMultiArray(shape: [1], dataType: .int32)
         var sum = [Float](repeating: 0, count: Self.outputDimension)
+        var used = 0
         for window in windows {
             try Task.checkCancellation()
             let samples = try audio.samples(for: Self.fileRanges(of: window, in: regions))
@@ -317,8 +321,9 @@ public actor TitaNetSpeakerEmbedder {
                 values[index] *= weight
                 sum[index] += values[index]
             }
+            used += samples.count
         }
-        return sum
+        return used > 0 ? (sum, used) : nil
     }
 
     // MARK: Pure helpers (tested)
@@ -382,6 +387,35 @@ public actor TitaNetSpeakerEmbedder {
 
     static func padded(_ vector: [Float]) -> [Float] {
         vector + [Float](repeating: 0, count: max(0, SpeakerEmbedding.dimension - vector.count))
+    }
+}
+
+/// Process-wide single flight for TitaNet installs and loads, keyed by model
+/// directory. A loaded model is kept and shared; concurrent requests for the
+/// same directory await one task. It is reentrant across `await`, so a load that
+/// triggers an install does not deadlock.
+actor TitaNetModelCoordinator {
+    private var installs: [String: Task<Void, Error>] = [:]
+    private var loads: [String: Task<MLModel, Error>] = [:]
+    private var models: [String: MLModel] = [:]
+
+    func install(key: String, _ work: @escaping @Sendable () async throws -> Void) async throws {
+        if let running = installs[key] { return try await running.value }
+        let task = Task { try await work() }
+        installs[key] = task
+        defer { installs[key] = nil }
+        try await task.value
+    }
+
+    func model(key: String, _ work: @escaping @Sendable () async throws -> MLModel) async throws -> MLModel {
+        if let model = models[key] { return model }
+        if let running = loads[key] { return try await running.value }
+        let task = Task { try await work() }
+        loads[key] = task
+        defer { loads[key] = nil }
+        let model = try await task.value
+        models[key] = model
+        return model
     }
 }
 

@@ -96,8 +96,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
-- Meeting transcripts from `transcribe`, import, split and `retranscribe`
-  label the microphone track with the app's **Your name** setting when it is
+- Meeting transcripts from `meetings import`, `meetings split create` and
+  meeting `retranscribe` label the microphone track with the app's **Your name** setting when it is
   set; `Me` remains the label when it is not. With experimental voice profiles
   available and **Remember speakers** on, the microphone track is also
   diarized: other people in the room become `microphone:Sn` speakers labelled

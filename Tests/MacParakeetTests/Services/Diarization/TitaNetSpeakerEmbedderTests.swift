@@ -39,6 +39,7 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
     /// never even fetched for it.
     func testTooLittleExclusiveSpeechMakesNoVoiceprintAndNoDownload() async throws {
         let url = try writeSilence(seconds: 10)
+        defer { try? FileManager.default.removeItem(at: url) }
         let fetches = FetchCounter()
         let embedder = TitaNetSpeakerEmbedder(
             modelDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
@@ -90,6 +91,55 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
         try FileManager.default.createDirectory(at: model, withIntermediateDirectories: true)
         DiarizationServiceFactory.clearModelCaches(directory: base)
         XCTAssertFalse(FileManager.default.fileExists(atPath: TitaNetSpeakerEmbedder.modelCacheRoot(directory: base).path))
+    }
+
+    /// The file-backed path the embedder reads windows through: exact samples
+    /// for each range, in order, across disjoint stretches of the file.
+    func testSpeechAudioReadsTheRequestedRangesFromTheFile() throws {
+        let url = try writeRamp(samples: 48_000)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let audio = try SpeechAudio(url: url)
+        XCTAssertEqual(audio.count, 48_000)
+        let samples = try audio.samples(for: [10..<13, 40_000..<40_002])
+        XCTAssertEqual(samples, [10, 11, 12, 40_000, 40_001].map { Float($0) / 65_536 })
+    }
+
+    /// Two embedders on one directory (the factory makes one per service)
+    /// share a single download.
+    func testConcurrentEmbeddersShareOneInstall() async throws {
+        let archive = try fixtureArchive()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fetches = FetchCounter()
+        func make() -> TitaNetSpeakerEmbedder {
+            TitaNetSpeakerEmbedder(
+                modelDirectory: directory, archiveBytes: archive.data.count, archiveSHA256: archive.sha256,
+                fetch: { _ in
+                    await fetches.increment()
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    return archive.data
+                }
+            )
+        }
+        let first = make()
+        let second = make()
+        async let a: Void = first.prepareModel()
+        async let b: Void = second.prepareModel()
+        _ = try await (a, b)
+        let count = await fetches.count
+        XCTAssertEqual(count, 1)
+        XCTAssertTrue(first.isModelAvailable())
+    }
+
+    private func writeRamp(samples: Int) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).wav")
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples))!
+        buffer.frameLength = buffer.frameCapacity
+        for index in 0..<samples { buffer.floatChannelData![0][index] = Float(index) / 65_536 }
+        try file.write(from: buffer)
+        return url
     }
 
     private func writeSilence(seconds: Int) throws -> URL {

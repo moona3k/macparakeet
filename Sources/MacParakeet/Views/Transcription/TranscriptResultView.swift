@@ -162,10 +162,10 @@ struct SpeakerRenameState {
         /// The voice-match name the editor opened on, if any.
         var prefilledSuggestion: String? = nil
 
-        /// The editor still shows the proposed name, unedited. Only an explicit
-        /// Return may accept it; losing focus must not.
+        /// The editor still shows the proposed name and the user has not edited
+        /// it. Only an explicit Return may accept it; losing focus must not.
         var isUntouchedSuggestion: Bool {
-            prefilledSuggestion.map { $0 == label } ?? false
+            prefilledSuggestion != nil
         }
     }
 
@@ -200,6 +200,9 @@ struct SpeakerRenameState {
 
     mutating func updateLabel(_ label: String, contextID: String) {
         guard draft?.contextID == contextID else { return }
+        // The first real edit makes the name the user's own for good: typing
+        // back to the suggestion afterwards is still their answer.
+        if draft?.label != label { draft?.prefilledSuggestion = nil }
         draft?.label = label
     }
 

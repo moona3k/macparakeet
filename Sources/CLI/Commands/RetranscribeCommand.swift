@@ -603,7 +603,14 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             shouldDiarize: { resolvedSpeakerDetection.enabled },
             shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
             diarizationService: TranscribeCommand.makeDiarizationService(for: resolvedSpeakerDetection),
-            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) }
+            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) },
+            // Same gate as the app and `meetings import`/`split`: an archived
+            // meeting retranscribed here separates room voices and call echo
+            // whenever the app would.
+            shouldDiarizeMeetingMicrophone: {
+                resolvedSpeakerDetection.enabled
+                    && UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled(defaults: defaults)
+            }
         )
     }
 

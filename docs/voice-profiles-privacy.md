@@ -26,9 +26,9 @@ microphone's audio: your own voice, other people in the room ("Room 1"), and cal
 audio that came back through your speakers, which is credited to the person on the
 call when it matches one of the call's voices. This is best effort: if the
 microphone can't be analysed, the track stays as one `Me` speaker, as before.
-Room voices are handled like any other detected speaker: a temporary sample is kept
-for seven days so you can name them, and none becomes a saved voice until you
-choose **Remember**. To
+Room voices are handled like any other detected speaker: when a voiceprint can be
+made, a temporary sample is kept for seven days so you can name them, and none
+becomes a saved voice until you choose **Remember**. To
 let MacParakeet recognise you even when someone else in the room talks more, set
 **Your name** in Settings (or rename `Me` in a transcript) and choose **Remember
 My Voice** from the `Me` row's menu. When that succeeds, it stores one sample of

@@ -259,6 +259,11 @@ Focused fixture coverage lives in `SpeakerEmbeddingTests`,
 `SpeakerEmbeddingCandidateRepositoryTests`, `SpeakerVoiceprintServiceTests` and
 `SpeakerVoiceprintWiringTests`. `VoiceProfileFeatureGateTests` and
 `SpeakerVoiceprintRetentionTests` cover availability and scheduled cleanup.
+`TitaNetSpeakerEmbedderTests` enforce the voiceprint backend: hybrid
+eligibility surviving the swap, the exclusive-speech minimum and reported
+duration, file-backed window reads, the verified model install, no
+cross-model comparison, and the missing-model fallback. `HybridDiarizationServiceTests`
+cover fusion and both failure fallbacks.
 Integration must cover disabled gates despite saved
 preferences or stale observations, consent prerequisites, fingerprint isolation,
 candidate preservation after rejected insertion, expiry without new meetings,
