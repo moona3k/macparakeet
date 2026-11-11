@@ -2,6 +2,12 @@
 
 Input: audio [1, WINDOW] float32 16 kHz mono, zero-padded; length [1] int32 valid samples.
 Output: embedding [1, 192] (un-normalized, as NeMo's get_embedding returns).
+
+Usage: python export_titanet_coreml.py [WINDOW] [OUT]
+Precision is FP32, which is what the app ships and was calibrated on: the
+spectrogram front end overflows in FP16 (cosine ~0.19 against NeMo). Set
+TITANET_FP16=1 only to experiment; the parity gate below rejects it as is.
+The package is written only after Core ML output matches NeMo.
 """
 import glob, os, sys
 import numpy as np
@@ -105,11 +111,17 @@ if __name__ == "__main__":
         inputs=[ct.TensorType(name="audio", shape=(1, WINDOW), dtype=np.float32),
                 ct.TensorType(name="length", shape=(1,), dtype=np.int32)],
         outputs=[ct.TensorType(name="embedding", dtype=np.float32)],
-        compute_precision=ct.precision.FLOAT32 if os.environ.get("FP32") else ct.precision.FLOAT16,
+        compute_precision=ct.precision.FLOAT16 if os.environ.get("TITANET_FP16") == "1" else ct.precision.FLOAT32,
         minimum_deployment_target=ct.target.macOS14,
     )
     mlmodel.short_description = "NVIDIA TitaNet-Large speaker embedding (192-d), waveform input, 16 kHz"
-    mlmodel.author = "NVIDIA (CC-BY-4.0); Core ML export for MacParakeet fork"
-    mlmodel.save(OUT)
+    mlmodel.author = "NVIDIA (CC-BY-4.0); Core ML export for MacParakeet"
     out = mlmodel.predict({"audio": a.numpy(), "length": L.numpy()})["embedding"]
-    print("coreml vs nemo cos:", float(nn.functional.cosine_similarity(ref, torch.tensor(out))))
+    cos = float(nn.functional.cosine_similarity(ref, torch.tensor(out)))
+    print("coreml vs nemo cos:", cos)
+    # Noise input sits just below real speech (>= 0.9993 on 1.5-10 s clips);
+    # a broken front end or FP16 overflow lands far below this.
+    if cos < 0.998:
+        raise SystemExit(f"parity check failed (cosine {cos:.4f} < 0.998); not writing {OUT}")
+    mlmodel.save(OUT)
+    print("saved", OUT)

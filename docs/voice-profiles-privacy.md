@@ -21,14 +21,25 @@ across historical recordings or offer a configurable recurrence threshold. Those
 parts of [issue #662](https://github.com/moona3k/macparakeet/issues/662) remain outside
 this implementation's scope.
 
-With **Remember speakers** on, your microphone's audio is separated too: your own
-voice, other people in the room ("Room 1") and call audio that came back through
-your speakers, which is credited to the person on the call instead of to you. To
+With **Remember speakers** on, MacParakeet also tries to separate your
+microphone's audio: your own voice, other people in the room ("Room 1"), and call
+audio that came back through your speakers, which is credited to the person on the
+call when it matches one of the call's voices. This is best effort: if the
+microphone can't be analysed, the track stays as one `Me` speaker, as before.
+Room voices are handled like any other detected speaker: a temporary sample is kept
+for seven days so you can name them, and none becomes a saved voice until you
+choose **Remember**. To
 let MacParakeet recognise you even when someone else in the room talks more, set
 **Your name** in Settings (or rename `Me` in a transcript) and choose **Remember
-My Voice** from the `Me` row's menu. That stores one sample of your voice, the
-same way as for anyone else, and marks it as yours. Your voice is never offered
+My Voice** from the `Me` row's menu. When that succeeds, it stores one sample of
+your voice, the same way as for anyone else, and marks it as yours. It can be
+refused, as for anyone (for example when the recording holds too little of your
+voice, or the sample has expired), and then nothing is stored. Your voice is never offered
 as a suggestion for other speakers.
+
+Voiceprints are made on your Mac with NVIDIA's TitaNet-Large model. The model file
+is downloaded once and checked against a fixed checksum. No audio or voiceprint is
+ever uploaded.
 
 ## What is stored locally
 

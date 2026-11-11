@@ -94,6 +94,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Changed
+
+- Meeting transcripts from `transcribe`, import, split and `retranscribe`
+  label the microphone track with the app's **Your name** setting when it is
+  set; `Me` remains the label when it is not. With experimental voice profiles
+  available and **Remember speakers** on, the microphone track is also
+  diarized: other people in the room become `microphone:Sn` speakers labelled
+  `Room N`, and call audio heard through the speakers is attributed to the
+  matching system speaker. Field names and types are unchanged; only these
+  label and speaker-id values differ.
+
 ## [5.2.0] — 2026-11-01 (prepared for the next MacParakeet release)
 
 This version is prepared in source; publication of the app and standalone CLI

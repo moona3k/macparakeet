@@ -567,8 +567,8 @@ release gates.
 ## Amendment (2026-11-04): hybrid diarization for voice profiles
 
 With voice profiles available the app no longer trades Nemotron's timing for
-Community-1's embeddings; `HybridDiarizationService` fuses them (contract
-§ backend). Local evidence, two meetings, not a release evaluation; reference
+Community-1's embeddings; `HybridDiarizationService` fuses them (see
+[the speaker-voiceprints contract](../../spec/contracts/speaker-voiceprints.md#producers-and-consumers)). Local evidence, two meetings, not a release evaluation; reference
 is per-word agreement with Community-1, Nemotron and SpeechBrain ECAPA
 (spectral clustering), so it is not ground truth:
 
