@@ -101,9 +101,22 @@ public actor TitaNetSpeakerEmbedder {
     public static let modelArchiveBytes = 83_785_741
     public static let modelArchiveSHA256 = "c30fc4bb723ff15b533855f78f15bdf35890fac23891d57f1f8a2d301c4bbdbc"
 
+    /// Speech with nobody else talking that a voiceprint needs. Below the
+    /// match gate a vector is mostly noise, and it would be scored and stored
+    /// as if it were a person.
+    public static let minimumVoiceprintSeconds = SpeakerVoiceprintModel.policy.minSpeechSecondsToMatch
+
+    /// Beside the other speaker models, so clearing speaker models clears it.
     public static var defaultModelDirectory: URL {
-        URL(fileURLWithPath: AppPaths.appSupportDir, isDirectory: true)
-            .appendingPathComponent("models/speaker-voiceprint", isDirectory: true)
+        modelCacheRoot().appendingPathComponent("v1", isDirectory: true)
+    }
+
+    static func modelCacheRoot(directory: URL? = nil) -> URL {
+        (directory ?? AppPaths.fluidAudioModelsDirURL).appendingPathComponent("titanet-voiceprint", isDirectory: true)
+    }
+
+    public nonisolated static func clearModelCache(directory: URL? = nil) {
+        try? FileManager.default.removeItem(at: modelCacheRoot(directory: directory))
     }
 
     private let modelDirectory: URL
@@ -112,6 +125,10 @@ public actor TitaNetSpeakerEmbedder {
     private let archiveSHA256: String
     private let fetch: @Sendable (URL) async throws -> Data
     private var model: MLModel?
+    /// One in-flight install and one in-flight load. Actor isolation alone does
+    /// not serialize them: a second caller re-enters across each `await`.
+    private var installing: Task<Void, Error>?
+    private var loading: Task<MLModel, Error>?
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TitaNetEmbedder")
 
     public init(
@@ -144,10 +161,19 @@ public actor TitaNetSpeakerEmbedder {
     }
 
     /// Downloads and installs the model package when it is not already here.
-    /// Verified before anything is written, and installed by a single move, so
-    /// a failed or cancelled transfer never leaves a half model behind. The
-    /// actor serializes concurrent callers; the second finds it installed.
+    /// Verified before anything is written and installed by a single move, so a
+    /// failed or cancelled transfer never leaves a half model behind. Concurrent
+    /// callers share one download.
     public func prepareModel() async throws {
+        guard !isModelAvailable() else { return }
+        if let installing { return try await installing.value }
+        let task = Task { try await self.install() }
+        installing = task
+        defer { installing = nil }
+        try await task.value
+    }
+
+    private func install() async throws {
         guard !isModelAvailable() else { return }
         let data = try await fetch(archiveURL)
         try Task.checkCancellation()
@@ -177,9 +203,20 @@ public actor TitaNetSpeakerEmbedder {
     }
 
     /// Loads the compiled model, downloading the package and compiling it once
-    /// when needed.
+    /// when needed. Concurrent callers share one load, so a second compile can
+    /// never delete the bundle the first is reading.
     func loadedModel() async throws -> MLModel {
         if let model { return model }
+        if let loading { return try await loading.value }
+        let task = Task { try await self.load() }
+        loading = task
+        defer { loading = nil }
+        let loaded = try await task.value
+        model = loaded
+        return loaded
+    }
+
+    private func load() async throws -> MLModel {
         let files = FileManager.default
         if !files.fileExists(atPath: compiledModelURL.path) {
             if !files.fileExists(atPath: packageURL.path) {
@@ -196,35 +233,54 @@ public actor TitaNetSpeakerEmbedder {
         // FP32 export: the spectrogram front end overflows in FP16, which the
         // Neural Engine would force. CPU+GPU runs a 10 s window in ~8 ms.
         configuration.computeUnits = .cpuAndGPU
-        let loaded = try MLModel(contentsOf: compiledModelURL, configuration: configuration)
-        model = loaded
-        return loaded
+        return try MLModel(contentsOf: compiledModelURL, configuration: configuration)
     }
 
-    /// Voiceprints for every speaker in `segments` with usable speech.
-    /// `segments` are in the audio file's own timeline.
-    public func speakerEmbeddings(
+    /// One speaker's voiceprint and the speech it was actually made from.
+    public struct Voiceprint: Sendable {
+        public let embedding: SpeakerEmbedding
+        /// Non-overlapped speech behind the vector, in milliseconds. This, not
+        /// the speaker's total activity, is what the match and enrollment
+        /// gates should trust.
+        public let speechMs: Int
+    }
+
+    /// Voiceprints for the given speakers (all speakers in `segments` when
+    /// `nil`) that have at least `minimumVoiceprintSeconds` of speech with
+    /// nobody else talking. `segments` are in the audio file's own timeline.
+    ///
+    /// Reads only the windows it embeds, so memory stays at one 10 s window
+    /// however long the recording is.
+    public func voiceprints(
         audioURL: URL,
-        segments: [SpeakerSegment]
-    ) async throws -> [String: SpeakerEmbedding] {
-        let model = try await loadedModel()
-        let samples = try Self.readMono16k(audioURL)
-        var result: [String: SpeakerEmbedding] = [:]
-        for speakerId in Set(segments.map(\.speakerId)) {
+        segments: [SpeakerSegment],
+        speakers: Set<String>? = nil
+    ) async throws -> [String: Voiceprint] {
+        let audio = try SpeechAudio(url: audioURL)
+        // Loaded only once a speaker qualifies, so a recording of fragments
+        // never triggers a download.
+        var model: MLModel?
+        var result: [String: Voiceprint] = [:]
+        for speakerId in Set(segments.map(\.speakerId)) where speakers?.contains(speakerId) ?? true {
             try Task.checkCancellation()
-            let regions = Self.exclusiveRegions(of: speakerId, in: segments)
-            let speech = Self.concatenate(samples: samples, regions: regions)
-            guard let vector = try embed(speech: speech, model: model) else { continue }
-            result[speakerId] = SpeakerEmbedding(
-                rawVector: Self.padded(vector), identity: SpeakerVoiceprintModel.identity
+            let regions = Self.sampleRegions(
+                Self.exclusiveRegions(of: speakerId, in: segments), limit: audio.count
             )
+            let total = regions.reduce(0) { $0 + $1.count }
+            guard Double(total) / Double(Self.sampleRate) >= Self.minimumVoiceprintSeconds else { continue }
+            if model == nil { model = try await loadedModel() }
+            guard let model,
+                let vector = try embed(regions: regions, total: total, audio: audio, model: model),
+                let embedding = SpeakerEmbedding(rawVector: Self.padded(vector), identity: SpeakerVoiceprintModel.identity)
+            else { continue }
+            result[speakerId] = Voiceprint(embedding: embedding, speechMs: total * 1000 / Self.sampleRate)
         }
         return result
     }
 
-    /// One voiceprint for a stretch of speech, or `nil` when it is too short.
-    func embed(speech: [Float], model: MLModel) throws -> [Float]? {
-        var windows = Self.windows(count: speech.count)
+    /// Embeds the selected windows of a speaker's concatenated speech.
+    func embed(regions: [Range<Int>], total: Int, audio: SpeechAudio, model: MLModel) throws -> [Float]? {
+        var windows = Self.windows(count: total)
         guard !windows.isEmpty else { return nil }
         if windows.count > Self.maxWindowsPerSpeaker {
             let last = Double(windows.count - 1)
@@ -232,20 +288,21 @@ public actor TitaNetSpeakerEmbedder {
             windows = (0..<Self.maxWindowsPerSpeaker).map { windows[Int((Double($0) * step).rounded())] }
         }
 
-        let audio = try MLMultiArray(shape: [1, NSNumber(value: Self.windowSamples)], dataType: .float32)
+        let input = try MLMultiArray(shape: [1, NSNumber(value: Self.windowSamples)], dataType: .float32)
         let length = try MLMultiArray(shape: [1], dataType: .int32)
         var sum = [Float](repeating: 0, count: Self.outputDimension)
         for window in windows {
             try Task.checkCancellation()
-            let pointer = audio.dataPointer.bindMemory(to: Float.self, capacity: Self.windowSamples)
+            let samples = try audio.samples(for: Self.fileRanges(of: window, in: regions))
+            let pointer = input.dataPointer.bindMemory(to: Float.self, capacity: Self.windowSamples)
             pointer.initialize(repeating: 0, count: Self.windowSamples)
-            speech.withUnsafeBufferPointer { source in
-                pointer.update(from: source.baseAddress! + window.lowerBound, count: window.count)
+            samples.withUnsafeBufferPointer { source in
+                pointer.update(from: source.baseAddress!, count: min(samples.count, Self.windowSamples))
             }
-            length[0] = NSNumber(value: Int32(window.count))
+            length[0] = NSNumber(value: Int32(min(samples.count, Self.windowSamples)))
             let output = try model.prediction(
                 from: MLDictionaryFeatureProvider(dictionary: [
-                    "audio": MLFeatureValue(multiArray: audio),
+                    "audio": MLFeatureValue(multiArray: input),
                     "length": MLFeatureValue(multiArray: length),
                 ])
             )
@@ -255,7 +312,7 @@ public actor TitaNetSpeakerEmbedder {
             var values = (0..<Self.outputDimension).map { embedding[$0].floatValue }
             let norm = values.reduce(0) { $0 + $1 * $1 }.squareRoot()
             guard norm.isFinite, norm > 0 else { continue }
-            let weight = Float(window.count) / norm
+            let weight = Float(samples.count) / norm
             for index in values.indices {
                 values[index] *= weight
                 sum[index] += values[index]
@@ -286,14 +343,29 @@ public actor TitaNetSpeakerEmbedder {
         return regions.sorted { $0.lowerBound < $1.lowerBound }
     }
 
-    static func concatenate(samples: [Float], regions: [Range<Int>]) -> [Float] {
-        var speech: [Float] = []
-        for region in regions {
-            let start = min(samples.count, region.lowerBound * sampleRate / 1000)
-            let end = min(samples.count, region.upperBound * sampleRate / 1000)
-            if end > start { speech.append(contentsOf: samples[start..<end]) }
+    /// Millisecond regions as sample ranges, clamped to the audio's length.
+    static func sampleRegions(_ regions: [Range<Int>], limit: Int) -> [Range<Int>] {
+        regions.compactMap { region in
+            let start = min(limit, region.lowerBound * sampleRate / 1000)
+            let end = min(limit, region.upperBound * sampleRate / 1000)
+            return end > start ? start..<end : nil
         }
-        return speech
+    }
+
+    /// Where a stretch of the concatenated speech lives in the file.
+    static func fileRanges(of window: Range<Int>, in regions: [Range<Int>]) -> [Range<Int>] {
+        var ranges: [Range<Int>] = []
+        var offset = 0
+        for region in regions {
+            let next = offset + region.count
+            defer { offset = next }
+            guard next > window.lowerBound else { continue }
+            guard offset < window.upperBound else { break }
+            let start = region.lowerBound + max(0, window.lowerBound - offset)
+            let end = region.lowerBound + min(region.count, window.upperBound - offset)
+            if end > start { ranges.append(start..<end) }
+        }
+        return ranges
     }
 
     /// 10 s windows over `count` samples; a short tail goes unless it is alone.
@@ -311,13 +383,56 @@ public actor TitaNetSpeakerEmbedder {
     static func padded(_ vector: [Float]) -> [Float] {
         vector + [Float](repeating: 0, count: max(0, SpeakerEmbedding.dimension - vector.count))
     }
+}
 
-    /// The diarizer's input is already 16 kHz mono WAV; anything else is
-    /// converted here so a caller cannot silently feed the wrong rate.
-    static func readMono16k(_ url: URL) throws -> [Float] {
+/// 16 kHz mono speech, read by range. The diarizer's input is already a 16 kHz
+/// mono WAV, which is read straight from disk a window at a time; any other
+/// format is converted once in memory so a caller cannot feed the wrong rate.
+struct SpeechAudio {
+    let count: Int
+    private let file: AVAudioFile?
+    private let converted: [Float]
+
+    init(url: URL) throws {
         let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        if format.sampleRate == Double(TitaNetSpeakerEmbedder.sampleRate), format.channelCount == 1,
+            format.commonFormat == .pcmFormatFloat32
+        {
+            self.file = file
+            self.converted = []
+            self.count = Int(file.length)
+        } else {
+            self.file = nil
+            self.converted = try Self.convertAll(file)
+            self.count = converted.count
+        }
+    }
+
+    func samples(for ranges: [Range<Int>]) throws -> [Float] {
+        var out: [Float] = []
+        out.reserveCapacity(ranges.reduce(0) { $0 + $1.count })
+        for range in ranges {
+            guard let file else {
+                out.append(contentsOf: converted[range])
+                continue
+            }
+            guard let buffer = AVAudioPCMBuffer(
+                pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(range.count)
+            ) else { continue }
+            file.framePosition = AVAudioFramePosition(range.lowerBound)
+            try file.read(into: buffer, frameCount: AVAudioFrameCount(range.count))
+            if let channel = buffer.floatChannelData {
+                out.append(contentsOf: UnsafeBufferPointer(start: channel[0], count: Int(buffer.frameLength)))
+            }
+        }
+        return out
+    }
+
+    private static func convertAll(_ file: AVAudioFile) throws -> [Float] {
         let target = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32, sampleRate: Double(sampleRate), channels: 1, interleaved: false
+            commonFormat: .pcmFormatFloat32, sampleRate: Double(TitaNetSpeakerEmbedder.sampleRate),
+            channels: 1, interleaved: false
         )!
         let sourceFormat = file.processingFormat
         let frameCount = AVAudioFrameCount(file.length)
@@ -325,13 +440,6 @@ public actor TitaNetSpeakerEmbedder {
             let input = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: frameCount)
         else { return [] }
         try file.read(into: input)
-
-        if sourceFormat.sampleRate == target.sampleRate, sourceFormat.channelCount == 1,
-            sourceFormat.commonFormat == .pcmFormatFloat32, let channel = input.floatChannelData
-        {
-            return Array(UnsafeBufferPointer(start: channel[0], count: Int(input.frameLength)))
-        }
-
         guard let converter = AVAudioConverter(from: sourceFormat, to: target) else { return [] }
         let ratio = target.sampleRate / sourceFormat.sampleRate
         let capacity = AVAudioFrameCount(Double(input.frameLength) * ratio) + 1024
@@ -353,9 +461,15 @@ public actor TitaNetSpeakerEmbedder {
     }
 }
 
-/// Diarizes with `inner`, then replaces every speaker's embedding with a TitaNet
-/// voiceprint taken from the same audio. Segments, speakers and durations pass
-/// through untouched, so clustering behaves exactly as before.
+/// Diarizes with `inner`, then replaces each speaker's embedding with a TitaNet
+/// voiceprint taken from the same audio. Segments, speakers and activity
+/// durations pass through untouched, so clustering behaves exactly as before.
+///
+/// Only speakers the inner diarizer gave an embedding get a voiceprint: the
+/// hybrid deliberately withholds one from a speaker whose voice is unclear or
+/// shared, and that decision must survive the swap, or a mixed voice could be
+/// saved as a sample. `voiceprintSpeechMsBySpeaker` carries the non-overlapped
+/// speech each vector was made from, for the match and enrollment gates.
 ///
 /// When TitaNet cannot run, the result carries no embeddings at all rather than
 /// the inner diarizer's: a WeSpeaker vector would be stored as a candidate that
@@ -379,25 +493,30 @@ public actor TitaNetVoiceprintDiarizationService: DiarizationServiceProtocol {
     ) async throws -> MacParakeetDiarizationResult {
         let result = try await inner.diarize(audioURL: audioURL, speakerConstraint: speakerConstraint)
         try Task.checkCancellation()
-        let embeddings: [String: SpeakerEmbedding]
-        do {
-            let startedAt = Date()
-            embeddings = try await embedder.speakerEmbeddings(audioURL: audioURL, segments: result.segments)
-            logger.notice(
-                "titanet_voiceprints speakers=\(embeddings.count, privacy: .public) of=\(result.speakers.count, privacy: .public) duration_s=\(String(format: "%.2f", Date().timeIntervalSince(startedAt)), privacy: .public)"
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            logger.error("titanet_voiceprints_failed error=\(error.localizedDescription, privacy: .public)")
-            embeddings = [:]
+        var voiceprints: [String: TitaNetSpeakerEmbedder.Voiceprint] = [:]
+        let eligible = Set(result.speakerEmbeddings.keys)
+        if !eligible.isEmpty {
+            do {
+                let startedAt = Date()
+                voiceprints = try await embedder.voiceprints(
+                    audioURL: audioURL, segments: result.segments, speakers: eligible
+                )
+                logger.notice(
+                    "titanet_voiceprints speakers=\(voiceprints.count, privacy: .public) eligible=\(eligible.count, privacy: .public) of=\(result.speakers.count, privacy: .public) duration_s=\(String(format: "%.2f", Date().timeIntervalSince(startedAt)), privacy: .public)"
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                logger.error("titanet_voiceprints_failed error=\(error.localizedDescription, privacy: .public)")
+            }
         }
         return MacParakeetDiarizationResult(
             segments: result.segments,
             speakerCount: result.speakerCount,
             speakers: result.speakers,
-            speakerEmbeddings: embeddings,
-            speechMsBySpeaker: result.speechMsBySpeaker
+            speakerEmbeddings: voiceprints.mapValues(\.embedding),
+            speechMsBySpeaker: result.speechMsBySpeaker,
+            voiceprintSpeechMsBySpeaker: voiceprints.mapValues(\.speechMs)
         )
     }
 

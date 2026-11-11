@@ -15,17 +15,27 @@ struct MeetingTranscriptFinalizer {
         let speakerEmbeddings: [String: SpeakerEmbedding]
         /// Speech per speaker id, in milliseconds.
         let speechMsBySpeaker: [String: Int]
+        /// Speech behind each embedding, when the diarizer reported it.
+        let voiceprintSpeechMsBySpeaker: [String: Int]
 
         init(
             speakers: [SpeakerInfo],
             segments: [SpeakerSegment],
             speakerEmbeddings: [String: SpeakerEmbedding] = [:],
-            speechMsBySpeaker: [String: Int] = [:]
+            speechMsBySpeaker: [String: Int] = [:],
+            voiceprintSpeechMsBySpeaker: [String: Int] = [:]
         ) {
             self.speakers = speakers
             self.segments = segments
             self.speakerEmbeddings = speakerEmbeddings
             self.speechMsBySpeaker = speechMsBySpeaker
+            self.voiceprintSpeechMsBySpeaker = voiceprintSpeechMsBySpeaker
+        }
+
+        /// What the match and enrollment gates trust; see
+        /// `MacParakeetDiarizationResult.voiceprintSpeechSeconds(forSpeaker:)`.
+        func voiceprintSpeechSeconds(forSpeaker speakerId: String) -> Double {
+            Double(voiceprintSpeechMsBySpeaker[speakerId] ?? speechMsBySpeaker[speakerId] ?? 0) / 1000
         }
     }
 

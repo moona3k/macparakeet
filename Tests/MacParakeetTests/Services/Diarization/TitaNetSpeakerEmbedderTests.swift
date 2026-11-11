@@ -1,3 +1,4 @@
+import AVFoundation
 import CryptoKit
 import XCTest
 
@@ -18,11 +19,87 @@ final class TitaNetSpeakerEmbedderTests: XCTestCase {
         XCTAssertEqual(TitaNetSpeakerEmbedder.exclusiveRegions(of: "B", in: segments), [5_000..<5_500])
     }
 
-    func testConcatenateClampsToAudioLength() {
-        let samples = (0..<32_000).map(Float.init)  // 2 s at 16 kHz
-        let speech = TitaNetSpeakerEmbedder.concatenate(samples: samples, regions: [0..<100, 1_900..<5_000])
-        XCTAssertEqual(speech.count, 1_600 + 1_600)
-        XCTAssertEqual(speech[1_600], 30_400)
+    func testSampleRegionsClampToAudioLength() {
+        // 2 s of audio at 16 kHz; the second region runs past the end.
+        XCTAssertEqual(
+            TitaNetSpeakerEmbedder.sampleRegions([0..<100, 1_900..<5_000, 6_000..<7_000], limit: 32_000),
+            [0..<1_600, 30_400..<32_000]
+        )
+    }
+
+    func testFileRangesMapAWindowAcrossRegions() {
+        let regions = [100..<200, 500..<550, 1_000..<1_300]
+        // Concatenated: [0,100) -> 100..<200, [100,150) -> 500..<550, [150,450) -> 1000..<1300
+        XCTAssertEqual(TitaNetSpeakerEmbedder.fileRanges(of: 50..<120, in: regions), [150..<200, 500..<520])
+        XCTAssertEqual(TitaNetSpeakerEmbedder.fileRanges(of: 0..<450, in: regions), regions)
+        XCTAssertEqual(TitaNetSpeakerEmbedder.fileRanges(of: 160..<170, in: regions), [1_010..<1_020])
+    }
+
+    /// Speech that is mostly overlapped yields no voiceprint, and the model is
+    /// never even fetched for it.
+    func testTooLittleExclusiveSpeechMakesNoVoiceprintAndNoDownload() async throws {
+        let url = try writeSilence(seconds: 10)
+        let fetches = FetchCounter()
+        let embedder = TitaNetSpeakerEmbedder(
+            modelDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            fetch: { _ in await fetches.increment(); throw URLError(.notConnectedToInternet) }
+        )
+        let voiceprints = try await embedder.voiceprints(
+            audioURL: url,
+            segments: [
+                SpeakerSegment(speakerId: "A", startMs: 0, endMs: 9_000),  // 9 s active...
+                SpeakerSegment(speakerId: "B", startMs: 1_000, endMs: 9_000),  // ...1 s alone
+            ],
+            speakers: ["A"]
+        )
+        XCTAssertTrue(voiceprints.isEmpty)
+        let count = await fetches.count
+        XCTAssertEqual(count, 0)
+    }
+
+    /// The hybrid withholds an embedding from an unclear speaker; the wrapper
+    /// must not give it a voiceprint anyway.
+    func testSpeakersWithoutAnInnerEmbeddingGetNoVoiceprint() async throws {
+        let fetches = FetchCounter()
+        let service = TitaNetVoiceprintDiarizationService(
+            inner: StubDiarizer(withEmbedding: false),
+            embedder: TitaNetSpeakerEmbedder(
+                modelDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+                fetch: { _ in await fetches.increment(); throw URLError(.notConnectedToInternet) }
+            )
+        )
+        let result = try await service.diarize(audioURL: URL(fileURLWithPath: "/unused.wav"), speakerConstraint: nil)
+        XCTAssertTrue(result.speakerEmbeddings.isEmpty)
+        XCTAssertEqual(result.speechMsBySpeaker["S1"], 1_000)
+        let count = await fetches.count
+        XCTAssertEqual(count, 0)
+    }
+
+    func testVoiceprintSpeechFallsBackToActivity() {
+        let result = MacParakeetDiarizationResult(
+            segments: [], speakerCount: 2, speakers: [],
+            speechMsBySpeaker: ["A": 20_000, "B": 9_000], voiceprintSpeechMsBySpeaker: ["A": 4_000]
+        )
+        XCTAssertEqual(result.voiceprintSpeechSeconds(forSpeaker: "A"), 4)
+        XCTAssertEqual(result.voiceprintSpeechSeconds(forSpeaker: "B"), 9)
+    }
+
+    func testClearModelCachesRemovesTheVoiceprintModel() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let model = TitaNetSpeakerEmbedder.modelCacheRoot(directory: base).appendingPathComponent("v1/x")
+        try FileManager.default.createDirectory(at: model, withIntermediateDirectories: true)
+        DiarizationServiceFactory.clearModelCaches(directory: base)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: TitaNetSpeakerEmbedder.modelCacheRoot(directory: base).path))
+    }
+
+    private func writeSilence(seconds: Int) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).wav")
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(16_000 * seconds))!
+        buffer.frameLength = buffer.frameCapacity
+        try file.write(from: buffer)
+        return url
     }
 
     func testWindowsDropShortTailUnlessAlone() {
@@ -123,6 +200,9 @@ private actor FetchCounter {
 }
 
 private actor StubDiarizer: DiarizationServiceProtocol {
+    let withEmbedding: Bool
+    init(withEmbedding: Bool = true) { self.withEmbedding = withEmbedding }
+
     func diarize(
         audioURL: URL, speakerConstraint: SpeakerDiarizationConstraint?
     ) async throws -> MacParakeetDiarizationResult {
@@ -131,7 +211,8 @@ private actor StubDiarizer: DiarizationServiceProtocol {
             segments: [SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1_000)],
             speakerCount: 1,
             speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
-            speakerEmbeddings: ["S1": SpeakerEmbedding(rawVector: vector, identity: DiarizationService.defaultModelIdentity)!],
+            speakerEmbeddings: withEmbedding
+                ? ["S1": SpeakerEmbedding(rawVector: vector, identity: DiarizationService.defaultModelIdentity)!] : [:],
             speechMsBySpeaker: ["S1": 1_000]
         )
     }

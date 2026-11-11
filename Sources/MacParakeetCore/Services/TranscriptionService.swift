@@ -1558,7 +1558,9 @@ public actor TranscriptionService:
                 recording: recording,
                 sourceWavURLs: sourceWavURLs,
                 systemDiarization: systemDiarization,
-                diarizationService: activeDiarizationService
+                diarizationService: activeDiarizationService,
+                lifecycleStage: &lifecycleStage,
+                onProgress: onProgress
             )
 
             meetingFinalizationBenchmarkObserver?.stageDidStart(.finalizeMerge)
@@ -1826,7 +1828,7 @@ public actor TranscriptionService:
             return SpeakerClusterObservation(
                 speakerId: speaker.id,
                 embedding: embedding,
-                speechSeconds: Double(systemDiarization.speechMsBySpeaker[speaker.id] ?? 0) / 1000,
+                speechSeconds: systemDiarization.voiceprintSpeechSeconds(forSpeaker: speaker.id),
                 captureDomain: .system
             )
         }
@@ -1851,14 +1853,23 @@ public actor TranscriptionService:
         recording: MeetingRecordingOutput,
         sourceWavURLs: [AudioSource: URL],
         systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?,
-        diarizationService: (any DiarizationServiceProtocol)?
+        diarizationService: (any DiarizationServiceProtocol)?,
+        lifecycleStage: inout TelemetryTranscriptionStage,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> MeetingMicrophoneSpeakerResolver.Resolution? {
-        guard let diarizationService,
+        guard var diarizationService,
             shouldDiarizeMeetings(),
             shouldDiarizeMeetingMicrophone(),
             let microphoneTrack = recording.sourceAlignment.microphone,
             let microphoneWavURL = sourceWavURLs[.microphone]
         else { return nil }
+        // A per-run speaker count describes the remote side only; a service
+        // built with one would force it onto the room as well.
+        if await diarizationService.explicitSpeakerConstraint() != nil {
+            diarizationService = diarizationServiceFactory.make(speakerConstraint: nil)
+        }
+        lifecycleStage = .diarization
+        onProgress?(.identifyingSpeakers)
         do {
             try Task.checkCancellation()
             let startedAt = Date()
@@ -1867,7 +1878,17 @@ public actor TranscriptionService:
             )
             try Task.checkCancellation()
             guard !diarization.segments.isEmpty else { return nil }
-            let ownerVoice = try? await speakerVoiceprints?.ownerVoice()
+            // Best effort like the rest of this pass, but a cancelled read is
+            // a cancelled run, not a missing profile.
+            let ownerVoice: SpeakerProfileCandidate?
+            do {
+                ownerVoice = try await speakerVoiceprints?.ownerVoice()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                ownerVoice = nil
+            }
+            try Task.checkCancellation()
             let resolution = MeetingMicrophoneSpeakerResolver.resolve(
                 microphone: diarization,
                 startOffsetMs: microphoneTrack.startOffsetMs,
@@ -1970,12 +1991,18 @@ public actor TranscriptionService:
                     speakerIDMap[id].map { ($0, ms) }
                 }
             )
+            let mappedVoiceprintSpeechMs = Dictionary(
+                uniqueKeysWithValues: diarResult.voiceprintSpeechMsBySpeaker.compactMap { id, ms in
+                    speakerIDMap[id].map { ($0, ms) }
+                }
+            )
 
             return MeetingTranscriptFinalizer.SystemDiarization(
                 speakers: mappedSpeakers,
                 segments: mappedSegments,
                 speakerEmbeddings: mappedEmbeddings,
-                speechMsBySpeaker: mappedSpeechMs
+                speechMsBySpeaker: mappedSpeechMs,
+                voiceprintSpeechMsBySpeaker: mappedVoiceprintSpeechMs
             )
         } catch is CancellationError {
             throw CancellationError()

@@ -49,7 +49,7 @@ enum MeetingMicrophoneSpeakerResolver {
             return SpeakerClusterObservation(
                 speakerId: speakerId,
                 embedding: embedding,
-                speechSeconds: diarization.speechSeconds(forSpeaker: id),
+                speechSeconds: diarization.voiceprintSpeechSeconds(forSpeaker: id),
                 captureDomain: .microphone
             )
         }
@@ -60,13 +60,17 @@ enum MeetingMicrophoneSpeakerResolver {
         if let systemDiarization {
             let systemVoices: [(id: String, embedding: SpeakerEmbedding)] = systemDiarization.speakers.compactMap {
                 guard let embedding = systemDiarization.speakerEmbeddings[$0.id],
-                    Double(systemDiarization.speechMsBySpeaker[$0.id] ?? 0) / 1000
+                    systemDiarization.voiceprintSpeechSeconds(forSpeaker: $0.id)
                         >= policy.minSpeechSecondsToMatch
                 else { return nil }
                 return ($0.id, embedding)
             }
             for id in clusterIDs {
-                guard let embedding = diarization.speakerEmbeddings[id] else { continue }
+                // The same speech gate the system side needs: a fragment's
+                // voiceprint is too noisy to hand its words to someone else.
+                guard diarization.voiceprintSpeechSeconds(forSpeaker: id) >= policy.minSpeechSecondsToMatch,
+                    let embedding = diarization.speakerEmbeddings[id]
+                else { continue }
                 let nearest = systemVoices.compactMap { voice in
                     embedding.cosineDistance(to: voice.embedding).map { (voice.id, $0) }
                 }.min { $0.1 < $1.1 }
@@ -82,7 +86,12 @@ enum MeetingMicrophoneSpeakerResolver {
         // most speech, which is the owner in every setup but a room where a
         // colleague out-talks them — the case enrolling a voice is for.
         func ownerMatch(_ id: String) -> SpeakerVoiceprintMatcher.ReferenceMatch? {
-            guard let ownerVoice, let candidate = observation(id, as: id) else { return nil }
+            // Gated like any match, so a short fragment that happens to sit
+            // near the saved voice cannot out-rank the owner's real cluster.
+            guard let ownerVoice,
+                diarization.voiceprintSpeechSeconds(forSpeaker: id) >= policy.minSpeechSecondsToMatch,
+                let candidate = observation(id, as: id)
+            else { return nil }
             return SpeakerVoiceprintMatcher.bestReference(from: candidate, to: ownerVoice, policy: policy)
         }
         let recognized = voiced
@@ -98,10 +107,11 @@ enum MeetingMicrophoneSpeakerResolver {
         let ownerEmbedding = ownerID.flatMap { diarization.speakerEmbeddings[$0] }
         var roomIDs: [String] = []
         for id in voiced where id != ownerID {
-            guard diarization.speechSeconds(forSpeaker: id) >= policy.minSpeechSecondsToEnroll,
-                let embedding = diarization.speakerEmbeddings[id]
-            else { continue }
-            if let ownerEmbedding, let distance = embedding.cosineDistance(to: ownerEmbedding),
+            guard diarization.speechSeconds(forSpeaker: id) >= policy.minSpeechSecondsToEnroll else { continue }
+            // Without voiceprints (model unavailable) a long cluster is still a
+            // person; only the over-split check needs one, so skip just that.
+            if let ownerEmbedding, let embedding = diarization.speakerEmbeddings[id],
+                let distance = embedding.cosineDistance(to: ownerEmbedding),
                 distance <= policy.tau
             {
                 continue

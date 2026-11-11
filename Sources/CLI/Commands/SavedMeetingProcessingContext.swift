@@ -56,7 +56,12 @@ struct SavedMeetingProcessingContext {
             fileSpeechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) },
             diarizationService: DiarizationServiceFactory.live.make(speakerConstraint: nil),
             meetingArtifactStore: artifactStore,
-            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) }
+            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel(defaults: defaults) },
+            // Same gate as the app, so import and split separate room voices
+            // and call echo whenever the app would.
+            shouldDiarizeMeetingMicrophone: {
+                UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled(defaults: defaults)
+            }
         )
         completionService = SavedAudioAutoPromptCompletionService(
             promptRepo: promptRepo,

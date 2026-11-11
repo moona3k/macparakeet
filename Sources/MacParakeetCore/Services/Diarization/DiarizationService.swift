@@ -11,19 +11,25 @@ public struct MacParakeetDiarizationResult: Sendable {
     public let speakerEmbeddings: [String: SpeakerEmbedding]
     /// Activity durations per speaker. Different speakers may overlap.
     public let speechMsBySpeaker: [String: Int]
+    /// The speech each embedding was actually made from, when the producer
+    /// knows it (TitaNet uses only non-overlapped speech). Match and enrollment
+    /// gates read this through `voiceprintSpeechSeconds(forSpeaker:)`.
+    public let voiceprintSpeechMsBySpeaker: [String: Int]
 
     public init(
         segments: [SpeakerSegment],
         speakerCount: Int,
         speakers: [SpeakerInfo],
         speakerEmbeddings: [String: SpeakerEmbedding] = [:],
-        speechMsBySpeaker: [String: Int] = [:]
+        speechMsBySpeaker: [String: Int] = [:],
+        voiceprintSpeechMsBySpeaker: [String: Int] = [:]
     ) {
         self.segments = segments
         self.speakerCount = speakerCount
         self.speakers = speakers
         self.speakerEmbeddings = speakerEmbeddings
         self.speechMsBySpeaker = speechMsBySpeaker
+        self.voiceprintSpeechMsBySpeaker = voiceprintSpeechMsBySpeaker
     }
 
     /// Speech for one speaker, in seconds; 0 when it has none.
@@ -33,6 +39,13 @@ public struct MacParakeetDiarizationResult: Sendable {
     /// catch it: every speaker would just silently stop qualifying.
     public func speechSeconds(forSpeaker speakerId: String) -> Double {
         Double(speechMsBySpeaker[speakerId] ?? 0) / 1000
+    }
+
+    /// Speech behind this speaker's embedding, in seconds: what the match and
+    /// enrollment gates trust. Falls back to activity when the producer did
+    /// not report it (Community-1 centroids cover the whole cluster).
+    public func voiceprintSpeechSeconds(forSpeaker speakerId: String) -> Double {
+        Double(voiceprintSpeechMsBySpeaker[speakerId] ?? speechMsBySpeaker[speakerId] ?? 0) / 1000
     }
 }
 
@@ -113,6 +126,7 @@ public struct DiarizationServiceFactory: Sendable {
     public static func clearModelCaches(directory: URL? = nil) {
         DiarizationService.clearModelCache(directory: directory)
         NemotronDiarizationService.clearModelCache(directory: directory)
+        TitaNetSpeakerEmbedder.clearModelCache(directory: directory)
     }
 
     public static let live = Self { constraint in
