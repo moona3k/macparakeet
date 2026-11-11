@@ -353,6 +353,12 @@ public actor TranscriptionService:
     private let meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy
     private let meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?
     private let speakerVoiceprints: SpeakerVoiceprintServicing?
+    /// Roster label for the microphone track of new meetings ("Me" or the
+    /// user's name).
+    private let meetingMicrophoneLabel: @Sendable () -> String
+    /// Splits the microphone track into the owner, room voices and echo. Off
+    /// unless voice profiles are on: it is part of that experimental feature.
+    private let shouldDiarizeMeetingMicrophone: @Sendable () -> Bool
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -387,7 +393,9 @@ public actor TranscriptionService:
         meetingArtifactStore: MeetingArtifactStoring? = MeetingArtifactStore(),
         meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
         meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
-        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil,
+        meetingMicrophoneLabel: (@Sendable () -> String)? = nil,
+        shouldDiarizeMeetingMicrophone: (@Sendable () -> Bool)? = nil
     ) {
         self.init(
             audioProcessor: audioProcessor,
@@ -423,7 +431,9 @@ public actor TranscriptionService:
             meetingAutomationHookRunner: meetingAutomationHookRunner,
             meetingCleanedMicrophoneReadinessPolicy: meetingCleanedMicrophoneReadinessPolicy,
             meetingFinalizationBenchmarkObserver: nil,
-            speakerVoiceprints: speakerVoiceprints
+            speakerVoiceprints: speakerVoiceprints,
+            meetingMicrophoneLabel: meetingMicrophoneLabel,
+            shouldDiarizeMeetingMicrophone: shouldDiarizeMeetingMicrophone
         )
     }
 
@@ -461,7 +471,9 @@ public actor TranscriptionService:
         meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
         meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
         meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?,
-        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil,
+        meetingMicrophoneLabel: (@Sendable () -> String)? = nil,
+        shouldDiarizeMeetingMicrophone: (@Sendable () -> Bool)? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
@@ -499,6 +511,8 @@ public actor TranscriptionService:
         self.meetingCleanedMicrophoneReadinessPolicy = meetingCleanedMicrophoneReadinessPolicy
         self.meetingFinalizationBenchmarkObserver = meetingFinalizationBenchmarkObserver
         self.speakerVoiceprints = speakerVoiceprints
+        self.meetingMicrophoneLabel = meetingMicrophoneLabel ?? { AudioSource.microphone.displayLabel }
+        self.shouldDiarizeMeetingMicrophone = shouldDiarizeMeetingMicrophone ?? { false }
     }
 
     public func transcribe(
@@ -1540,10 +1554,23 @@ public actor TranscriptionService:
                 systemDiarization = nil
             }
 
+            let microphoneResolution = try await resolveMeetingMicrophoneIfEnabled(
+                recording: recording,
+                sourceWavURLs: sourceWavURLs,
+                systemDiarization: systemDiarization,
+                diarizationService: activeDiarizationService,
+                lifecycleStage: &lifecycleStage,
+                onProgress: onProgress
+            )
+
             meetingFinalizationBenchmarkObserver?.stageDidStart(.finalizeMerge)
             let finalized = MeetingTranscriptFinalizer.finalize(
                 sourceTranscripts: sourceResults,
-                systemDiarization: systemDiarization
+                systemDiarization: systemDiarization,
+                microphoneAttribution: microphoneResolution.map {
+                    .init(segments: $0.segments, roomSpeakers: $0.roomSpeakers)
+                },
+                microphoneLabel: meetingMicrophoneLabel()
             )
             meetingFinalizationBenchmarkObserver?.stageDidEnd(.finalizeMerge)
 
@@ -1600,7 +1627,11 @@ public actor TranscriptionService:
                 diarizationApplied: systemDiarization != nil
             )
 
-            await scoreVoiceprintsIfEnabled(for: completed, systemDiarization: systemDiarization)
+            await scoreVoiceprintsIfEnabled(
+                for: completed,
+                systemDiarization: systemDiarization,
+                microphoneResolution: microphoneResolution
+            )
 
             return completed
         } catch {
@@ -1743,15 +1774,23 @@ public actor TranscriptionService:
     /// that fails to finish costs them the recording.
     private func scoreVoiceprintsIfEnabled(
         for transcription: Transcription,
-        systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?
+        systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?,
+        microphoneResolution: MeetingMicrophoneSpeakerResolver.Resolution? = nil
     ) async {
-        guard let speakerVoiceprints, let systemDiarization else { return }
-        guard !systemDiarization.speakerEmbeddings.isEmpty else { return }
-
-        let observations = Self.voiceprintObservations(
-            systemDiarization: systemDiarization,
-            persistedSpeakers: transcription.speakers ?? []
-        )
+        guard let speakerVoiceprints else { return }
+        let persistedSpeakers = transcription.speakers ?? []
+        var observations: [SpeakerClusterObservation] = []
+        if let systemDiarization, !systemDiarization.speakerEmbeddings.isEmpty {
+            observations += Self.voiceprintObservations(
+                systemDiarization: systemDiarization,
+                persistedSpeakers: persistedSpeakers
+            )
+        }
+        if let microphoneResolution {
+            observations += Self.microphoneVoiceprintObservations(
+                microphoneResolution, persistedSpeakers: persistedSpeakers
+            )
+        }
         guard !observations.isEmpty else { return }
 
         do {
@@ -1789,9 +1828,88 @@ public actor TranscriptionService:
             return SpeakerClusterObservation(
                 speakerId: speaker.id,
                 embedding: embedding,
-                speechSeconds: Double(systemDiarization.speechMsBySpeaker[speaker.id] ?? 0) / 1000,
+                speechSeconds: systemDiarization.voiceprintSpeechSeconds(forSpeaker: speaker.id),
                 captureDomain: .system
             )
+        }
+    }
+
+    /// The microphone track's own voices, under the same persisted-speaker rule
+    /// as the system track: a room voice that won no words is not offered, and
+    /// the owner's voice counts only when `microphone` is on the roster.
+    static func microphoneVoiceprintObservations(
+        _ resolution: MeetingMicrophoneSpeakerResolver.Resolution,
+        persistedSpeakers: [SpeakerInfo]
+    ) -> [SpeakerClusterObservation] {
+        let persistedIDs = Set(persistedSpeakers.map(\.id))
+        let owner = resolution.ownerObservation.map { [$0] } ?? []
+        return (owner + resolution.roomObservations).filter { persistedIDs.contains($0.speakerId) }
+    }
+
+    /// Splits the microphone track into the owner, room voices and echo of the
+    /// call (`MeetingMicrophoneSpeakerResolver`). Best-effort: any failure but
+    /// cancellation leaves the track as it always was, one `microphone` speaker.
+    private func resolveMeetingMicrophoneIfEnabled(
+        recording: MeetingRecordingOutput,
+        sourceWavURLs: [AudioSource: URL],
+        systemDiarization: MeetingTranscriptFinalizer.SystemDiarization?,
+        diarizationService: (any DiarizationServiceProtocol)?,
+        lifecycleStage: inout TelemetryTranscriptionStage,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> MeetingMicrophoneSpeakerResolver.Resolution? {
+        guard var diarizationService,
+            shouldDiarizeMeetings(),
+            shouldDiarizeMeetingMicrophone(),
+            let microphoneTrack = recording.sourceAlignment.microphone,
+            let microphoneWavURL = sourceWavURLs[.microphone]
+        else { return nil }
+        // A per-run speaker count describes the remote side only; a service
+        // built with one would force it onto the room as well.
+        if await diarizationService.explicitSpeakerConstraint() != nil {
+            diarizationService = diarizationServiceFactory.make(speakerConstraint: nil)
+        }
+        lifecycleStage = .diarization
+        onProgress?(.identifyingSpeakers)
+        do {
+            try Task.checkCancellation()
+            let startedAt = Date()
+            let diarization = try await diarizationService.diarize(
+                audioURL: microphoneWavURL, speakerConstraint: nil
+            )
+            try Task.checkCancellation()
+            guard !diarization.segments.isEmpty else { return nil }
+            // Best effort like the rest of this pass, but a cancelled read is
+            // a cancelled run, not a missing profile.
+            let ownerVoice: SpeakerProfileCandidate?
+            do {
+                ownerVoice = try await speakerVoiceprints?.ownerVoice()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                ownerVoice = nil
+            }
+            try Task.checkCancellation()
+            let resolution = MeetingMicrophoneSpeakerResolver.resolve(
+                microphone: diarization,
+                startOffsetMs: microphoneTrack.startOffsetMs,
+                systemDiarization: systemDiarization,
+                ownerVoice: ownerVoice
+            )
+            let ownerDistance = resolution.ownerDistance.map { String(format: "%.3f", $0) } ?? "none"
+            logger.notice(
+                "meeting_microphone_diarization_completed clusters=\(diarization.speakerCount, privacy: .public) rooms=\(resolution.roomSpeakers.count, privacy: .public) echo=\(resolution.echoTargets.count, privacy: .public) owner_profile=\(ownerVoice != nil, privacy: .public) owner_distance=\(ownerDistance, privacy: .public) duration_s=\(String(format: "%.2f", Date().timeIntervalSince(startedAt)), privacy: .public)"
+            )
+            AudioCaptureDiagnostics.append(
+                "meeting_microphone_diarization_completed session=\(recording.sessionID.uuidString) clusters=\(diarization.speakerCount) rooms=\(resolution.roomSpeakers.count) echo=\(resolution.echoTargets.count) owner_profile=\(ownerVoice != nil) owner_distance=\(ownerDistance)"
+            )
+            return resolution
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            logger.error(
+                "meeting_microphone_diarization_failed error=\(error.localizedDescription, privacy: .private)"
+            )
+            return nil
         }
     }
 
@@ -1873,12 +1991,18 @@ public actor TranscriptionService:
                     speakerIDMap[id].map { ($0, ms) }
                 }
             )
+            let mappedVoiceprintSpeechMs = Dictionary(
+                uniqueKeysWithValues: diarResult.voiceprintSpeechMsBySpeaker.compactMap { id, ms in
+                    speakerIDMap[id].map { ($0, ms) }
+                }
+            )
 
             return MeetingTranscriptFinalizer.SystemDiarization(
                 speakers: mappedSpeakers,
                 segments: mappedSegments,
                 speakerEmbeddings: mappedEmbeddings,
-                speechMsBySpeaker: mappedSpeechMs
+                speechMsBySpeaker: mappedSpeechMs,
+                voiceprintSpeechMsBySpeaker: mappedVoiceprintSpeechMs
             )
         } catch is CancellationError {
             throw CancellationError()

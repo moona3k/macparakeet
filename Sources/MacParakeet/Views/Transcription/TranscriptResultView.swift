@@ -159,6 +159,14 @@ struct SpeakerRenameState {
         let speakerID: String
         let contextID: String
         var label: String
+        /// The voice-match name the editor opened on, if any.
+        var prefilledSuggestion: String? = nil
+
+        /// The editor still shows the proposed name and the user has not edited
+        /// it. Only an explicit Return may accept it; losing focus must not.
+        var isUntouchedSuggestion: Bool {
+            prefilledSuggestion != nil
+        }
     }
 
     private(set) var draft: Draft?
@@ -183,8 +191,18 @@ struct SpeakerRenameState {
         return previous
     }
 
+    /// Opens the draft on a recognised voice's name instead of the label.
+    mutating func prefill(suggestion name: String, contextID: String) {
+        guard draft?.contextID == contextID else { return }
+        draft?.label = name
+        draft?.prefilledSuggestion = name
+    }
+
     mutating func updateLabel(_ label: String, contextID: String) {
         guard draft?.contextID == contextID else { return }
+        // The first real edit makes the name the user's own for good: typing
+        // back to the suggestion afterwards is still their answer.
+        if draft?.label != label { draft?.prefilledSuggestion = nil }
         draft?.label = label
     }
 
@@ -5463,6 +5481,23 @@ struct TranscriptResultView: View {
                                 )
                             }
 
+                            // The microphone's own voice is the user. Saving it is
+                            // the one voice action the capture track offers, and
+                            // only under a real name, never the "Me" placeholder.
+                            if AudioSource(rawValue: speaker.id) == .microphone,
+                                viewModel.ownerVoiceAvailable
+                            {
+                                if let name = viewModel.ownerVoiceName {
+                                    Button("Remember My Voice as \(name)") {
+                                        viewModel.rememberOwnerVoice()
+                                    }
+                                    .disabled(viewModel.isApplyingVoiceIdentity)
+                                } else {
+                                    Button("Remember My Voice (rename Me or set Your name first)") {}
+                                        .disabled(true)
+                                }
+                            }
+
                             // Sits beside the other whole-speaker actions because
                             // that is its scope: the name applies everywhere this
                             // speaker talks, not to one turn.
@@ -5559,6 +5594,7 @@ struct TranscriptResultView: View {
         renameButtonOpacity: Double = SpeakerRenameAccessibility.renameButtonOpacity(isVisuallyRevealed: true)
     ) -> some View {
         if let draft = speakerRename.draft, draft.speakerID == speaker.id, draft.contextID == contextID {
+          HStack(spacing: 4) {
             TextField(
                 "Name",
                 text: Binding(
@@ -5582,18 +5618,26 @@ struct TranscriptResultView: View {
                 focusedSpeakerRenameContext = contextID
             }
             .onSubmit {
-                commitSpeakerRename(contextID: contextID)
+                commitSpeakerRename(contextID: contextID, explicit: true)
             }
             .onExitCommand {
                 cancelSpeakerRename(contextID: contextID)
             }
             .onChange(of: focusedSpeakerRenameContext) { previous, current in
                 guard previous == contextID, current != contextID else { return }
-                commitSpeakerRename(contextID: contextID)
+                commitSpeakerRename(contextID: contextID, explicit: false)
             }
             .accessibilityLabel(SpeakerRenameAccessibility.speakerNameFieldLabel)
             .accessibilityHint(SpeakerRenameAccessibility.speakerNameFieldHint)
             .accessibilityIdentifier(SpeakerRenameAccessibility.speakerNameFieldIdentifier(contextID: contextID))
+            if let suggestion = viewModel.voiceSuggestion(forSpeaker: speaker.id) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .help("Sounds like \(suggestion.displayName)'s saved voice. Press Return to confirm.")
+                    .accessibilityLabel("Suggested from \(suggestion.displayName)'s saved voice")
+            }
+          }
         } else {
             HStack(spacing: 6) {
                 Text(speaker.label)
@@ -5624,18 +5668,33 @@ struct TranscriptResultView: View {
     }
 
     private func beginSpeakerRename(_ speaker: SpeakerInfo, contextID: String) {
-        if let previous = speakerRename.begin(speaker, contextID: contextID, savePrevious: saveSpeakerRename) {
+        let wasEditing = speakerRename.draft?.speakerID == speaker.id && speakerRename.draft?.contextID == contextID
+        if let previous = speakerRename.begin(
+            speaker, contextID: contextID, savePrevious: { saveSpeakerRename($0, explicit: false) }
+        ) {
             if focusedSpeakerRenameContext == previous.contextID {
                 focusedSpeakerRenameContext = nil
             }
         }
+        // A recognised voice opens the editor on its name: Return accepts it,
+        // typing replaces it. Only over the untouched label — never over a
+        // name the user was already part-way through typing.
+        if !wasEditing,
+            let suggestion = viewModel.voiceSuggestion(forSpeaker: speaker.id),
+            speakerRename.draft?.contextID == contextID,
+            speakerRename.draft?.label == speaker.label
+        {
+            speakerRename.prefill(suggestion: suggestion.displayName, contextID: contextID)
+        }
     }
 
-    private func commitSpeakerRename(contextID: String) {
+    /// `explicit` is Return; focus moving away is not. Only an explicit commit
+    /// may accept a suggestion the user has not touched.
+    private func commitSpeakerRename(contextID: String, explicit: Bool) {
         guard let draft = speakerRename.draft, draft.contextID == contextID else { return }
         // A refused save (another correction is still saving) keeps the draft
         // open so the entered name is not lost; the editor refocuses when it can retry.
-        guard saveSpeakerRename(draft) else { return }
+        guard saveSpeakerRename(draft, explicit: explicit) else { return }
         _ = speakerRename.finish(contextID: contextID)
         if focusedSpeakerRenameContext == contextID {
             focusedSpeakerRenameContext = nil
@@ -5643,9 +5702,23 @@ struct TranscriptResultView: View {
     }
 
     @discardableResult
-    private func saveSpeakerRename(_ draft: SpeakerRenameState.Draft) -> Bool {
+    private func saveSpeakerRename(_ draft: SpeakerRenameState.Draft, explicit: Bool) -> Bool {
         let trimmed = draft.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
+        // Clicking away from a suggestion nobody touched is not an answer:
+        // close the editor and leave the suggestion pending.
+        if !explicit, draft.isUntouchedSuggestion { return true }
+        if let suggestion = viewModel.confirmsVoiceSuggestion(speakerId: draft.speakerID, label: trimmed) {
+            // The banner's "Yes": applies the label and teaches the profile. A
+            // confirmation that cannot start yet keeps the draft, like a rename
+            // refused while another correction saves. The transcript cache
+            // rebuilds itself when the confirmed label lands.
+            guard !viewModel.isApplyingSpeakerCorrection, viewModel.confirmVoiceSuggestion(suggestion) else {
+                return false
+            }
+            voiceProfileRenameContexts[draft.speakerID] = draft.contextID
+            return true
+        }
         guard viewModel.renameSpeaker(id: draft.speakerID, to: trimmed) else { return false }
         // Remembered before the offer lands: it arrives asynchronously, by
         // which time the editor that produced it is gone.

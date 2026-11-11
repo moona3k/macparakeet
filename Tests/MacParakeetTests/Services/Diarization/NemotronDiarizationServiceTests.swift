@@ -292,9 +292,13 @@ final class NemotronDiarizationServiceTests: XCTestCase {
     }
 
     func testAutomaticAndExplicitFactoryPolicies() async {
-        XCTAssertTrue(DiarizationServiceFactory.live.make(speakerConstraint: nil) is NemotronDiarizationService)
+        // Voice profiles off; `testExperimentalVoiceProfiles…` covers them on.
+        XCTAssertTrue(
+            DiarizationServiceFactory.makeLiveService(speakerConstraint: nil, voiceProfilesAvailable: false)
+                is NemotronDiarizationService)
         for constraint in [SpeakerDiarizationConstraint.exact(12), .range(min: 2, max: 5)] {
-            let service = DiarizationServiceFactory.live.make(speakerConstraint: constraint)
+            let service = DiarizationServiceFactory.makeLiveService(
+                speakerConstraint: constraint, voiceProfilesAvailable: false)
             XCTAssertTrue(service is DiarizationService)
             let configured = await service.explicitSpeakerConstraint()
             XCTAssertEqual(configured, constraint)
@@ -323,12 +327,16 @@ final class NemotronDiarizationServiceTests: XCTestCase {
 
     func testExperimentalVoiceProfilesKeepEmbeddingCompatibleBackend() async {
         let automatic = DiarizationServiceFactory.makeLiveService(speakerConstraint: nil, voiceProfilesAvailable: true)
-        XCTAssertTrue(automatic is DiarizationService)
+        // Voice profiles wrap whichever diarizer runs so voiceprints are TitaNet.
+        XCTAssertTrue(automatic is TitaNetVoiceprintDiarizationService)
         let explicit = DiarizationServiceFactory.makeLiveService(
             speakerConstraint: .exact(12), voiceProfilesAvailable: true)
-        XCTAssertTrue(explicit is DiarizationService)
+        XCTAssertTrue(explicit is TitaNetVoiceprintDiarizationService)
         let configured = await explicit.explicitSpeakerConstraint()
         XCTAssertEqual(configured, .exact(12))
+        let withoutProfiles = DiarizationServiceFactory.makeLiveService(
+            speakerConstraint: nil, voiceProfilesAvailable: false)
+        XCTAssertTrue(withoutProfiles is NemotronDiarizationService)
     }
 
     private var audioURL: URL { URL(fileURLWithPath: "/unused.wav") }
