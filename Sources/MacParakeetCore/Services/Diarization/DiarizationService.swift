@@ -147,7 +147,14 @@ public struct DiarizationServiceFactory: Sendable {
         // and takes identity from Community-1, falling back to Community-1
         // alone when they conflict.
         if voiceProfilesAvailable {
-            return TitaNetVoiceprintDiarizationService(inner: HybridDiarizationService())
+            // One Community-1 service serves as both the hybrid's identity
+            // backend and Nemotron's constraint fallback.
+            let identity = DiarizationService()
+            return TitaNetVoiceprintDiarizationService(
+                inner: HybridDiarizationService(
+                    timing: NemotronDiarizationService(fallback: identity), identity: identity
+                )
+            )
         }
         return NemotronDiarizationService()
     }

@@ -2488,6 +2488,9 @@ public final class TranscriptionViewModel {
         guard currentTranscription?.sourceType == .meeting, let speakerVoiceprints else { return }
         ownerVoiceLoadToken &+= 1
         let token = ownerVoiceLoadToken
+        // Off until this load answers, so an offer from a superseded load can
+        // never outlive the candidate it was for.
+        ownerVoiceAvailable = false
         Task { [weak self] in
             let observation = try? await speakerVoiceprints.ownerEnrollmentCandidate(
                 transcriptionId: transcriptionID, fingerprint: fingerprint
@@ -2520,7 +2523,11 @@ public final class TranscriptionViewModel {
                     fingerprint: fingerprint, allowMergeIntoExistingName: false
                 )
             } catch {
-                guard let self, self.currentTranscription?.id == transcriptionId else { return }
+                // Scoped like success: a failure from an earlier diarization
+                // must not surface on the transcript that replaced it.
+                guard let self, self.currentTranscription?.id == transcriptionId,
+                    self.speakerAttribution?.fingerprint == fingerprint
+                else { return }
                 self.voiceEnrollmentMessage = .init(
                     text: "Could not remember your voice.", kind: .failure, speakerId: microphoneID
                 )
@@ -2530,8 +2537,15 @@ public final class TranscriptionViewModel {
                 self.speakerAttribution?.fingerprint == fingerprint
             else { return }
             self.voiceEnrollmentMessage = Self.ownerVoiceMessage(for: outcome, name: name)
-            if case .created = outcome { self.ownerVoiceAvailable = false }
-            if case .addedExemplar = outcome { self.ownerVoiceAvailable = false }
+            // Every outcome a retry cannot change retires the action; only a
+            // missing name leaves it, since setting one fixes that.
+            switch outcome {
+            case .created, .addedExemplar, .alreadySampled, .candidateUnavailable,
+                .rejectedTooShort, .rejectedProfileFull:
+                self.ownerVoiceAvailable = false
+            default:
+                break
+            }
             self.loadEnrolledVoices()
         }
     }
@@ -2829,7 +2843,11 @@ public final class TranscriptionViewModel {
         return suggestion
     }
 
-    public func confirmVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) {
+    /// Returns whether the confirmation started. It refuses while another voice
+    /// identity change is in flight, or when the suggestion is no longer
+    /// current, so a caller holding a typed name can keep it.
+    @discardableResult
+    public func confirmVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) -> Bool {
         guard currentTranscription?.sourceType == .meeting,
             !isApplyingVoiceIdentity,
             let speakerVoiceprints,
@@ -2837,7 +2855,7 @@ public final class TranscriptionViewModel {
             let attribution = speakerAttribution,
             voiceSuggestions.contains(suggestion),
             !AudioSource.isMeetingCaptureTrack(suggestion.speakerId)
-        else { return }
+        else { return false }
         let selectedRevision = currentTranscriptionRevision
         let fingerprint = attribution.fingerprint
         isApplyingVoiceIdentity = true
@@ -2892,6 +2910,7 @@ public final class TranscriptionViewModel {
                 )
             }
         }
+        return true
     }
 
     public func dismissVoiceSuggestion(_ suggestion: SpeakerVoiceprintSuggestion) {

@@ -62,6 +62,19 @@ private final class StubVoiceprintService: SpeakerVoiceprintServicing, @unchecke
     private let holdsAssignFor: UUID?
     var isEnabled = true
     var holdCandidate = false
+    /// Owner-voice support: the retained microphone sample and what enrolling
+    /// it answers.
+    var ownerCandidate: SpeakerClusterObservation?
+    var ownerOutcome: SpeakerProfileEnrollment = .rejectedEmptyName
+
+    func ownerEnrollmentCandidate(
+        transcriptionId: UUID, fingerprint: TranscriptFingerprint
+    ) async throws -> SpeakerClusterObservation? { ownerCandidate }
+
+    func enrollOwnerVoice(
+        displayName: String, transcriptionId: UUID, fingerprint: TranscriptFingerprint,
+        allowMergeIntoExistingName: Bool
+    ) async throws -> SpeakerProfileEnrollment { ownerOutcome }
 
     init(
         candidate: SpeakerClusterObservation?,
@@ -418,8 +431,10 @@ final class TranscriptionVoiceEnrollmentTests: XCTestCase {
         }
     }
 
-    /// The rename editor starts from the proposed name, and typing that name
-    /// (any case, any padding) counts as confirming it; another name does not.
+    /// The view model's half of the rename editor's suggestion: the lookup the
+    /// editor prefills from, and the rule that typing the proposed name (any
+    /// case, any padding) counts as confirming it while another name does not.
+    /// The editor's own prefill and focus rules are in `SpeakerRenameStateTests`.
     func testTypedNameMatchingTheSuggestionConfirmsIt() async throws {
         let transcription = makeTranscription()
         let service = StubVoiceprintService(
@@ -437,6 +452,40 @@ final class TranscriptionVoiceEnrollmentTests: XCTestCase {
         viewModel.confirmVoiceSuggestion(try XCTUnwrap(viewModel.confirmsVoiceSuggestion(speakerId: "S1", label: "Sarah")))
         try await waitUntil { service.confirmed == ["S1"] }
         XCTAssertNil(viewModel.voiceSuggestion(forSpeaker: "S1"))
+    }
+
+    /// A confirmation that cannot start says so, so the editor holding a typed
+    /// name can keep it instead of closing on a no-op.
+    func testConfirmingAStaleSuggestionReportsThatItDidNotStart() async throws {
+        let transcription = makeTranscription()
+        let service = StubVoiceprintService(candidate: observation(), suggestions: [suggestion()])
+        let viewModel = try await configured(transcription, voiceprints: service)
+        try await waitUntil { !viewModel.voiceSuggestions.isEmpty }
+
+        XCTAssertFalse(viewModel.confirmVoiceSuggestion(suggestion()))  // not the pending one
+        XCTAssertTrue(viewModel.confirmVoiceSuggestion(try XCTUnwrap(viewModel.voiceSuggestions.first)))
+    }
+
+    /// "Remember My Voice" disappears after any answer a retry cannot change,
+    /// here an expired or too-short sample, just as it does after a success.
+    func testOwnerVoiceActionRetiresWhenTheSampleIsGone() async throws {
+        for outcome: SpeakerProfileEnrollment in [
+            .candidateUnavailable, .rejectedTooShort(speechSeconds: 4),
+        ] {
+            var transcription = makeTranscription()
+            transcription.speakers = [
+                SpeakerInfo(id: "microphone", label: "Liam"), SpeakerInfo(id: "S1", label: "Others 1"),
+            ]
+            let service = StubVoiceprintService(candidate: observation())
+            service.ownerCandidate = observation()
+            service.ownerOutcome = outcome
+            let viewModel = try await configured(transcription, voiceprints: service)
+            try await waitUntil { viewModel.ownerVoiceAvailable }
+
+            viewModel.rememberOwnerVoice()
+
+            try await waitUntil { !viewModel.ownerVoiceAvailable && !viewModel.isApplyingVoiceIdentity }
+        }
     }
 
     /// The legacy branch handles transcripts the correction layer cannot own.

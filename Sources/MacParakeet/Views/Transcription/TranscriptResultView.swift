@@ -159,6 +159,14 @@ struct SpeakerRenameState {
         let speakerID: String
         let contextID: String
         var label: String
+        /// The voice-match name the editor opened on, if any.
+        var prefilledSuggestion: String? = nil
+
+        /// The editor still shows the proposed name, unedited. Only an explicit
+        /// Return may accept it; losing focus must not.
+        var isUntouchedSuggestion: Bool {
+            prefilledSuggestion.map { $0 == label } ?? false
+        }
     }
 
     private(set) var draft: Draft?
@@ -181,6 +189,13 @@ struct SpeakerRenameState {
         }
         draft = Draft(speakerID: speaker.id, contextID: contextID, label: label)
         return previous
+    }
+
+    /// Opens the draft on a recognised voice's name instead of the label.
+    mutating func prefill(suggestion name: String, contextID: String) {
+        guard draft?.contextID == contextID else { return }
+        draft?.label = name
+        draft?.prefilledSuggestion = name
     }
 
     mutating func updateLabel(_ label: String, contextID: String) {
@@ -5600,14 +5615,14 @@ struct TranscriptResultView: View {
                 focusedSpeakerRenameContext = contextID
             }
             .onSubmit {
-                commitSpeakerRename(contextID: contextID)
+                commitSpeakerRename(contextID: contextID, explicit: true)
             }
             .onExitCommand {
                 cancelSpeakerRename(contextID: contextID)
             }
             .onChange(of: focusedSpeakerRenameContext) { previous, current in
                 guard previous == contextID, current != contextID else { return }
-                commitSpeakerRename(contextID: contextID)
+                commitSpeakerRename(contextID: contextID, explicit: false)
             }
             .accessibilityLabel(SpeakerRenameAccessibility.speakerNameFieldLabel)
             .accessibilityHint(SpeakerRenameAccessibility.speakerNameFieldHint)
@@ -5651,7 +5666,9 @@ struct TranscriptResultView: View {
 
     private func beginSpeakerRename(_ speaker: SpeakerInfo, contextID: String) {
         let wasEditing = speakerRename.draft?.speakerID == speaker.id && speakerRename.draft?.contextID == contextID
-        if let previous = speakerRename.begin(speaker, contextID: contextID, savePrevious: saveSpeakerRename) {
+        if let previous = speakerRename.begin(
+            speaker, contextID: contextID, savePrevious: { saveSpeakerRename($0, explicit: false) }
+        ) {
             if focusedSpeakerRenameContext == previous.contextID {
                 focusedSpeakerRenameContext = nil
             }
@@ -5664,15 +5681,17 @@ struct TranscriptResultView: View {
             speakerRename.draft?.contextID == contextID,
             speakerRename.draft?.label == speaker.label
         {
-            speakerRename.updateLabel(suggestion.displayName, contextID: contextID)
+            speakerRename.prefill(suggestion: suggestion.displayName, contextID: contextID)
         }
     }
 
-    private func commitSpeakerRename(contextID: String) {
+    /// `explicit` is Return; focus moving away is not. Only an explicit commit
+    /// may accept a suggestion the user has not touched.
+    private func commitSpeakerRename(contextID: String, explicit: Bool) {
         guard let draft = speakerRename.draft, draft.contextID == contextID else { return }
         // A refused save (another correction is still saving) keeps the draft
         // open so the entered name is not lost; the editor refocuses when it can retry.
-        guard saveSpeakerRename(draft) else { return }
+        guard saveSpeakerRename(draft, explicit: explicit) else { return }
         _ = speakerRename.finish(contextID: contextID)
         if focusedSpeakerRenameContext == contextID {
             focusedSpeakerRenameContext = nil
@@ -5680,16 +5699,21 @@ struct TranscriptResultView: View {
     }
 
     @discardableResult
-    private func saveSpeakerRename(_ draft: SpeakerRenameState.Draft) -> Bool {
+    private func saveSpeakerRename(_ draft: SpeakerRenameState.Draft, explicit: Bool) -> Bool {
         let trimmed = draft.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
+        // Clicking away from a suggestion nobody touched is not an answer:
+        // close the editor and leave the suggestion pending.
+        if !explicit, draft.isUntouchedSuggestion { return true }
         if let suggestion = viewModel.confirmsVoiceSuggestion(speakerId: draft.speakerID, label: trimmed) {
-            // The banner's "Yes": applies the label and teaches the profile.
-            voiceProfileRenameContexts[draft.speakerID] = draft.contextID
-            viewModel.confirmVoiceSuggestion(suggestion)
-            if transcriptDisplayMode == .timed {
-                scheduleSegmentCacheRebuild()
+            // The banner's "Yes": applies the label and teaches the profile. A
+            // confirmation that cannot start yet keeps the draft, like a rename
+            // refused while another correction saves. The transcript cache
+            // rebuilds itself when the confirmed label lands.
+            guard !viewModel.isApplyingSpeakerCorrection, viewModel.confirmVoiceSuggestion(suggestion) else {
+                return false
             }
+            voiceProfileRenameContexts[draft.speakerID] = draft.contextID
             return true
         }
         guard viewModel.renameSpeaker(id: draft.speakerID, to: trimmed) else { return false }

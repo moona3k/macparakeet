@@ -31,10 +31,12 @@ final class SpeakerOwnerVoiceTests: XCTestCase {
     func testMicrophoneVoiceIsRetainedButNeverOfferedAName() async throws {
         let service = makeService()
         let first = try savedTranscription()
-        _ = try await service.enroll(
+        let enrollment = try await service.enroll(
             displayName: "Sarah", observation: observation("system:S1", voice: 0),
             transcriptionId: first.id, fingerprint: fingerprint, allowMergeIntoExistingName: false
         )
+        // Without a profile to match, empty suggestions would prove nothing.
+        guard case .created = enrollment else { return XCTFail("expected Sarah enrollment") }
 
         let meeting = try savedTranscription()
         let suggestions = try await service.evaluate(
