@@ -170,7 +170,7 @@ final class NotchOverlayController: DictationOverlayControlling {
         panel.setFrame(frame, display: false)
         panel.orderFront(nil)
         self.panel = panel
-        NotchOccupancy.shared.dictationActive = true
+        NotchOccupancy.shared.claim(by: self)
         observe()
         // Expand on the next runloop turn so the width change animates from the notch.
         DispatchQueue.main.async { [layout] in layout.expanded = true }
@@ -183,13 +183,14 @@ final class NotchOverlayController: DictationOverlayControlling {
         // Collapse back into the notch, then remove the window.
         layout.expanded = false
         layout.sheet = .none
-        closeTask = Task { @MainActor [weak self] in
+        // Strong capture on purpose: the collapse is ~220 ms, and the release below must
+        // run even if the coordinator has already dropped this controller.
+        closeTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 60 : 220))
-            guard let self else { panel.orderOut(nil); return }
             panel.orderOut(nil)
             panel.contentView = nil
             // Hand the notch back to the meeting wing only once the collapse is done.
-            if self.panel == nil { NotchOccupancy.shared.dictationActive = false }
+            NotchOccupancy.shared.release(by: self)
         }
     }
 

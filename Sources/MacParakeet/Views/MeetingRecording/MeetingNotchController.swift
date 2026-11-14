@@ -31,7 +31,15 @@ extension MeetingRecordingPillController: MeetingPillControlling {}
 @MainActor @Observable
 final class NotchOccupancy {
     static let shared = NotchOccupancy()
-    var dictationActive = false
+    /// The dictation surface currently using the notch. A token (not a Bool) so an
+    /// older session finishing its collapse can't hand the notch back while a newer one is up.
+    private(set) var dictationOwner: ObjectIdentifier?
+    var dictationActive: Bool { dictationOwner != nil }
+
+    func claim(by owner: AnyObject) { dictationOwner = ObjectIdentifier(owner) }
+    func release(by owner: AnyObject) {
+        if dictationOwner == ObjectIdentifier(owner) { dictationOwner = nil }
+    }
 }
 
 /// Meeting recording as a black wing on the LEFT of the camera notch: status
