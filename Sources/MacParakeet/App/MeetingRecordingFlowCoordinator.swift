@@ -782,9 +782,9 @@ final class MeetingRecordingFlowCoordinator {
             // Re-evaluate the surface per meeting: notch wing only while the notch
             // placement resolves to a real notch; otherwise the classic pill.
             let wantsNotch = MeetingNotchController.isAvailable()
-            if let existing = pillController, !existing.isVisible,
-                (existing is MeetingNotchController) != wantsNotch
-            {
+            if let existing = pillController, (existing is MeetingNotchController) != wantsNotch {
+                // Includes a still-visible saved-completion pill from the previous meeting.
+                existing.hide()
                 pillController = nil
             }
             if pillController == nil {

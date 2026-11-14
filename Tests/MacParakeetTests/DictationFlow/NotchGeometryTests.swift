@@ -80,6 +80,12 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(cutout, .none)
     }
 
+    func testMinimumNotchWidthBoundary() {
+        // 120 pt is the smallest cutout treated as a notch; anything narrower is an island.
+        XCTAssertNoThrow(try geometry(notched(id: 1, width: 1600, height: 1000, top: 32, notchWidth: 120)))
+        XCTAssertEqual(notched(id: 1, width: 1600, height: 1000, top: 32, notchWidth: 119).cutout, .narrowCutout)
+    }
+
     func testNarrowCutoutIsNotANotch() {
         XCTAssertEqual(islandHardware.cutout, .narrowCutout)
     }

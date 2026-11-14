@@ -179,15 +179,17 @@ final class NotchOverlayController: DictationOverlayControlling {
     func hide() {
         guard let panel else { return }
         self.panel = nil
-        NotchOccupancy.shared.dictationActive = false
         shrinkTask?.cancel()
         // Collapse back into the notch, then remove the window.
         layout.expanded = false
         layout.sheet = .none
-        closeTask = Task { @MainActor in
+        closeTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 60 : 220))
+            guard let self else { panel.orderOut(nil); return }
             panel.orderOut(nil)
             panel.contentView = nil
+            // Hand the notch back to the meeting wing only once the collapse is done.
+            if self.panel == nil { NotchOccupancy.shared.dictationActive = false }
         }
     }
 
@@ -248,13 +250,17 @@ final class NotchOverlayController: DictationOverlayControlling {
         guard let panel else { return }
         syncLayout()
         let target = targetFrame()
-        if target.width >= panel.frame.width {
+        let current = panel.frame
+        if target.width >= current.width, target.height >= current.height {
             shrinkTask?.cancel()
             panel.setFrame(target, display: true)
         } else {
+            // Grow now, shrink later, in both dimensions, so neither the width spring
+            // nor a closing hover sheet is clipped by the window mid-animation.
+            let width = max(target.width, current.width)
+            let height = max(target.height, current.height)
             panel.setFrame(
-                NSRect(x: target.minX - (panel.frame.width - target.width) / 2, y: target.minY,
-                    width: panel.frame.width, height: target.height),
+                NSRect(x: target.midX - width / 2, y: target.maxY - height, width: width, height: height),
                 display: true)
             shrinkTask?.cancel()
             shrinkTask = Task { @MainActor [weak self] in
@@ -275,7 +281,6 @@ final class NotchOverlayController: DictationOverlayControlling {
             _ = viewModel.pillStateKey
             _ = viewModel.isHovered
             _ = viewModel.recordingMode
-            _ = viewModel.recordingElapsedSeconds / 60  // minute rollover only changes the label
             if case .error(let m) = viewModel.state { _ = m }
             _ = viewModel.busyProcessingMessage
             _ = viewModel.processingLoadCaption

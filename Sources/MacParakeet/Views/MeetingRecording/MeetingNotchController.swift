@@ -173,9 +173,8 @@ private struct MeetingNotchWingView: View {
                 Button("Open MacParakeet", action: onOpen)
             }
         }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(MeetingNotchWingContent.accessibilityLabel(for: viewModel))
     }
 }
 
@@ -184,16 +183,19 @@ private struct MeetingNotchWingContent: View {
     let viewModel: MeetingRecordingPillViewModel
 
     static func accessibilityLabel(for vm: MeetingRecordingPillViewModel) -> String {
+        let base: String
         switch vm.state {
-        case .idle: return "Meeting recorder"
-        case .starting: return "Meeting starting"
-        case .recording: return "Recording meeting, \(vm.formattedElapsed)"
-        case .paused: return "Meeting paused, \(vm.formattedElapsed)"
-        case .completing: return "Saving meeting"
-        case .transcribing: return "Transcribing meeting"
-        case .completed: return "Meeting saved"
-        case .error: return "Meeting recording error"
+        case .idle: base = "Meeting recorder"
+        case .starting: base = "Meeting starting"
+        case .recording: base = "Recording meeting, \(vm.formattedElapsed)"
+        case .paused: base = "Meeting paused, \(vm.formattedElapsed)"
+        case .completing: base = "Saving meeting"
+        case .transcribing: base = "Transcribing meeting"
+        case .completed: base = "Meeting saved"
+        case .error: base = "Meeting recording error"
         }
+        if let warning = vm.mirroredVisibleSourceHealthWarning { return "\(base). \(warning.label)" }
+        return base
     }
 
     var body: some View {
@@ -205,6 +207,8 @@ private struct MeetingNotchWingContent: View {
                     .foregroundStyle(.white.opacity(viewModel.isPaused ? 0.6 : 0.9))
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityLabel(for: viewModel))
     }
 
     private var showsTime: Bool {
