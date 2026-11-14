@@ -309,12 +309,15 @@ private struct NotchOverlayView: View {
             let radius: CGFloat = layout.sheet == .none ? 12 : 0
             UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius)
                 .fill(Color.black)
+            // Both zones are always equal-width flexible. An empty `trailing`
+            // would otherwise collapse and let `leading` stretch to the notch
+            // edge, putting its icon half behind the physical camera cutout.
             HStack(spacing: 0) {
-                leading
-                    .frame(maxWidth: .infinity, alignment: .center)
+                ZStack { Color.clear; leading }
+                    .frame(maxWidth: .infinity)
                 Color.clear.frame(width: layout.notchSize.width)
-                trailing
-                    .frame(maxWidth: .infinity, alignment: .center)
+                ZStack { Color.clear; trailing }
+                    .frame(maxWidth: .infinity)
             }
             .opacity(layout.expanded ? 1 : 0)
             .animation(reduceMotion ? .easeInOut(duration: 0.12) : .easeOut(duration: 0.18), value: layout.expanded)
