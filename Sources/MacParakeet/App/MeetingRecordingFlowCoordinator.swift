@@ -477,6 +477,40 @@ final class MeetingRecordingFlowCoordinator {
         refreshFloatingPillVisibility()
     }
 
+    private func wirePillHandlers(_ pill: any MeetingPillControlling) {
+        pill.onClick = { [weak self] in
+            self?.showMeetingPanel()
+        }
+        pill.onStopRecording = { [weak self] in
+            self?.stopRecording(trigger: .manual)
+        }
+        pill.onOpenApp = { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.showMeetingPanel()
+        }
+        pill.onCancelRecording = { [weak self] in
+            self?.confirmAndCancelRecording()
+        }
+        pill.onPauseToggle = { [weak self] in
+            self?.togglePause()
+        }
+        if let notch = pill as? MeetingNotchController {
+            notch.onNotchUnavailable = { [weak self] in
+                self?.fallBackToClassicPill()
+            }
+        }
+    }
+
+    /// The notch went away mid-meeting (display change): keep an indicator on screen.
+    private func fallBackToClassicPill() {
+        guard isMeetingRecordingActive else { return }
+        pillController?.hide()
+        let classic = MeetingRecordingPillController(viewModel: pillViewModel)
+        wirePillHandlers(classic)
+        pillController = classic
+        refreshFloatingPillVisibility()
+    }
+
     func refreshFloatingPillVisibility() {
         guard isMeetingRecordingActive else {
             pillController?.hide()
@@ -758,21 +792,8 @@ final class MeetingRecordingFlowCoordinator {
                     (wantsNotch ? MeetingNotchController(viewModel: vm) : nil)
                     ?? MeetingRecordingPillController(viewModel: vm)
             }
-            pillController?.onClick = { [weak self] in
-                self?.showMeetingPanel()
-            }
-            pillController?.onStopRecording = { [weak self] in
-                self?.stopRecording(trigger: .manual)
-            }
-            pillController?.onOpenApp = { [weak self] in
-                NSApp.activate(ignoringOtherApps: true)
-                self?.showMeetingPanel()
-            }
-            pillController?.onCancelRecording = { [weak self] in
-                self?.confirmAndCancelRecording()
-            }
-            pillController?.onPauseToggle = { [weak self] in
-                self?.togglePause()
+            if let pill = pillController {
+                wirePillHandlers(pill)
             }
             if panelController == nil {
                 let controller = MeetingRecordingPanelController(viewModel: panelVM)

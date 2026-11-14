@@ -205,8 +205,6 @@ final class DictationFlowCoordinator {
     private var overlayController: (any DictationOverlayControlling)?
     private var overlayViewModel: DictationOverlayViewModel?
     private var idlePillController: IdlePillController?
-    /// Set when the idle pill was removed because `.notch` took over, so leaving `.notch` restores it.
-    private var idlePillHiddenForNotch = false
     private var readyDismissTimer: DispatchWorkItem?
     private var recordingTask: Task<Void, Never>?
     private var actionTask: Task<Void, Never>?
@@ -442,11 +440,11 @@ final class DictationFlowCoordinator {
     }
 
     private func repositionDictationOverlays() {
+        // `showIdlePill()` re-checks the setting, suppression and notch state itself,
+        // so this also covers a launch that started in `.notch` (no pill was ever made).
         if idlePillController != nil, NotchScreens.notchIsActive() {
             hideIdlePill()
-            idlePillHiddenForNotch = true
-        } else if idlePillHiddenForNotch, !NotchScreens.notchIsActive() {
-            idlePillHiddenForNotch = false
+        } else if idlePillController == nil, !NotchScreens.notchIsActive() {
             showIdlePill()
         }
         idlePillController?.reposition()

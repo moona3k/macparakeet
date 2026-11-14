@@ -45,10 +45,13 @@ final class MeetingNotchController: MeetingPillControlling {
     var onOpenApp: (() -> Void)?
     var onCancelRecording: (() -> Void)?
     var onPauseToggle: (() -> Void)?
+    /// Called when a display change leaves no usable notch, so the coordinator can swap in the classic pill.
+    var onNotchUnavailable: (() -> Void)?
     var isVisible: Bool { panel != nil }
 
     private let viewModel: MeetingRecordingPillViewModel
     private var panel: NSPanel?
+    private var screenObserver: NSObjectProtocol?
 
     /// Wing content width left of the notch, and how far the panel tucks under it.
     private static let wingWidth: CGFloat = 78
@@ -100,9 +103,27 @@ final class MeetingNotchController: MeetingPillControlling {
         panel.setFrame(frame, display: false)
         panel.orderFront(nil)
         self.panel = panel
+        // Event-driven: resolution or display changes only. No timers.
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screenParametersChanged() }
+        }
+    }
+
+    private func screenParametersChanged() {
+        guard panel != nil else { return }
+        if case .notchPanel = NotchScreens.resolve(placement: .notch) {
+            reposition()
+        } else {
+            hide()
+            onNotchUnavailable?()
+        }
     }
 
     func hide(preserveFrameForNextShow: Bool = false) {
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        screenObserver = nil
         panel?.orderOut(nil)
         panel?.contentView = nil
         panel = nil

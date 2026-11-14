@@ -211,6 +211,14 @@ final class NotchOverlayController: DictationOverlayControlling {
         switch viewModel.state {
         case .error(let message):
             return .message(Self.shortMessage(message))
+        case .processing, .formatting:
+            // Same explanations the classic pill shows during a long first model load.
+            if let busy = viewModel.busyProcessingMessage { return .message(busy) }
+            if let caption = viewModel.processingLoadCaption {
+                let view = LoadingCaptionView(caption: caption)
+                return .message([view.title, view.subcopy].compactMap { $0 }.joined(separator: " "))
+            }
+            return .none
         case .recording where viewModel.recordingMode == .persistent && viewModel.isHovered:
             return .controls
         default:
@@ -269,6 +277,8 @@ final class NotchOverlayController: DictationOverlayControlling {
             _ = viewModel.recordingMode
             _ = viewModel.recordingElapsedSeconds / 60  // minute rollover only changes the label
             if case .error(let m) = viewModel.state { _ = m }
+            _ = viewModel.busyProcessingMessage
+            _ = viewModel.processingLoadCaption
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -408,11 +418,25 @@ private struct NotchOverlayView: View {
             .background(UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12).fill(Color.black))
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         case .message(let text):
-            Text(text)
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.85))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
+            HStack(spacing: 8) {
+                Text(text)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity)
+                if case .error = viewModel.state {
+                    Button(action: { viewModel.onDismiss?() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Color.white.opacity(0.14)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss")
+                }
+            }
                 .padding(.horizontal, 14)
                 .frame(width: width, height: layout.sheet.height)
                 .background(UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12).fill(Color.black))

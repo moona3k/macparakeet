@@ -34,7 +34,7 @@ struct LoadingCaptionView: View {
         reduceMotion ? .opacity : .opacity.combined(with: .offset(y: anchorsToTop ? -4 : 4))
     }
 
-    private var title: String {
+    var title: String {
         switch caption {
         case .preparing, .preparingExtended:
             "Preparing speech engine…"
@@ -45,7 +45,7 @@ struct LoadingCaptionView: View {
         }
     }
 
-    private var subcopy: String? {
+    var subcopy: String? {
         switch caption {
         case .preparingExtended:
             "First-time setup — may take a few minutes"
