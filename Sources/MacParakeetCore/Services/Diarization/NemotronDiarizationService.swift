@@ -46,14 +46,21 @@ public actor NemotronDiarizationService: DiarizationServiceProtocol {
     private var runner: (any NemotronDiarizationRunning)?
     private var preparation: Task<Void, Error>?
 
-    public init(preset: Preset = .fast128, modelsDirectory: URL? = nil) {
+    /// `fallback` lets a caller that already holds a Community-1 service (the
+    /// hybrid's identity backend) share it, so its models are prepared and held
+    /// once rather than twice.
+    public init(
+        preset: Preset = .fast128,
+        modelsDirectory: URL? = nil,
+        fallback sharedFallback: (any DiarizationServiceProtocol)? = nil
+    ) {
         let base = modelsDirectory ?? AppPaths.fluidAudioModelsDirURL
         loadRunner = {
             let root = try await NemotronDiarizationModelStore.prepare(base: base, preset: preset)
             return try await NativeNemotronDiarizationRunner.load(preset: preset, directory: root)
         }
         cached = { NemotronDiarizationModelStore.isCached(base: base, preset: preset) }
-        fallback = DiarizationService(modelsDirectory: base)
+        fallback = sharedFallback ?? DiarizationService(modelsDirectory: base)
         inferenceGate = .shared
         inferencePermit = AsyncPermit(value: 1)
     }

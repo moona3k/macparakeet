@@ -344,7 +344,7 @@ public enum SpeakerVoiceprintMatcher {
 
     /// A cross-aggregation reference stays comparable — Phase 0b leaves a 0.24
     /// gap between worst true pair and best impostor — but is trusted less.
-    private static func effectiveTau(for match: ReferenceMatch, policy: SpeakerMatchPolicy) -> Double {
+    static func effectiveTau(for match: ReferenceMatch, policy: SpeakerMatchPolicy) -> Double {
         match.sameAggregation ? policy.tau : policy.tau - policy.crossAggregationPenalty
     }
 

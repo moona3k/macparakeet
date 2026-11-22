@@ -364,6 +364,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    /// The user's name for the microphone track of new meetings. Free text
+    /// about the user, so it is stored locally and never sent as telemetry.
+    public var meetingOwnerName: String {
+        didSet {
+            let trimmed = meetingOwnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.meetingOwnerNameKey)
+            } else {
+                defaults.set(trimmed, forKey: UserDefaultsAppRuntimePreferences.meetingOwnerNameKey)
+            }
+        }
+    }
     public var notifyOnMeetingEnd: Bool {
         didSet {
             defaults.set(
@@ -1138,6 +1150,7 @@ public final class SettingsViewModel {
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
         notifyOnMeetingEnd = UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: defaults)
+        meetingOwnerName = UserDefaultsAppRuntimePreferences.meetingOwnerName(defaults: defaults) ?? ""
         meetingAutoStopEnabled =
             defaults.object(
                 forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey

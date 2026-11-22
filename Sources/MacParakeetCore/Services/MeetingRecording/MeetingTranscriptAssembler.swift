@@ -42,6 +42,9 @@ public struct MeetingRealtimeTranscript: Sendable, Equatable {
 struct MeetingTranscriptAssembler {
     private static let orderedSources: [AudioSource] = [.microphone, .system]
     private static let syntheticOverlapAnchorLength = 6
+    /// The live roster's microphone label, read per update so a name changed
+    /// mid-recording shows up without restarting it.
+    var microphoneLabel: @Sendable () -> String = { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel() }
 
     private var wordsBySource: [AudioSource: [WordTimestamp]] = [:]
     private var lastCommittedEndMs: [AudioSource: Int] = [:]
@@ -222,7 +225,8 @@ struct MeetingTranscriptAssembler {
         let activeIDs = Set(words.compactMap(\.speakerId))
         return Self.orderedSources.compactMap { source in
             guard activeIDs.contains(source.rawValue) else { return nil }
-            return SpeakerInfo(id: source.rawValue, label: source.displayLabel)
+            let label = source == .microphone ? microphoneLabel() : source.displayLabel
+            return SpeakerInfo(id: source.rawValue, label: label)
         }
     }
 

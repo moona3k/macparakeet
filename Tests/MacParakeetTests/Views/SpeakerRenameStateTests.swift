@@ -114,4 +114,37 @@ final class SpeakerRenameStateTests: XCTestCase {
         XCTAssertNil(state.finish(contextID: "overview:A"), "The blur after Escape must not submit the draft")
         XCTAssertNil(state.draft)
     }
+
+    /// The editor may open on a recognised voice's name. Until the user edits
+    /// it, the draft is an untouched suggestion, which only Return may accept;
+    /// any edit (even back to the same text after a change) is the user's own.
+    func testPrefilledSuggestionIsUntouchedUntilEdited() {
+        var state = SpeakerRenameState()
+        state.begin(SpeakerInfo(id: "microphone:S1", label: "Room 1"), contextID: "turn:S1")
+        XCTAssertEqual(state.draft?.isUntouchedSuggestion, false)
+
+        state.prefill(suggestion: "Tom", contextID: "turn:S1")
+        XCTAssertEqual(state.draft?.label, "Tom")
+        XCTAssertEqual(state.draft?.isUntouchedSuggestion, true)
+
+        state.updateLabel("Thomas", contextID: "turn:S1")
+        XCTAssertEqual(state.draft?.isUntouchedSuggestion, false)
+
+        // Editing away and typing the suggestion back is still the user's answer.
+        state.updateLabel("Tom", contextID: "turn:S1")
+        XCTAssertEqual(state.draft?.label, "Tom")
+        XCTAssertEqual(state.draft?.isUntouchedSuggestion, false)
+
+        // A no-op update (the field echoing its own value) is not an edit.
+        var fresh = SpeakerRenameState()
+        fresh.begin(SpeakerInfo(id: "microphone:S2", label: "Room 2"), contextID: "turn:S2")
+        fresh.prefill(suggestion: "Chris", contextID: "turn:S2")
+        fresh.updateLabel("Chris", contextID: "turn:S2")
+        XCTAssertEqual(fresh.draft?.isUntouchedSuggestion, true)
+
+        // A prefill aimed at another editor changes nothing here.
+        state.prefill(suggestion: "Thomas", contextID: "another:context")
+        XCTAssertEqual(state.draft?.label, "Tom")
+        XCTAssertEqual(state.draft?.isUntouchedSuggestion, false)
+    }
 }

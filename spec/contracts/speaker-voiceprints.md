@@ -17,7 +17,10 @@ merging into `main` does not establish meeting accuracy or authorize release.
 - `DiarizationService` normalizes and remaps offline speaker centroids into
   `SpeakerEmbedding` values, preserving the detected speaker IDs and durations.
 - `TranscriptionService` passes eligible meeting observations to
-  `SpeakerVoiceprintService` after the transcription is persisted. The service
+  `SpeakerVoiceprintService` after the transcription is persisted. With the
+  effective gate on, it also diarizes the microphone track and
+  `MeetingMicrophoneSpeakerResolver` classifies each microphone voice (see
+  [Owner Voice And The Microphone Track](#owner-voice-and-the-microphone-track)). The service
   uses the pure `SpeakerVoiceprintMatcher` and GRDB repositories for profiles,
   exemplars, links, enrollment candidates and the match journal.
 - `AppEnvironment` supplies feature/preference gating and starts
@@ -32,12 +35,33 @@ merging into `main` does not establish meeting accuracy or authorize release.
 
 The default Nemotron 3 service emits anonymous activity and no reusable speaker
 embeddings. When experimental voice profiles are available, the shared factory
-selects the existing Community-1/WeSpeaker service instead. Its aggregation
-revision is `fluidaudio-0.17.7`. That upgrade changes Community-1 embeddings of
-windows with digital silence. Profiles enrolled under `fluidaudio-0.17.4` stay
-comparable with new runs under the stricter cross-aggregation threshold
-(`tau - crossAggregationPenalty`), so they may still match; no profile data is
-deleted by this dependency upgrade.
+wraps a diarizer in `TitaNetVoiceprintDiarizationService`. Without an explicit
+speaker-count constraint that diarizer is `HybridDiarizationService`; with one,
+it is Community-1 (`DiarizationService`).
+
+The hybrid's own embeddings are internal. Nemotron supplies the segments (turn
+timing and overlap). A Nemotron speaker with a clear Community-1 counterpart
+(the cluster covering at least 60% of its speech, one voice per speaker)
+carries that Community-1/WeSpeaker embedding; an unmatched or split speaker
+carries none and is never matched. Stretches only Community-1 heard keep their
+mapped speaker. When Nemotron merges two distinct voices (a second voice of
+≥ 15 s and ≥ 20% of a speaker), or Nemotron fails, the Community-1 result is
+used unchanged. When Community-1 fails, the Nemotron result is returned without
+embeddings. Nemotron's own constraint fallback (which already carries
+embeddings) is returned as is.
+
+Saved and matched voiceprints are TitaNet-Large, not Community-1. The wrapper
+replaces each speaker's embedding with a TitaNet vector (model id
+`nvidia-titanet-large-192`, aggregation `titanet-concat10s-v1`). Only speakers
+the inner diarizer gave an embedding are eligible, so the hybrid's "no clear
+voice" decision survives. Each vector is built from at least 3 s of that
+speaker's speech with nobody else talking, and that speech, not total
+activity, is the duration the match and enrollment gates see. If the TitaNet
+model is unavailable, the result carries no embeddings, so nothing is scored
+or retained; speaker detection is unaffected. Profiles enrolled under the
+earlier Community-1 embeddings (`fluidaudio-wespeaker-256`) are not comparable:
+they surface as using a retired model and need a new sample. No profile data
+is deleted.
 
 ## Availability And Consent
 
@@ -79,18 +103,64 @@ reads and deletion remain available after recognition is disabled.
   voices is the same claim as typing that name into the enrollment field. How far
   the chosen voice sits from the profile's existing samples is deliberately not a
   gate — that distance is why no suggestion was made.
-- Current policy is experimental: cosine distance `tau = 0.25`, margin `0.10`,
+- Current policy is experimental (`SpeakerMatchPolicy.titanetV1`): cosine
+  distance `tau = 0.40`, pollution guard `0.55`, margin `0.10`,
   minimum cluster speech of 3 seconds to match and 15 seconds to enroll, learn
   from a confirmation or retain a candidate. A shorter match can still be
-  confirmed without storing an exemplar. These are duration gates, not clean-span or overlap filtering.
-  Whole-cluster centroids can contain diarization errors; naming a cluster does
-  not repair its attribution.
+  confirmed without storing an exemplar. The gates read the non-overlapped speech behind the voiceprint.
+  A cluster can still contain diarization errors; naming it does not repair its
+  attribution.
 - An embedding-model mismatch prevents comparison. An aggregation-profile
   mismatch tightens the experimental threshold. Neither change deletes profiles.
 - Profile-name lookup and uniqueness share the persisted `normalizedName`: trim
   surrounding whitespace and fold Unicode case and width while preserving
   accents. `displayName` remains display text; SQLite `COLLATE NOCASE` does not
   define identity. Name collisions still require the enrollment pollution guard.
+
+## Owner Voice And The Microphone Track
+
+The microphone hears more than its owner: far-end audio played on speakers
+returns as echo that cancellation can miss, and colleagues in a room share the
+microphone. With the effective gate on, meeting finalization diarizes the
+microphone track as well and `MeetingMicrophoneSpeakerResolver` gives every
+microphone cluster one role:
+
+- **Echo** — within `tau` of a diarized system cluster with at least the match
+  gate of speech. Its words are attributed to that system cluster. Echo is
+  decided first, so a far-end voice can never be chosen as the owner.
+- **Owner** — the cluster recognised as the owner's saved voice (within the
+  effective `tau`), otherwise the remaining cluster with the most speech. Its
+  words keep the `microphone` id and the "Your name" label.
+- **Room voice** — any other cluster with at least the enrollment gate of
+  speech that is not within `tau` of the owner cluster. It becomes a diarized
+  `microphone:Sn` speaker labelled "Room N" and takes the ordinary identity
+  flows (suggestion, rename-and-remember, manual assignment) like a system
+  cluster, with capture domain `microphone`.
+
+Shorter clusters and an over-split owner fold into `microphone`, and an
+unclaimed microphone word stays `microphone`, so a single-voice headset meeting
+keeps the transcript it had before. Microphone diarization is best-effort: a
+failure other than cancellation leaves the track as one `microphone` speaker.
+With the gate off, voice-profile diarization and identity handling leave the
+microphone track unchanged (its label still follows "Your name", below).
+
+The owner's cluster is retained as a candidate under speaker id `microphone`
+and is never offered a suggestion. `enrollOwnerVoice` is the single identity
+write a capture track accepts: it enrolls that candidate under the user's name
+(the "Your name" preference, or the label the user gave the `microphone` row —
+never the "Me" placeholder) with the same duration, cap, model and pollution
+rules as any enrollment, and records the profile as the owner through the
+`ownerVoiceProfileID` preference. That pointer is not biometric data; a pointer
+to a forgotten profile reads as unset, and forgetting that voice or all voices
+clears it. The owner's profile is excluded from suggestions for every other
+speaker. When a later owner cluster passes the match-duration gate and has a
+comparable voiceprint, the evaluation updates the profile's
+`lastEvaluatedDistance`, and `lastMatchedAt` only within the effective `tau`,
+so the voices screen shows whether the owner is being recognised. No journal row or link is written for the owner.
+
+"Your name" (`meetingOwnerName`) is a display label for the `microphone` track
+of new meetings, independent of voice profiles and consent. It is local free
+text: never telemetry, never a profile. Saved transcripts keep their labels.
 
 ## Local Storage And Lifecycle
 
@@ -127,7 +197,7 @@ profile links remain, and a held link still blocks that voice for other speakers
 in the same transcript fingerprint. Re-applying the name records the identity
 again without adding a second sample from the same recording. Identity writes
 apply only to diarized clusters, never to the meeting `microphone` or `system`
-capture tracks. Correcting an assignment to a different profile unlearns this
+capture tracks, with one exception: the owner enrollment described below. Correcting an assignment to a different profile unlearns this
 recording's sample from the previous profile so a misclick cannot keep teaching
 the wrong name.
 
@@ -184,10 +254,16 @@ requires its own reviewed consent, deletion and compatibility design.
 ## Tests And Required Evidence
 
 Focused fixture coverage lives in `SpeakerEmbeddingTests`,
+`SpeakerOwnerVoiceTests`, `MeetingMicrophoneSpeakerTests`,
 `SpeakerVoiceprintMatcherTests`, `SpeakerProfileRepositoryTests`,
 `SpeakerEmbeddingCandidateRepositoryTests`, `SpeakerVoiceprintServiceTests` and
 `SpeakerVoiceprintWiringTests`. `VoiceProfileFeatureGateTests` and
 `SpeakerVoiceprintRetentionTests` cover availability and scheduled cleanup.
+`TitaNetSpeakerEmbedderTests` enforce the voiceprint backend: hybrid
+eligibility surviving the swap, the exclusive-speech minimum and reported
+duration, file-backed window reads, the verified model install, no
+cross-model comparison, and the missing-model fallback. `HybridDiarizationServiceTests`
+cover fusion and both failure fallbacks.
 Integration must cover disabled gates despite saved
 preferences or stale observations, consent prerequisites, fingerprint isolation,
 candidate preservation after rejected insertion, expiry without new meetings,

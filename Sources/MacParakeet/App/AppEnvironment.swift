@@ -109,7 +109,9 @@ final class AppEnvironment {
             profiles: speakerProfileRepo,
             candidates: speakerEmbeddingCandidateRepo,
             journal: speakerMatchJournalRepo,
-            isEnabled: { UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled() }
+            isEnabled: { UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled() },
+            ownerProfileID: { UserDefaultsAppRuntimePreferences.ownerVoiceProfileID() },
+            setOwnerProfileID: { UserDefaultsAppRuntimePreferences.setOwnerVoiceProfileID($0) }
         )
         speakerVoiceprintRetention = SpeakerVoiceprintRetention(
             candidates: speakerEmbeddingCandidateRepo,
@@ -482,7 +484,9 @@ final class AppEnvironment {
             podcastAudioFetcher: PodcastAudioDownloader(),
             diarizationService: diarizationService,
             meetingArtifactStore: meetingArtifactStore,
-            speakerVoiceprints: AppFeatures.isVoiceProfilesAvailable() ? speakerVoiceprintService : nil
+            speakerVoiceprints: AppFeatures.isVoiceProfilesAvailable() ? speakerVoiceprintService : nil,
+            meetingMicrophoneLabel: { UserDefaultsAppRuntimePreferences.meetingMicrophoneLabel() },
+            shouldDiarizeMeetingMicrophone: { UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled() }
         )
 
         meetingRecordingRecoveryService = MeetingRecordingRecoveryService(

@@ -923,6 +923,7 @@ public enum SpeakerAttributionResolver {
     private static func source(for speakerID: String?) -> AudioSource? {
         switch speakerID {
         case AudioSource.microphone.rawValue: .microphone
+        case let id? where id.hasPrefix("\(AudioSource.microphone.rawValue):"): .microphone
         case AudioSource.system.rawValue: .system
         case let id? where id.hasPrefix("\(AudioSource.system.rawValue):"): .system
         default: nil

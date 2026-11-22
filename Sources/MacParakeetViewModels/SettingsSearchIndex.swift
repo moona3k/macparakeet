@@ -533,6 +533,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
+            id: "meeting.ownerName",
+            tab: .capture,
+            title: "Your name",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "name", "my name", "me", "speaker name", "label", "microphone label",
+                "rename me", "who am i",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
             id: "meeting.audioSources",
             tab: .capture,
             title: "Audio sources",

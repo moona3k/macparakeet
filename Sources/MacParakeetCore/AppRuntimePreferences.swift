@@ -544,6 +544,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// the toggle goes on, not at the first enrollment — by then a voice has
     /// already been stored.
     public static let voiceprintConsentAcknowledgedAtKey = "voiceprintConsentAcknowledgedAt"
+    /// What new meeting transcripts call the microphone track. Empty (the
+    /// default) keeps the historical "Me". A display label only: it carries no
+    /// voice identity and changes no saved transcript.
+    public static let meetingOwnerNameKey = "meetingOwnerName"
+    /// The saved voice the user enrolled as themselves from the microphone
+    /// track. A pointer, not data: the profile and its samples live in the
+    /// voiceprint tables, and a pointer to a forgotten profile reads as unset.
+    public static let ownerVoiceProfileIDKey = "ownerVoiceProfileID"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
@@ -666,6 +674,30 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public static func voiceprintConsentAcknowledgedAt(defaults: UserDefaults = .standard) -> Date? {
         defaults.object(forKey: voiceprintConsentAcknowledgedAtKey) as? Date
+    }
+
+    /// The user's own name for meeting transcripts, or nil when unset.
+    public static func meetingOwnerName(defaults: UserDefaults = .standard) -> String? {
+        let trimmed = (defaults.string(forKey: meetingOwnerNameKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// The roster label new meetings give the microphone track.
+    public static func meetingMicrophoneLabel(defaults: UserDefaults = .standard) -> String {
+        meetingOwnerName(defaults: defaults) ?? AudioSource.microphone.displayLabel
+    }
+
+    public static func ownerVoiceProfileID(defaults: UserDefaults = .standard) -> UUID? {
+        defaults.string(forKey: ownerVoiceProfileIDKey).flatMap(UUID.init(uuidString:))
+    }
+
+    public static func setOwnerVoiceProfileID(_ id: UUID?, defaults: UserDefaults = .standard) {
+        if let id {
+            defaults.set(id.uuidString, forKey: ownerVoiceProfileIDKey)
+        } else {
+            defaults.removeObject(forKey: ownerVoiceProfileIDKey)
+        }
     }
 
     public static func showMeetingRecordingPill(defaults: UserDefaults = .standard) -> Bool {
