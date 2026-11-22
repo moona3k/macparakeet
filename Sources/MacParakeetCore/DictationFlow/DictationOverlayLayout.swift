@@ -5,15 +5,19 @@ import Foundation
 public enum DictationOverlayPlacement: String, CaseIterable, Hashable, Sendable {
     case bottom
     case top
+    /// Merged with the camera notch. Resolves to `.top` where there is no
+    /// usable notch (see `OverlaySurfaceResolver`).
+    case notch
 
     public var displayTitle: String {
         switch self {
         case .bottom: return "Bottom"
         case .top: return "Top"
+        case .notch: return "Around the notch"
         }
     }
 
-    public var anchorsToTop: Bool { self == .top }
+    public var anchorsToTop: Bool { self == .top || self == .notch }
 
     public static func current(defaults: UserDefaults = .standard) -> DictationOverlayPlacement {
         guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey),
@@ -58,7 +62,7 @@ public enum DictationOverlayLayout {
         switch placement {
         case .bottom:
             y = usableFrame.minY + margin
-        case .top:
+        case .top, .notch:
             y = max(usableFrame.minY, usableFrame.maxY - panelSize.height - margin)
         }
         return CGPoint(x: x, y: y)
