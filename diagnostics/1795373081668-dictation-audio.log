@@ -1,0 +1,4 @@
+2026-11-22T17:32:43.693Z dictation_diagnostics_session_start pid=52361 version=0.8.10 build=20261014033417 source=dist-xcodebuild-release commit=394e630b4af7 process_id=52361 process_session=7c06238c-4a50-47a2-902c-daf0564ef8cb uptime_ns=1138272679299375
+2026-11-22T17:34:26.762Z dictation_hotkey_tap_reenabled mode=unknown process_id=52361 process_session=7c06238c-4a50-47a2-902c-daf0564ef8cb uptime_ns=1138375747005000
+2026-11-22T17:48:13.552Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.024 output_format_ms=0.011 install_tap_ms=0.544 total_ms=186.004 process_id=52361 process_session=7c06238c-4a50-47a2-902c-daf0564ef8cb uptime_ns=1139202533655875
+2026-11-22T17:48:13.553Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=187.580 process_id=52361 process_session=7c06238c-4a50-47a2-902c-daf0564ef8cb uptime_ns=1139202535276416
