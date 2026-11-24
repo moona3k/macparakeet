@@ -523,8 +523,8 @@ Persistent floating pill centered on the bottom (default), top, left, or right e
 
 ### Dimensions
 
-- **Collapsed:** 48×10pt dark grey capsule (subtle nub)
-- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip on the screen-facing side (above at the bottom edge, below at the top)
+- **Collapsed:** 48×10pt dark grey capsule (subtle nub); 10×48pt on the Left or Right edge
+- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip on the screen-facing side (above at the bottom edge, below at the top). On the Left or Right edge the capsule is 30×148pt with the dots in a column, and the tooltip stays horizontal beside it, toward the screen center
 - **Position:** Settings → Dictation → Pill position: Bottom (default), Top, Left, or Right. Bottom and Top are horizontally centered, Left and Right vertically centered, all 12pt inside `visibleFrame` so the Dock and menu bar stay clear. Top also reserves menu-bar/notch height when the menu bar auto-hides or an app is full screen. On Left and Right the pill turns to run along the edge (the idle nub is 10×48, the recording pill stacks Cancel, timer, waveform, and Stop top to bottom). All text stays upright: the tooltip, loading caption, live readout, and text states (Undo, errors, no-speech, command card) stay horizontal beside the pill, toward the screen center. Idle pill and live overlay share this placement and move immediately when it or the screen layout changes.
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
@@ -557,7 +557,7 @@ Persistent floating pill centered on the bottom (default), top, left, or right e
 
 - 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Tooltip bubble above (below when top-anchored): "Click, tap fn or hold fn to dictate"
+- Tooltip bubble above (below when top-anchored, beside the pill on the Left or Right edge): "Click, tap fn or hold fn to dictate"
   - Shortcut tokens in pink (0.85, 0.55, 0.75)
   - Dark capsule background (black 90%) with white 10% stroke
 ```
@@ -591,7 +591,7 @@ Compact dark pill overlay, always-on-top on the same screen edge as the idle pil
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
 - **Width:** Dynamic, fits content. Persistent dictation recording and cancelled/Undo use 7pt horizontal padding, matching the 7pt vertical inset, so cancel/stop and the countdown/Undo controls sit in the capsule hemispheres. Hold-to-talk recording keeps 16pt — it has no end circles and the compact dot+timer+waveform cluster already looked right at the wider inset. Command recording and processing-with-copy keep 16pt.
-- **Position:** Same edge as the idle pill, horizontally centered, 12pt inside the visible frame. When top-anchored, the stack mirrors: pill on the edge, then live preview, load caption, and hover tooltip below it.
+- **Position:** Same edge as the idle pill, centered along that edge, 12pt inside the visible frame. When top-anchored, the stack mirrors: pill on the edge, then live preview, load caption, and hover tooltip below it. On the Left or Right edge the persistent and hold-to-talk recording pills are vertical (~37×171pt for persistent: Cancel, timer, waveform, Stop, top to bottom). The live preview and load caption sit in a column beside the pill, toward the screen center, and the Cancel/Stop tooltips line up with the pill end they describe. Command recording, Undo, processing, no-speech, and error states keep their horizontal shapes.
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)
 

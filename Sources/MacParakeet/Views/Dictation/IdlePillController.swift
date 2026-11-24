@@ -15,8 +15,10 @@ private final class IdlePillTrackingView: NSView {
 
     /// Small rect for the collapsed pill (hover trigger zone).
     var collapsedPillRect: NSRect = .zero
-    /// Larger rect for the expanded pill + tooltip (stays hovered while interacting).
-    var expandedPillRect: NSRect = .zero
+    /// Rects for the expanded pill + tooltip (stays hovered while interacting).
+    /// Side edges use two rects, so the empty space beside the tooltip
+    /// passes clicks through to the app below.
+    var expandedPillRects: [NSRect] = []
 
     private var isInsidePill = false
     private var isExpanded = false
@@ -46,9 +48,9 @@ private final class IdlePillTrackingView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let activeRect = isExpanded ? expandedPillRect : collapsedPillRect
+        let activeRects = isExpanded ? expandedPillRects : [collapsedPillRect]
 
-        if activeRect.contains(point) {
+        if activeRects.contains(where: { $0.contains(point) }) {
             if !isInsidePill {
                 isInsidePill = true
                 isExpanded = true
@@ -65,16 +67,16 @@ private final class IdlePillTrackingView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let activeRect = isExpanded ? expandedPillRect : collapsedPillRect
-        if activeRect.contains(point) {
+        let activeRects = isExpanded ? expandedPillRects : [collapsedPillRect]
+        if activeRects.contains(where: { $0.contains(point) }) {
             onClicked?()
         }
     }
 
     // Only intercept clicks in the visible pill region; pass through everywhere else.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        let activeRect = isExpanded ? expandedPillRect : collapsedPillRect
-        return activeRect.contains(point) ? self : nil
+        let activeRects = isExpanded ? expandedPillRects : [collapsedPillRect]
+        return activeRects.contains(where: { $0.contains(point) }) ? self : nil
     }
 }
 
@@ -159,9 +161,16 @@ final class IdlePillController {
             DictationOverlayLayout.edgeRect(length: length, depth: depth, panelSize: panelSize, placement: placement)
         }
         trackingView.collapsedPillRect = edgeRect(length: 60, depth: 24)
-        trackingView.expandedPillRect = placement.isVertical
-            ? edgeRect(length: 160, depth: panelSize.width)
-            : edgeRect(length: 320, depth: 80)
+        // Side edges: an 8pt inset + 30pt pill + 6pt gap column along the
+        // edge, plus a band as tall as the tooltip reaching across the panel.
+        if placement.isVertical {
+            trackingView.expandedPillRects = [
+                edgeRect(length: 160, depth: 48),
+                edgeRect(length: 48, depth: panelSize.width),
+            ]
+        } else {
+            trackingView.expandedPillRects = [edgeRect(length: 320, depth: 80)]
+        }
 
         panel.moveToDictationOverlayPosition(placement: placement, size: panelSize)
     }

@@ -344,7 +344,7 @@ Compact dark pill, icon-only controls, positioned at bottom-center of screen (40
                   bottom-center, 40px above screen edge
 ```
 
-**Pill dimensions:** ~150-180px wide, 36px tall, capsule shape (full corner radius)
+**Pill dimensions:** ~150-180px wide, 36px tall, capsule shape (full corner radius). On the Left or Right edge the persistent recording pill is vertical: ~37pt wide, ~171pt tall, with Cancel at the top and Stop at the bottom.
 **Background:** Solid dark (`Color.black.opacity(0.9)`)
 **Position:** Centered on the bottom (default), top, left, or right screen edge, per Settings → Dictation → Pill position. See `spec/04-ui-patterns.md` for geometry.
 **Controls:** Icon buttons only, no text labels
