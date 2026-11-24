@@ -90,6 +90,12 @@ final class IdlePillController {
 
     private let viewModel: IdlePillViewModel
 
+    /// Left/Right put the tooltip beside a vertical pill, so they need a
+    /// wider, taller panel than Bottom/Top.
+    private static func panelSize(for placement: DictationOverlayPlacement) -> CGSize {
+        placement.isVertical ? CGSize(width: 400, height: 170) : CGSize(width: 350, height: 90)
+    }
+
     init(viewModel: IdlePillViewModel) {
         self.viewModel = viewModel
     }
@@ -103,12 +109,11 @@ final class IdlePillController {
         // is typed against the bare view.
         let hosting = NSHostingView(rootView: view)
 
-        let panelWidth: CGFloat = 350
-        let panelHeight: CGFloat = 90
-        hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+        let panelSize = Self.panelSize(for: DictationOverlayPlacement.current())
+        hosting.frame = NSRect(origin: .zero, size: panelSize)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -145,23 +150,20 @@ final class IdlePillController {
     func reposition() {
         guard let panel, let trackingView else { return }
         let placement = DictationOverlayPlacement.current()
-        viewModel.anchorsToTop = placement.anchorsToTop
+        viewModel.placement = placement
 
         // Hover zones hug the anchored edge: the nub (48×10 + targeting slack)
         // collapsed, and the pill + tooltip once expanded.
-        let panelSize = panel.frame.size
-        func edgeRect(width: CGFloat, height: CGFloat) -> NSRect {
-            NSRect(
-                x: (panelSize.width - width) / 2,
-                y: placement.anchorsToTop ? panelSize.height - height : 0,
-                width: width,
-                height: height
-            )
+        let panelSize = Self.panelSize(for: placement)
+        func edgeRect(length: CGFloat, depth: CGFloat) -> NSRect {
+            DictationOverlayLayout.edgeRect(length: length, depth: depth, panelSize: panelSize, placement: placement)
         }
-        trackingView.collapsedPillRect = edgeRect(width: 60, height: 24)
-        trackingView.expandedPillRect = edgeRect(width: 320, height: 80)
+        trackingView.collapsedPillRect = edgeRect(length: 60, depth: 24)
+        trackingView.expandedPillRect = placement.isVertical
+            ? edgeRect(length: 160, depth: panelSize.width)
+            : edgeRect(length: 320, depth: 80)
 
-        panel.moveToDictationOverlayPosition(placement: placement)
+        panel.moveToDictationOverlayPosition(placement: placement, size: panelSize)
     }
 
     func hide() {

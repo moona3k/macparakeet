@@ -61,6 +61,14 @@ extension DictationOverlayControlling {
 
 extension NSPanel {
     /// Centers the panel on the user's chosen dictation edge of the main screen.
+    /// Resizes the panel (side edges use a different shape), then parks it.
+    func moveToDictationOverlayPosition(placement: DictationOverlayPlacement, size: CGSize) {
+        if frame.size != size {
+            setContentSize(size)
+        }
+        moveToDictationOverlayPosition(placement: placement)
+    }
+
     func moveToDictationOverlayPosition(placement: DictationOverlayPlacement) {
         guard let screen = NSScreen.main else { return }
         let usable = DictationOverlayLayout.usableFrame(
@@ -86,6 +94,12 @@ final class DictationOverlayController: DictationOverlayControlling {
 
     private let overlayViewModel: DictationOverlayViewModel
 
+    /// Bottom/Top stack outward from the pill; Left/Right put the readout and
+    /// tooltips beside a vertical pill, so they need a wide, shorter panel.
+    private static func panelSize(for placement: DictationOverlayPlacement) -> CGSize {
+        placement.isVertical ? CGSize(width: 360, height: 240) : CGSize(width: 300, height: 160)
+    }
+
     init(viewModel: DictationOverlayViewModel) {
         self.overlayViewModel = viewModel
     }
@@ -94,7 +108,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         if panel != nil { return }
 
         let placement = DictationOverlayPlacement.current()
-        overlayViewModel.anchorsToTop = placement.anchorsToTop
+        overlayViewModel.placement = placement
         let view = DictationOverlayView(viewModel: overlayViewModel)
         // No `.tint(...)` here — the overlay's controls are all custom-drawn,
         // so cascading the brand accent has no visible effect, and the typed
@@ -103,12 +117,11 @@ final class DictationOverlayController: DictationOverlayControlling {
         let hosting = NSHostingView(rootView: view)
 
         // Start with generous size — SwiftUI content sizes itself, panel background is clear
-        let panelWidth: CGFloat = 300
-        let panelHeight: CGFloat = 160
-        hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+        let panelSize = Self.panelSize(for: placement)
+        hosting.frame = NSRect(origin: .zero, size: panelSize)
 
         let panel = ClickablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -151,8 +164,8 @@ final class DictationOverlayController: DictationOverlayControlling {
     func reposition() {
         guard let panel else { return }
         let placement = DictationOverlayPlacement.current()
-        overlayViewModel.anchorsToTop = placement.anchorsToTop
-        panel.moveToDictationOverlayPosition(placement: placement)
+        overlayViewModel.placement = placement
+        panel.moveToDictationOverlayPosition(placement: placement, size: Self.panelSize(for: placement))
     }
 
     /// Resign key window so CGEvent paste targets the user's app, not the overlay panel.
@@ -171,22 +184,46 @@ final class DictationOverlayController: DictationOverlayControlling {
             return
         }
 
-        let panelWidth = bounds.width
+        let placement = overlayViewModel.placement
+        // Command recording is a wide horizontal text card even on a side
+        // edge, so the vertical pill math below does not fit it.
+        if placement.isVertical, overlayViewModel.sessionKind == .command {
+            overlayViewModel.hoverTooltip = nil
+            return
+        }
         // Dictation persistent recording: 7pt side inset + 22 cancel + 12 + 36
-        // timer + 12 + 64 waveform + 12 + 23 stop + 7 ≈ 195. Must stay in sync
-        // with `DictationOverlayView` recording padding or hover zones drift.
-        // Command persistent recording is a wider text card; this 195/36 math
-        // is the same pre-existing approximation (was 210/45) and is not
-        // claimed to fit that layout.
-        let pillWidth: CGFloat = 195
-        let pillLeft = (panelWidth - pillWidth) / 2
-        let pillRight = pillLeft + pillWidth
+        // timer + 12 + 64 waveform + 12 + 23 stop + 7 ≈ 195. On a side edge the
+        // pill runs top to bottom: 7 + 22 + 10 + 18 + 10 + 64 + 10 + 23 + 7 ≈ 171.
+        // Must stay in sync with `DictationOverlayView` recording padding or
+        // hover zones drift. Command persistent recording is a wider text card;
+        // this 195/36 math is the same pre-existing approximation (was 210/45)
+        // and is not claimed to fit that layout.
+        let pillLength: CGFloat = placement.isVertical
+            ? DictationOverlayView.verticalRecordingPillLength
+            : 195
+        if placement.isVertical {
+            let band = DictationOverlayLayout.edgeRect(
+                length: bounds.height,
+                depth: DictationOverlayView.verticalPillBandDepth,
+                panelSize: bounds.size,
+                placement: placement
+            )
+            guard band.contains(point) else {
+                overlayViewModel.hoverTooltip = nil
+                return
+            }
+        }
+        let along = DictationOverlayLayout.distanceAlongPill(
+            from: point,
+            pillLength: pillLength,
+            panelSize: bounds.size,
+            placement: placement
+        )
 
-        let x = point.x
-        if x >= pillLeft && x < pillLeft + 36 {
+        if along >= 0 && along < 36 {
             overlayViewModel.hoverTooltip = "Cancel (Esc)"
-        } else if x > pillRight - 36 && x <= pillRight {
-            if overlayViewModel.sessionKind == .command {
+        } else if along > pillLength - 36 && along <= pillLength {
+                    if overlayViewModel.sessionKind == .command {
                 overlayViewModel.hoverTooltip = "Stop & apply (Fn+Control)"
             } else {
                 let trigger = HotkeyTrigger.current
@@ -247,7 +284,8 @@ final class DictationOverlayViewModel {
     var processingLoadCaption: ProcessingLoadCaption?
     var liveTranscript: String = ""
     var previewTextSize: DictationPreviewTextSize = .medium
-    var anchorsToTop: Bool = false
+    var placement: DictationOverlayPlacement = .bottom
+    var anchorsToTop: Bool { placement.anchorsToTop }
     var commandPromptText: String = "Speak your command..."
     var commandSelectedText: String = ""
 

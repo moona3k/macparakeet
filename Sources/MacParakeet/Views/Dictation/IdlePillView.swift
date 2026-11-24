@@ -8,6 +8,14 @@ struct IdlePillView: View {
     @Bindable var viewModel: IdlePillViewModel
 
     var body: some View {
+        if viewModel.placement.isVertical {
+            sideEdgeBody
+        } else {
+            horizontalEdgeBody
+        }
+    }
+
+    private var horizontalEdgeBody: some View {
         // Tooltip sits on the screen-facing side of the pill.
         VStack(spacing: 6) {
             if viewModel.anchorsToTop {
@@ -20,6 +28,22 @@ struct IdlePillView: View {
         }
         .padding(viewModel.anchorsToTop ? .top : .bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: viewModel.anchorsToTop ? .top : .bottom)
+    }
+
+    /// The pill runs along the edge; the tooltip stays horizontal beside it.
+    private var sideEdgeBody: some View {
+        let onLeft = viewModel.placement == .left
+        return HStack(spacing: 6) {
+            if onLeft {
+                animatedPill
+                animatedTooltip
+            } else {
+                animatedTooltip
+                animatedPill
+            }
+        }
+        .padding(onLeft ? .leading : .trailing, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: onLeft ? .leading : .trailing)
     }
 
     private var animatedTooltip: some View {
@@ -47,8 +71,8 @@ struct IdlePillView: View {
                 )
         }
         .frame(
-            width: viewModel.isHovered ? 148 : 48,
-            height: viewModel.isHovered ? 30 : 10
+            width: viewModel.placement.isVertical ? pillThickness : pillLength,
+            height: viewModel.placement.isVertical ? pillLength : pillThickness
         )
         .shadow(color: .black.opacity(0.3), radius: viewModel.isHovered ? 8 : 4, y: 4)
         .overlay {
@@ -60,8 +84,14 @@ struct IdlePillView: View {
         }
     }
 
+    private var pillLength: CGFloat { viewModel.isHovered ? 148 : 48 }
+    private var pillThickness: CGFloat { viewModel.isHovered ? 30 : 10 }
+
     private var dotsRow: some View {
-        HStack(spacing: 4) {
+        let layout = viewModel.placement.isVertical
+            ? AnyLayout(VStackLayout(spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 4))
+        return layout {
             ForEach(0..<12, id: \.self) { _ in
                 Circle()
                     .fill(Color.white.opacity(0.25))

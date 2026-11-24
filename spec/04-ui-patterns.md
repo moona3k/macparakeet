@@ -519,13 +519,13 @@ Components:
 
 ## Idle Pill (v0.1)
 
-Persistent floating pill centered on the bottom (default) or top edge of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
+Persistent floating pill centered on the bottom (default), top, left, or right edge of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
 
 ### Dimensions
 
 - **Collapsed:** 48×10pt dark grey capsule (subtle nub)
 - **Expanded (hover):** 148×30pt dark capsule with dots + tooltip on the screen-facing side (above at the bottom edge, below at the top)
-- **Position:** Settings → Dictation → Pill position: Bottom (default) or Top, horizontally centered, 12pt inside `visibleFrame` so the Dock and menu bar stay clear. Top also reserves menu-bar/notch height when the menu bar auto-hides or an app is full screen. Idle pill and live overlay share this placement and move immediately when it or the screen layout changes.
+- **Position:** Settings → Dictation → Pill position: Bottom (default), Top, Left, or Right. Bottom and Top are horizontally centered, Left and Right vertically centered, all 12pt inside `visibleFrame` so the Dock and menu bar stay clear. Top also reserves menu-bar/notch height when the menu bar auto-hides or an app is full screen. On Left and Right the pill turns to run along the edge (the idle nub is 10×48, the recording pill stacks Cancel, timer, waveform, and Stop top to bottom). All text stays upright: the tooltip, loading caption, live readout, and text states (Undo, errors, no-speech, command card) stay horizontal beside the pill, toward the screen center. Idle pill and live overlay share this placement and move immediately when it or the screen layout changes.
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
 ### States
