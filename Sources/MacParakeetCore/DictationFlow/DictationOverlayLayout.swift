@@ -5,15 +5,22 @@ import Foundation
 public enum DictationOverlayPlacement: String, CaseIterable, Hashable, Sendable {
     case bottom
     case top
+    case left
+    case right
 
     public var displayTitle: String {
         switch self {
         case .bottom: return "Bottom"
         case .top: return "Top"
+        case .left: return "Left"
+        case .right: return "Right"
         }
     }
 
     public var anchorsToTop: Bool { self == .top }
+
+    /// Left and Right run the pill along the edge, top to bottom.
+    public var isVertical: Bool { self == .left || self == .right }
 
     public static func current(defaults: UserDefaults = .standard) -> DictationOverlayPlacement {
         guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey),
@@ -26,6 +33,7 @@ public enum DictationOverlayPlacement: String, CaseIterable, Hashable, Sendable 
 }
 
 /// Geometry for parking a dictation panel centered on the chosen screen edge.
+/// Rects and points use AppKit panel coordinates (origin bottom-left, y-up).
 public enum DictationOverlayLayout {
     public static let margin: CGFloat = 12
 
@@ -53,14 +61,66 @@ public enum DictationOverlayLayout {
         placement: DictationOverlayPlacement,
         margin: CGFloat = margin
     ) -> CGPoint {
-        let x = usableFrame.midX - panelSize.width / 2
-        let y: CGFloat
         switch placement {
         case .bottom:
-            y = usableFrame.minY + margin
+            return CGPoint(x: usableFrame.midX - panelSize.width / 2, y: usableFrame.minY + margin)
         case .top:
-            y = max(usableFrame.minY, usableFrame.maxY - panelSize.height - margin)
+            return CGPoint(
+                x: usableFrame.midX - panelSize.width / 2,
+                y: max(usableFrame.minY, usableFrame.maxY - panelSize.height - margin)
+            )
+        case .left:
+            return CGPoint(x: usableFrame.minX + margin, y: usableFrame.midY - panelSize.height / 2)
+        case .right:
+            return CGPoint(
+                x: max(usableFrame.minX, usableFrame.maxX - panelSize.width - margin),
+                y: usableFrame.midY - panelSize.height / 2
+            )
         }
-        return CGPoint(x: x, y: y)
+    }
+
+    /// A rect that hugs the anchored edge of the panel, centered along it.
+    /// `length` runs along the edge; `depth` reaches in from the edge.
+    public static func edgeRect(
+        length: CGFloat,
+        depth: CGFloat,
+        panelSize: CGSize,
+        placement: DictationOverlayPlacement
+    ) -> CGRect {
+        switch placement {
+        case .bottom:
+            return CGRect(x: (panelSize.width - length) / 2, y: 0, width: length, height: depth)
+        case .top:
+            return CGRect(
+                x: (panelSize.width - length) / 2,
+                y: panelSize.height - depth,
+                width: length,
+                height: depth
+            )
+        case .left:
+            return CGRect(x: 0, y: (panelSize.height - length) / 2, width: depth, height: length)
+        case .right:
+            return CGRect(
+                x: panelSize.width - depth,
+                y: (panelSize.height - length) / 2,
+                width: depth,
+                height: length
+            )
+        }
+    }
+
+    /// Distance of `point` from the pill's leading end (left on Bottom/Top,
+    /// top on Left/Right), measured along a pill of `pillLength` that is
+    /// centered on the anchored edge.
+    public static func distanceAlongPill(
+        from point: CGPoint,
+        pillLength: CGFloat,
+        panelSize: CGSize,
+        placement: DictationOverlayPlacement
+    ) -> CGFloat {
+        if placement.isVertical {
+            return (panelSize.height + pillLength) / 2 - point.y
+        }
+        return point.x - (panelSize.width - pillLength) / 2
     }
 }

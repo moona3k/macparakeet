@@ -268,7 +268,44 @@ struct DictationOverlayView: View {
         return .center
     }
 
+    /// Length of the persistent recording pill on a side edge, top to bottom:
+    /// 7 + 22 cancel + 10 + 18 timer + 10 + 64 waveform + 10 + 23 stop + 7.
+    /// `DictationOverlayController` hover zones depend on it.
+    static let verticalRecordingPillLength: CGFloat = 171
+    /// How far in from a side edge the pill's hover zones reach.
+    static let verticalPillBandDepth: CGFloat = 60
+
+    /// Left/Right run the dictation recording pill top to bottom. Command
+    /// recording is a text card, so it stays horizontal.
+    private var runsVertically: Bool {
+        viewModel.placement.isVertical && viewModel.sessionKind != .command
+    }
+
+    /// The side of each stacked element that faces the pill.
+    private var pillFacingEdge: Edge {
+        switch viewModel.placement {
+        case .bottom: return .bottom
+        case .top: return .top
+        case .left: return .leading
+        case .right: return .trailing
+        }
+    }
+
     var body: some View {
+        Group {
+            if viewModel.placement.isVertical {
+                sideEdgeBody
+            } else {
+                horizontalEdgeBody
+            }
+        }
+        .animation(.easeInOut(duration: 0.22), value: viewModel.processingLoadCaption)
+        .onChange(of: viewModel.pillStateKey) { _, newKey in
+            handlePillStateChange(to: newKey)
+        }
+    }
+
+    private var horizontalEdgeBody: some View {
         // Stacked outward from the pill, so a top-anchored overlay mirrors
         // the bottom layout: tooltip farthest from the pill, pill on the edge.
         VStack(spacing: 4) {
@@ -286,10 +323,30 @@ struct DictationOverlayView: View {
         }
         .padding(viewModel.anchorsToTop ? .top : .bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: viewModel.anchorsToTop ? .top : .bottom)
-        .animation(.easeInOut(duration: 0.22), value: viewModel.processingLoadCaption)
-        .onChange(of: viewModel.pillStateKey) { _, newKey in
-            handlePillStateChange(to: newKey)
+    }
+
+    /// The pill sits on the edge. Text (tooltip, loading caption, live
+    /// readout) stays horizontal beside it, toward the screen center.
+    private var sideEdgeBody: some View {
+        let onLeft = viewModel.placement == .left
+        let column = ZStack(alignment: onLeft ? .leading : .trailing) {
+            VStack(alignment: onLeft ? .leading : .trailing, spacing: 4) {
+                loadingCaption
+                liveTranscriptPreviewPanel
+            }
+            sideHoverTooltip
         }
+        return HStack(spacing: 8) {
+            if onLeft {
+                overlayContent
+                column
+            } else {
+                column
+                overlayContent
+            }
+        }
+        .padding(onLeft ? .leading : .trailing, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: onLeft ? .leading : .trailing)
     }
 
     /// When entering any noSpeech state, start as a 46×46 circle and schedule the
@@ -364,9 +421,11 @@ struct DictationOverlayView: View {
                 if isNoSpeechExpanded { return 5 }
                 return 7
             }()
+            let isRecording = if case .recording = viewModel.state { true } else { false }
+            let swapsPadding = runsVertically && isRecording
             pillContent
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, verticalPadding)
+                .padding(.horizontal, swapsPadding ? verticalPadding : horizontalPadding)
+                .padding(.vertical, swapsPadding ? horizontalPadding : verticalPadding)
                 .background(
                     Capsule()
                         .fill(DesignSystem.Colors.pillBackground)
@@ -450,22 +509,42 @@ struct DictationOverlayView: View {
 
     /// Red dot + timer + waveform — no buttons needed since releasing push-to-talk stops recording.
     private var holdToTalkContent: some View {
-        HStack(spacing: 12) {
+        pillStack(spacing: 12) {
             // Recording indicator dot
             Circle()
                 .fill(DesignSystem.Colors.recordingRed)
                 .frame(width: 5, height: 5)
 
-            // Recording timer
-            Text(viewModel.formattedElapsed)
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 36)
-
-            // Waveform
-            WaveformView(audioLevel: viewModel.audioLevel)
-                .frame(width: 64)
+            timerText
+            waveform
         }
+    }
+
+    /// Lays the pill's controls along the pill: left to right, or top to
+    /// bottom on a side edge. Text inside stays upright either way.
+    private func pillStack<Content: View>(
+        spacing: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let layout = runsVertically
+            ? AnyLayout(VStackLayout(spacing: spacing - 2))
+            : AnyLayout(HStackLayout(spacing: spacing))
+        return layout(content)
+    }
+
+    private var timerText: some View {
+        Text(viewModel.formattedElapsed)
+            .font(.system(size: 12, weight: .medium).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.6))
+            .frame(width: runsVertically ? nil : 36, height: runsVertically ? 18 : nil)
+            .fixedSize(horizontal: runsVertically, vertical: false)
+    }
+
+    private var waveform: some View {
+        WaveformView(audioLevel: viewModel.audioLevel)
+            .frame(width: 64)
+            .rotationEffect(.degrees(runsVertically ? 90 : 0))
+            .frame(width: runsVertically ? 20 : 64, height: runsVertically ? 64 : 20)
     }
 
     // MARK: - Recording State (Persistent)
@@ -604,7 +683,7 @@ struct DictationOverlayView: View {
             .animation(.easeInOut(duration: 0.18), value: viewportHeight)
             .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
             .transition(
-                .move(edge: viewModel.anchorsToTop ? .top : .bottom)
+                .move(edge: pillFacingEdge)
                     .combined(with: .opacity)
                     .animation(.easeInOut(duration: 0.16))
             )
@@ -637,7 +716,7 @@ struct DictationOverlayView: View {
     }
 
     private var recordingContent: some View {
-        HStack(spacing: 12) {
+        pillStack(spacing: 12) {
             // Cancel button
             Button(action: { viewModel.onCancel?() }) {
                 Image(systemName: "xmark")
@@ -649,15 +728,8 @@ struct DictationOverlayView: View {
             .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.15), value: isCancelHovered)
 
-            // Recording timer
-            Text(viewModel.formattedElapsed)
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 36)
-
-            // Waveform
-            WaveformView(audioLevel: viewModel.audioLevel)
-                .frame(width: 64)
+            timerText
+            waveform
 
             // Stop button
             Button(action: { viewModel.onStop?() }) {
@@ -943,6 +1015,19 @@ struct DictationOverlayView: View {
             .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
             .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
             .frame(height: 36)
+    }
+
+    /// Side-edge hover tooltip, beside the hovered end of the vertical pill.
+    private var sideHoverTooltip: some View {
+        tooltipLabel
+            .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
+            .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
+            .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
+            .frame(
+                height: Self.verticalRecordingPillLength,
+                alignment: isStopHovered ? .bottom : .top
+            )
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder
