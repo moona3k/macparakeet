@@ -5192,6 +5192,29 @@ struct TranscriptResultView: View {
         }
         .parakeetAction(.secondary)
         .disabled(speakerSelection.model.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        selectedLineActions
+    }
+
+    private var selectedLineActions: some View {
+        Menu("Line actions") {
+            if speakerSelection.model.count == 1, let segment = selectedSpeakerSegments.first {
+                if timedTextEditingAvailable {
+                    Button("Edit text…") { pendingTimedTextSegment = segment }
+                    if timedMergePair(for: segment, direction: .previous) != nil {
+                        Button("Merge with previous line") { mergeTimedSegment(segment, direction: .previous) }
+                    }
+                    if timedMergePair(for: segment, direction: .next) != nil {
+                        Button("Merge with next line") { mergeTimedSegment(segment, direction: .next) }
+                    }
+                }
+                Button("Split…") { presentSplitPicker(segment) }
+                    .disabled(!TimedTranscriptSplitModel.canSplit(segment))
+            }
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.model.count != 1 || viewModel.isApplyingSpeakerCorrection)
+        .help("Select one line to edit, split, or merge it")
     }
 
     private var speakerEditCompletionActions: some View {

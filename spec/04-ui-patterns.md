@@ -1069,6 +1069,8 @@ and boundary actions:
   line's start through the last line's end.
 - `Split segment` is unavailable for a text-edited line. The user can undo the
   text edit, split at an automatic word boundary, and edit the new lines.
+- Select one line to open `Line actions` in the edit toolbar. The menu offers
+  the same text, split, and merge commands as the row menu.
 - A persistent editing bar above the transcript scroll area groups the shared
   `Undo edit`, `Redo edit`, and `Reset edits` history with a prominent checkmark
   `Done` button. Done exits editing and clears selection; corrections are
