@@ -1046,6 +1046,10 @@ update keeping it alive. Rules that follow from it:
   cancel a pending jump.
 - Do not put more AppKit platform views (representables, selectable text
   overlays) inside lazily measured rows than the row already has.
+- Above the 400-row limit, timed editing uses row selection controls and omits
+  the per-line text selection overlays. Copy text is available on hover, in
+  the row's context menu, and through accessibility actions. Leaving edit
+  mode restores text selection.
 - `Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift`
   hosts the real view offscreen, scrolls it down and back, and fails if layout
   keeps re-running; hover itself cannot be simulated offscreen and stays a

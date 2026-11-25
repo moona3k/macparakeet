@@ -1,4 +1,11 @@
 import MacParakeetCore
+import Observation
+
+@Observable
+@MainActor
+final class SpeakerEditSelectionState {
+    var model = SpeakerEditSelectionModel()
+}
 
 /// Pure selection state for the timed transcript's speaker-editing mode.
 ///
