@@ -327,7 +327,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
     var isSpeakerEditing = false
     var isTimedTextEditingAvailable = true
     var isSpeakerActionDisabled = false
-    var selectedSegmentIDs: Set<SpeakerEditableSegmentID> = []
+    var speakerSelection: SpeakerEditSelectionState?
     var effectiveIsSegmentActive: (SpeakerEditableSegment) -> Bool = { _ in false }
     var effectiveHighlightRanges: [SpeakerEditableSegmentID: [NSRange]] = [:]
     var effectiveCurrentHighlight: (id: SpeakerEditableSegmentID, range: NSRange)? = nil
@@ -456,7 +456,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
                 isSpeakerEditing: isSpeakerEditing,
                 isTimedTextEditingAvailable: isTimedTextEditingAvailable,
                 isSpeakerActionDisabled: isSpeakerActionDisabled,
-                selectedSegmentIDs: selectedSegmentIDs,
+                speakerSelection: speakerSelection,
                 timestampLabel: timestampLabel,
                 isTimestampSeekable: isTimestampSeekable,
                 bodyFont: bodyFont,
@@ -503,7 +503,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View, TurnBanner: V
                 isSpeakerEditing: isSpeakerEditing,
                 isTimedTextEditingAvailable: isTimedTextEditingAvailable,
                 isSpeakerActionDisabled: isSpeakerActionDisabled,
-                isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
+                speakerSelection: speakerSelection,
                 onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
                 onBeginSpeakerEditing: onBeginSpeakerEditing,
                 onAssignSpeaker: { onAssignSegment(segment, $0) },
@@ -543,7 +543,7 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
     let isSpeakerEditing: Bool
     let isTimedTextEditingAvailable: Bool
     let isSpeakerActionDisabled: Bool
-    let selectedSegmentIDs: Set<SpeakerEditableSegmentID>
+    let speakerSelection: SpeakerEditSelectionState?
     let timestampLabel: (Int) -> String
     let isTimestampSeekable: Bool
     var bodyFont: Font
@@ -580,7 +580,10 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
     }
 
     private var selectedSegmentCount: Int {
-        segmentIDs.lazy.filter(selectedSegmentIDs.contains).count
+        guard isSpeakerEditing, let selectedIDs = speakerSelection?.model.selectedIDs,
+            !selectedIDs.isEmpty
+        else { return 0 }
+        return turn.logicalTurnSegments.lazy.filter { selectedIDs.contains($0.id) }.count
     }
 
     private var allSegmentsSelected: Bool {
@@ -649,7 +652,7 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
                             isSpeakerEditing: isSpeakerEditing,
                             isTimedTextEditingAvailable: isTimedTextEditingAvailable,
                             isSpeakerActionDisabled: isSpeakerActionDisabled,
-                            isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
+                            speakerSelection: speakerSelection,
                             onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
                             onBeginSpeakerEditing: onBeginSpeakerEditing,
                             onAssignSpeaker: { onAssignSegment(segment, $0) },
@@ -859,7 +862,7 @@ private struct TranscriptSegmentRow: View {
     var isSpeakerEditing = false
     var isTimedTextEditingAvailable = true
     var isSpeakerActionDisabled = false
-    var isSelectedForSpeakerEditing = false
+    var speakerSelection: SpeakerEditSelectionState?
     var onSelectForSpeakerEditing: () -> Void = {}
     var onBeginSpeakerEditing: () -> Void = {}
     var onAssignSpeaker: (SpeakerAssignment) -> Void = { _ in }
@@ -874,6 +877,11 @@ private struct TranscriptSegmentRow: View {
     @State private var isHovering = false
 
     var body: some View {
+        let isSelectedForSpeakerEditing =
+            isSpeakerEditing
+            && (editableSegment.map {
+                speakerSelection?.model.selectedIDs.contains($0.id) == true
+            } ?? false)
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
             if isSpeakerEditing {
                 Button(action: onSelectForSpeakerEditing) {
@@ -902,6 +910,9 @@ private struct TranscriptSegmentRow: View {
 
             bodyText
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityActions {
+                    playbackAndCopyActions
+                }
         }
         .padding(showRowBackground ? DesignSystem.Spacing.md : 0)
         // Keep the hover capsule inside the row's actual hit-test bounds even
@@ -919,10 +930,10 @@ private struct TranscriptSegmentRow: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            hoverActions
-                .padding(showRowBackground ? DesignSystem.Spacing.sm : 0)
-                .opacity(isHovering ? 1 : 0)
-                .allowsHitTesting(isHovering)
+            if isHovering {
+                hoverActions
+                    .padding(showRowBackground ? DesignSystem.Spacing.sm : 0)
+            }
         }
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
@@ -930,11 +941,22 @@ private struct TranscriptSegmentRow: View {
             }
         }
         .contextMenu {
+            playbackAndCopyActions
             if editableSegment != nil {
+                Divider()
                 segmentEditingMenu
                     .disabled(isSpeakerActionDisabled)
             }
         }
+    }
+
+    @ViewBuilder
+    private var playbackAndCopyActions: some View {
+        if isSeekable {
+            Button("Play from here", action: onPlayFromHere)
+        }
+        Button("Copy text", action: copyText)
+        Button("Copy with timestamp", action: copyWithTimestamp)
     }
 
     @ViewBuilder
@@ -990,14 +1012,8 @@ private struct TranscriptSegmentRow: View {
             if isSeekable {
                 rowActionButton(icon: "play.fill", help: "Play from here", action: onPlayFromHere)
             }
-            rowActionButton(icon: "doc.on.doc", help: "Copy text") {
-                TranscriptResultActions.copyText(text)
-            }
-            rowActionButton(icon: "clock", help: "Copy with timestamp") {
-                TranscriptResultActions.copyText(
-                    TranscriptSegmentClipboard.text(timestampLabel: timestampText, body: text)
-                )
-            }
+            rowActionButton(icon: "doc.on.doc", help: "Copy text", action: copyText)
+            rowActionButton(icon: "clock", help: "Copy with timestamp", action: copyWithTimestamp)
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
@@ -1053,6 +1069,16 @@ private struct TranscriptSegmentRow: View {
 
     private var canSplitEditableSegment: Bool {
         TimedTranscriptSplitModel.canSplit(editableSegment)
+    }
+
+    private func copyText() {
+        TranscriptResultActions.copyText(text)
+    }
+
+    private func copyWithTimestamp() {
+        TranscriptResultActions.copyText(
+            TranscriptSegmentClipboard.text(timestampLabel: timestampText, body: text)
+        )
     }
 
     private func rowActionButton(

@@ -663,6 +663,61 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         XCTAssertEqual(resolved.editableSegments.map(\.id), resolvedAgain.editableSegments.map(\.id))
     }
 
+    func testAssignmentAfterSplitRequiresOneCurrentLine() {
+        let transcription = fixture()
+        let whole = target(.init(startIndex: 0, endIndexExclusive: 4), transcription: transcription)
+        let first = target(.init(startIndex: 0, endIndexExclusive: 2), transcription: transcription)
+        let last = target(.init(startIndex: 2, endIndexExclusive: 4), transcription: transcription)
+        let partial = target(.init(startIndex: 0, endIndexExclusive: 1), transcription: transcription)
+        let history: [SpeakerCorrectionCommand] = [
+            .split(target: whole, atWordIndex: 2),
+            .assign(targets: [whole], to: .unassigned),
+            .assign(targets: [partial], to: .unassigned),
+            .assign(targets: [first, last], to: .speaker(id: "S2")),
+        ]
+        let (resolved, corrections) = replay(history, on: transcription)
+
+        XCTAssertEqual(
+            resolved.unresolvedCorrections,
+            corrections[1...2].map { .init(correctionID: $0.id, reason: .rangeMismatch) }
+        )
+        XCTAssertEqual(resolved.editableSegments.map(\.wordRange), [first.wordRange, last.wordRange])
+        XCTAssertEqual(resolved.editableSegments.map(\.assignment), [.speaker(id: "S2"), .speaker(id: "S2")])
+    }
+
+    func testAssignmentAfterJoiningAndResettingAutomaticLines() {
+        let transcription = twoSegmentFixture()
+        let first = target(.init(startIndex: 0, endIndexExclusive: 2), transcription: transcription)
+        let last = target(.init(startIndex: 2, endIndexExclusive: 4), transcription: transcription)
+        let whole = target(.init(startIndex: 0, endIndexExclusive: 4), transcription: transcription)
+        let joinedHistory: [SpeakerCorrectionCommand] = [
+            .mergeSegments(targets: [first, last]),
+            .split(target: whole, atWordIndex: 2),
+            .removeSplit(boundary: .init(target: whole, wordIndex: 2), joinedAssignment: nil),
+            .assign(targets: [first], to: .unassigned),
+            .assign(targets: [last], to: .unassigned),
+            .assign(targets: [whole], to: .speaker(id: "S2")),
+        ]
+        let (joined, joinedCorrections) = replay(joinedHistory, on: transcription)
+        XCTAssertEqual(
+            joined.unresolvedCorrections,
+            joinedCorrections[3...4].map { .init(correctionID: $0.id, reason: .rangeMismatch) }
+        )
+        XCTAssertEqual(joined.editableSegments.map(\.wordRange), [whole.wordRange])
+        XCTAssertEqual(joined.editableSegments.map(\.assignment), [.speaker(id: "S2")])
+
+        let (reset, resetCorrections) = replay(
+            joinedHistory + [.reset, .assign(targets: [first, last], to: .speaker(id: "S2"))],
+            on: transcription
+        )
+        XCTAssertEqual(
+            reset.unresolvedCorrections,
+            resetCorrections[3...4].map { .init(correctionID: $0.id, reason: .rangeMismatch) }
+        )
+        XCTAssertEqual(reset.editableSegments.map(\.wordRange), [first.wordRange, last.wordRange])
+        XCTAssertEqual(reset.editableSegments.map(\.assignment), [.speaker(id: "S2"), .speaker(id: "S2")])
+    }
+
     func testExplicitUnassignedDoesNotInheritDuringTurnGrouping() {
         let transcription = fixture()
         let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
@@ -1110,6 +1165,33 @@ final class SpeakerAttributionResolverTests: XCTestCase {
             payload: command,
             createdAt: Date(timeIntervalSince1970: TimeInterval(sequence))
         )
+    }
+
+    private func replay(
+        _ commands: [SpeakerCorrectionCommand],
+        on transcription: Transcription
+    ) -> (EffectiveSpeakerAttribution, [SpeakerCorrection]) {
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        var corrections: [SpeakerCorrection] = []
+        for command in commands {
+            corrections.append(
+                correction(
+                    id: UUID(), parentID: corrections.last?.id, sequence: corrections.count + 1,
+                    fingerprint: fingerprint, transcription: transcription, command: command
+                )
+            )
+        }
+        let resolved = SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: corrections,
+            state: .init(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: corrections.last?.id,
+                revision: corrections.count
+            )
+        )
+        return (resolved, corrections)
     }
 
     private func projected(

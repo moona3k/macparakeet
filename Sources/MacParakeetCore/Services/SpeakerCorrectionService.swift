@@ -177,8 +177,7 @@ public final class SpeakerCorrectionService: SpeakerCorrectionServicing, @unchec
                 in: db
             )
             return try Self.result(
-                transcription: context.transcription,
-                history: candidateHistory,
+                attribution: effective,
                 state: state,
                 in: db
             )
@@ -403,27 +402,20 @@ public final class SpeakerCorrectionService: SpeakerCorrectionServicing, @unchec
             in: db
         )
         return try result(
-            transcription: transcription,
-            history: history,
+            attribution: effective,
             state: state,
             in: db
         )
     }
 
     private static func result(
-        transcription: Transcription,
-        history: [SpeakerCorrection],
+        attribution: EffectiveSpeakerAttribution,
         state: SpeakerCorrectionState,
         in db: Database
     ) throws -> SpeakerCorrectionResult {
-        let attribution = SpeakerAttributionResolver.resolve(
-            transcription: transcription,
-            corrections: history,
-            state: state
-        )
         let canRedo =
             try SpeakerCorrectionRepository.redoChild(
-                transcriptionId: transcription.id,
+                transcriptionId: state.transcriptionId,
                 fingerprint: state.transcriptFingerprint,
                 parentId: state.headId,
                 in: db

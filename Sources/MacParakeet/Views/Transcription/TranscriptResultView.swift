@@ -644,7 +644,7 @@ struct TranscriptResultView: View {
     @State private var voiceProfileRenameContexts: [String: String] = [:]
     @State private var editingSpeakers = false
     @State private var pendingResetEditsTranscriptionID: UUID?
-    @State private var speakerSelection = SpeakerEditSelectionModel()
+    @State private var speakerSelection = SpeakerEditSelectionState()
     @State private var showingNewSpeakerPrompt = false
     @State private var newSpeakerLabel = ""
     @State private var pendingNewSpeakerSegments: [SpeakerEditableSegment] = []
@@ -726,7 +726,7 @@ struct TranscriptResultView: View {
         transcriptObservationContent
             .onChange(of: viewModel.speakerAttribution?.correctionRevision) {
                 if let attribution = viewModel.speakerAttribution {
-                    speakerSelection.reconcile(with: attribution.editableSegments.map(\.id))
+                    speakerSelection.model.reconcile(with: attribution.editableSegments.map(\.id))
                 }
                 chatNotesActionGate.invalidate()
                 chatViewModel.updateTranscriptText(transcriptText)
@@ -928,7 +928,7 @@ struct TranscriptResultView: View {
         voiceProfileRenameContexts.removeAll()
         editingSpeakers = false
         pendingResetEditsTranscriptionID = nil
-        speakerSelection.clear()
+        speakerSelection.model.clear()
         showingNewSpeakerPrompt = false
         newSpeakerLabel = ""
         pendingNewSpeakerSegments = []
@@ -2118,7 +2118,7 @@ struct TranscriptResultView: View {
                 transcriptFindToolbar
             }
             if editingSpeakers {
-                speakerEditingActionBar
+                TimedEditorToolbar { speakerEditingActionBar }
                     .padding(.horizontal, DesignSystem.Spacing.lg)
                     .padding(.top, DesignSystem.Spacing.sm)
             }
@@ -2226,7 +2226,7 @@ struct TranscriptResultView: View {
                 // Replace edits timed segments; see `findReplaceAvailable`.
                 findReplaceExpanded = false
                 editingSpeakers = false
-                speakerSelection.clear()
+                speakerSelection.model.clear()
             }
         }
         .onChange(of: editingTranscript) {
@@ -2340,10 +2340,10 @@ struct TranscriptResultView: View {
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .disabled(!viewModel.canRedoSpeakerCorrection)
                 Button("") {
-                    if speakerSelection.isEmpty {
+                    if speakerSelection.model.isEmpty {
                         editingSpeakers = false
                     } else {
-                        speakerSelection.clear()
+                        speakerSelection.model.clear()
                     }
                 }
                 .keyboardShortcut(.cancelAction)
@@ -5034,6 +5034,7 @@ struct TranscriptResultView: View {
         let mergeAvailability = TimedTranscriptMergeModel.availability(
             in: attribution?.editableSegments ?? []
         )
+        let usesLazyStack = transcriptBodyUsesLazyStack
         TranscriptTimestampedContentView(
             hasSpeakers: cachedHasSpeakers,
             identifiedTurnCards: cachedIdentifiedTurnCards,
@@ -5064,11 +5065,12 @@ struct TranscriptResultView: View {
                 autoScrollPaused = false
                 scrollPauseTask?.cancel()
             },
-            usesLazyStack: transcriptBodyUsesLazyStack,
+            usesLazyStack: usesLazyStack,
             bodyFont: scaledTranscriptFont,
             highlightRangesByStartMs: legacyHighlights,
             currentHighlight: legacyCurrent,
-            textSelectionEnabled: TranscriptBodyLayout.rowTextSelectionEnabled,
+            textSelectionEnabled: TranscriptBodyLayout.rowTextSelectionEnabled
+                && !(usesLazyStack && editingSpeakers),
             usesEffectiveAttribution: attribution != nil,
             editableSegments: attribution?.editableSegments ?? [],
             effectiveTurnCards: (attribution?.speakers.isEmpty ?? true)
@@ -5077,7 +5079,7 @@ struct TranscriptResultView: View {
             isSpeakerEditing: editingSpeakers,
             isTimedTextEditingAvailable: timedTextEditingAvailable,
             isSpeakerActionDisabled: viewModel.isApplyingSpeakerCorrection,
-            selectedSegmentIDs: speakerSelection.selectedIDs,
+            speakerSelection: speakerSelection,
             effectiveIsSegmentActive: { segment in
                 let currentMs = playerViewModel.currentTimeMs
                 return playerViewModel.playbackMode != .none
@@ -5127,7 +5129,7 @@ struct TranscriptResultView: View {
             VStack(alignment: .trailing, spacing: DesignSystem.Spacing.sm) {
                 finishSpeakerEditingButton
                 Menu {
-                    Text("\(speakerSelection.count) selected")
+                    Text("\(speakerSelection.model.count) selected")
                     speakerSelectionControls
                     Divider()
                     speakerHistoryControls
@@ -5149,7 +5151,7 @@ struct TranscriptResultView: View {
 
     private var speakerSelectionActions: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Text("\(speakerSelection.count) selected")
+            Text("\(speakerSelection.model.count) selected")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
             speakerSelectionControls
@@ -5159,9 +5161,9 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private var speakerSelectionControls: some View {
-        if !speakerSelection.isEmpty {
+        if !speakerSelection.model.isEmpty {
             Button("Clear") {
-                speakerSelection.clear()
+                speakerSelection.model.clear()
             }
             .parakeetAction(.subtle)
             .foregroundStyle(DesignSystem.Colors.textSecondary)
@@ -5177,19 +5179,42 @@ struct TranscriptResultView: View {
             }
         }
         .parakeetAction(.secondary)
-        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+        .disabled(speakerSelection.model.isEmpty || viewModel.isApplyingSpeakerCorrection)
 
         Button("New speaker…") {
             presentNewSpeaker(for: selectedSpeakerSegments)
         }
         .parakeetAction(.secondary)
-        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+        .disabled(speakerSelection.model.isEmpty || viewModel.isApplyingSpeakerCorrection)
 
         Button("Unassigned") {
             assignSelectedSegments(to: .unassigned)
         }
         .parakeetAction(.secondary)
-        .disabled(speakerSelection.isEmpty || viewModel.isApplyingSpeakerCorrection)
+        .disabled(speakerSelection.model.isEmpty || viewModel.isApplyingSpeakerCorrection)
+
+        selectedLineActions
+    }
+
+    private var selectedLineActions: some View {
+        Menu("Line actions") {
+            if speakerSelection.model.count == 1, let segment = selectedSpeakerSegments.first {
+                if timedTextEditingAvailable {
+                    Button("Edit text…") { pendingTimedTextSegment = segment }
+                    if timedMergePair(for: segment, direction: .previous) != nil {
+                        Button("Merge with previous line") { mergeTimedSegment(segment, direction: .previous) }
+                    }
+                    if timedMergePair(for: segment, direction: .next) != nil {
+                        Button("Merge with next line") { mergeTimedSegment(segment, direction: .next) }
+                    }
+                }
+                Button("Split…") { presentSplitPicker(segment) }
+                    .disabled(!TimedTranscriptSplitModel.canSplit(segment))
+            }
+        }
+        .parakeetAction(.secondary)
+        .disabled(speakerSelection.model.count != 1 || viewModel.isApplyingSpeakerCorrection)
+        .help("Select one line to edit, split, or merge it")
     }
 
     private var speakerEditCompletionActions: some View {
@@ -5229,7 +5254,7 @@ struct TranscriptResultView: View {
     private var finishSpeakerEditingButton: some View {
         Button {
             editingSpeakers = false
-            speakerSelection.clear()
+            speakerSelection.model.clear()
         } label: {
             Label("Done", systemImage: "checkmark")
         }
@@ -5240,7 +5265,7 @@ struct TranscriptResultView: View {
     }
 
     private var selectedSpeakerSegments: [SpeakerEditableSegment] {
-        speakerSelection.selectedSegments(from: viewModel.speakerAttribution?.editableSegments ?? [])
+        speakerSelection.model.selectedSegments(from: viewModel.speakerAttribution?.editableSegments ?? [])
     }
 
     private func selectSpeakerSegment(_ id: SpeakerEditableSegmentID) {
@@ -5251,7 +5276,7 @@ struct TranscriptResultView: View {
         } else {
             intent = .toggling
         }
-        speakerSelection.select(
+        speakerSelection.model.select(
             id,
             intent: intent,
             orderedIDs: viewModel.speakerAttribution?.editableSegments.map(\.id) ?? []
@@ -5266,14 +5291,14 @@ struct TranscriptResultView: View {
     }
 
     private func toggleSpeakerTurnSelection(_ ids: [SpeakerEditableSegmentID]) {
-        speakerSelection.toggleTurn(
+        speakerSelection.model.toggleTurn(
             ids,
             orderedIDs: viewModel.speakerAttribution?.editableSegments.map(\.id) ?? []
         )
     }
 
     private func actionSegments(fallback: SpeakerEditableSegment) -> [SpeakerEditableSegment] {
-        speakerSelection.selectedIDs.contains(fallback.id) ? selectedSpeakerSegments : [fallback]
+        speakerSelection.model.selectedIDs.contains(fallback.id) ? selectedSpeakerSegments : [fallback]
     }
 
     private func correctionTarget(for segment: SpeakerEditableSegment) -> SpeakerCorrectionTarget {
@@ -6710,6 +6735,13 @@ private struct EngineBadge: View {
                     .stroke(tint.opacity(0.28), lineWidth: 0.5)
             )
     }
+}
+
+/// Keep the selection count and controls out of the transcript view's updates.
+private struct TimedEditorToolbar<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
 }
 
 /// Owns the timed rows and the row actions derived from one prepared snapshot.

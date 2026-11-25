@@ -119,6 +119,7 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         segments: [TranscriptSegment],
         onRenderedChildAppear: @escaping () -> Void = {},
         attribution: EffectiveSpeakerAttribution? = nil,
+        speakerSelection: SpeakerEditSelectionState? = nil,
         onProxy: @escaping (ScrollViewProxy) -> Void = { _ in }
     ) -> CountingHostingView<AnyView> {
         let rowCount = attribution?.editableSegments.count
@@ -141,12 +142,15 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
                 rowCount: rowCount,
                 environment: [:]
             ),
+            textSelectionEnabled: speakerSelection == nil,
             onRenderedChildAppear: onRenderedChildAppear,
             usesEffectiveAttribution: attribution != nil,
             editableSegments: attribution?.editableSegments ?? [],
             effectiveTurnCards: hasSpeakers
                 ? identifiedEffectiveSpeakerTurnCards(attribution?.turns ?? []) : [],
-            availableSpeakers: attribution?.speakers ?? []
+            availableSpeakers: attribution?.speakers ?? [],
+            isSpeakerEditing: speakerSelection != nil,
+            speakerSelection: speakerSelection
         )
         let content = ScrollViewReader { proxy in
             ScrollView {
@@ -179,6 +183,7 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
 
     private func assertLayoutSettles(
         _ view: CountingHostingView<AnyView>,
+        afterFirstLayout: () -> Void = {},
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -208,6 +213,7 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
             "first layout took \(firstLayout)s", file: file, line: line
         )
         XCTAssertGreaterThan(view.fittingSize.height, 0, file: file, line: line)
+        afterFirstLayout()
 
         // The freeze reproduced after scrolling down and back up.
         guard let scrollView = findScrollView(view) else {
@@ -299,6 +305,25 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         let view = host(hasSpeakers: true, cards: [], segments: [], attribution: attribution)
 
         assertLayoutSettles(view)
+    }
+
+    func testEffectiveLongTranscriptSettlesAfterSelectionInEditMode() throws {
+        let transcript = attribution(for: segments(count: 500, speakers: ["S1", "S2"]))
+        let ids = transcript.editableSegments.map(\.id)
+        XCTAssertGreaterThan(ids.count, TranscriptBodyLayout.nonLazyRowLimit)
+        let first = try XCTUnwrap(ids.first)
+        let selection = SpeakerEditSelectionState()
+        let view = host(
+            hasSpeakers: true, cards: [], segments: [], attribution: transcript,
+            speakerSelection: selection
+        )
+
+        assertLayoutSettles(
+            view,
+            afterFirstLayout: {
+                selection.model.select(first, intent: .replacing, orderedIDs: ids)
+            })
+        XCTAssertEqual(selection.model.selectedIDs, [first])
     }
 
     private func attribution(for segments: [TranscriptSegment]) -> EffectiveSpeakerAttribution {
