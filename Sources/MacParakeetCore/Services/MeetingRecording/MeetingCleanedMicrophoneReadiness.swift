@@ -89,19 +89,26 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
     private let task: Task<MeetingCleanedMicrophoneRenderCompletion, Never>?
     private let fileManager: UncheckedSendableBox<FileManager>?
     private let notScheduledReason: MeetingCleanedMicrophoneRoutingReason?
+    /// A refresh of an archived meeting shares `outputURL` with any other run
+    /// on the same folder (app and CLI have no common owner). It therefore
+    /// never deletes the published file: a render replaces it atomically and a
+    /// failed or timed-out one leaves it for the next attempt.
+    private let preservesExistingOutput: Bool
 
     private init(
         outputURL: URL?,
         candidateOutputURL: URL?,
         task: Task<MeetingCleanedMicrophoneRenderCompletion, Never>?,
         fileManager: FileManager?,
-        notScheduledReason: MeetingCleanedMicrophoneRoutingReason?
+        notScheduledReason: MeetingCleanedMicrophoneRoutingReason?,
+        preservesExistingOutput: Bool = false
     ) {
         self.outputURL = outputURL
         self.candidateOutputURL = candidateOutputURL
         self.task = task
         self.fileManager = fileManager.map(UncheckedSendableBox.init)
         self.notScheduledReason = notScheduledReason
+        self.preservesExistingOutput = preservesExistingOutput
     }
 
     static func notScheduled(
@@ -120,14 +127,16 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
         outputURL: URL,
         task: Task<MeetingCleanedMicrophoneRenderCompletion, Never>,
         candidateOutputURL: URL? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        preservesExistingOutput: Bool = false
     ) -> MeetingCleanedMicrophoneReadiness {
         MeetingCleanedMicrophoneReadiness(
             outputURL: outputURL,
             candidateOutputURL: candidateOutputURL,
             task: task,
             fileManager: fileManager,
-            notScheduledReason: nil
+            notScheduledReason: nil,
+            preservesExistingOutput: preservesExistingOutput
         )
     }
 
@@ -187,8 +196,12 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
 
         let fileManager = fileManager?.value ?? .default
         do {
-            try? fileManager.removeItem(at: outputURL)
-            try fileManager.moveItem(at: renderedURL, to: outputURL)
+            if preservesExistingOutput, fileManager.fileExists(atPath: outputURL.path) {
+                _ = try fileManager.replaceItemAt(outputURL, withItemAt: renderedURL)
+            } else {
+                try? fileManager.removeItem(at: outputURL)
+                try fileManager.moveItem(at: renderedURL, to: outputURL)
+            }
             if renderedURL != candidateOutputURL {
                 try? fileManager.removeItem(at: candidateOutputURL)
             }
@@ -204,7 +217,7 @@ struct MeetingCleanedMicrophoneReadiness: Sendable {
         if let candidateOutputURL {
             try? fileManager.removeItem(at: candidateOutputURL)
         }
-        if let outputURL {
+        if let outputURL, !preservesExistingOutput {
             try? fileManager.removeItem(at: outputURL)
         }
     }
@@ -358,16 +371,19 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         sessionID: UUID,
         conditionerFactory: @escaping @Sendable () -> any MicConditioning,
         fileManager: FileManager,
-        eventName: String
+        eventName: String,
+        preservesExistingOutput: Bool = false
     ) -> MeetingCleanedMicrophoneReadiness {
         guard let microphoneURL else {
-            discardArtifact(
-                at: outputURL,
-                sessionID: sessionID,
-                reason: "missing_microphone",
-                fileManager: fileManager,
-                eventName: eventName
-            )
+            if !preservesExistingOutput {
+                discardArtifact(
+                    at: outputURL,
+                    sessionID: sessionID,
+                    reason: "missing_microphone",
+                    fileManager: fileManager,
+                    eventName: eventName
+                )
+            }
             appendDiagnostic(
                 eventName: eventName,
                 sessionID: sessionID,
@@ -377,13 +393,15 @@ enum MeetingCleanedMicrophoneRenderScheduler {
             return .notScheduled(reason: .rawRenderFailed)
         }
         guard let systemURL else {
-            discardArtifact(
-                at: outputURL,
-                sessionID: sessionID,
-                reason: "missing_system_reference",
-                fileManager: fileManager,
-                eventName: eventName
-            )
+            if !preservesExistingOutput {
+                discardArtifact(
+                    at: outputURL,
+                    sessionID: sessionID,
+                    reason: "missing_system_reference",
+                    fileManager: fileManager,
+                    eventName: eventName
+                )
+            }
             appendDiagnostic(
                 eventName: eventName,
                 sessionID: sessionID,
@@ -394,13 +412,15 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         }
         let rendererFileManager = UncheckedSendableBox(fileManager)
         let candidateOutputURL = candidateOutputURL(for: outputURL, sessionID: sessionID)
-        discardArtifact(
-            at: outputURL,
-            sessionID: sessionID,
-            reason: "prepare_candidate_render",
-            fileManager: fileManager,
-            eventName: eventName
-        )
+        if !preservesExistingOutput {
+            discardArtifact(
+                at: outputURL,
+                sessionID: sessionID,
+                reason: "prepare_candidate_render",
+                fileManager: fileManager,
+                eventName: eventName
+            )
+        }
         discardArtifact(
             at: candidateOutputURL,
             sessionID: sessionID,
@@ -466,7 +486,8 @@ enum MeetingCleanedMicrophoneRenderScheduler {
             outputURL: outputURL,
             task: task,
             candidateOutputURL: candidateOutputURL,
-            fileManager: fileManager
+            fileManager: fileManager,
+            preservesExistingOutput: preservesExistingOutput
         )
     }
 
@@ -474,15 +495,18 @@ enum MeetingCleanedMicrophoneRenderScheduler {
         outputURL: URL,
         sessionID: UUID,
         fileManager: FileManager,
-        eventName: String
+        eventName: String,
+        preservesExistingOutput: Bool = false
     ) -> MeetingCleanedMicrophoneReadiness {
-        discardArtifact(
-            at: outputURL,
-            sessionID: sessionID,
-            reason: "predicted_render_timeout",
-            fileManager: fileManager,
-            eventName: eventName
-        )
+        if !preservesExistingOutput {
+            discardArtifact(
+                at: outputURL,
+                sessionID: sessionID,
+                reason: "predicted_render_timeout",
+                fileManager: fileManager,
+                eventName: eventName
+            )
+        }
         appendDiagnostic(
             eventName: eventName,
             sessionID: sessionID,
@@ -674,14 +698,16 @@ extension MeetingRecordingOutput {
                 sessionID: sessionID,
                 conditionerFactory: conditionerFactory,
                 fileManager: fileManager,
-                eventName: eventName
+                eventName: eventName,
+                preservesExistingOutput: true
             )
         } else {
             readiness = MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
                 outputURL: outputURL,
                 sessionID: sessionID,
                 fileManager: fileManager,
-                eventName: eventName
+                eventName: eventName,
+                preservesExistingOutput: true
             )
         }
         return MeetingRecordingOutput(

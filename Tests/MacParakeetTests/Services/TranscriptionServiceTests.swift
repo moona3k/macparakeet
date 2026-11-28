@@ -1966,10 +1966,12 @@ final class TranscriptionServiceTests: XCTestCase {
 
         _ = try await service.transcribeMeeting(recording: recording)
 
-        // The stale artifact was discarded for a re-render; the placeholder
-        // audio cannot render, so the meeting falls back to the raw microphone.
+        // The stale artifact is refreshed; the placeholder audio cannot render,
+        // so the meeting falls back to the raw microphone. The published file
+        // is shared with any concurrent run, so a failed refresh keeps it.
         let convertURLs = await mockAudio.convertURLs
         XCTAssertEqual(convertURLs, [microphoneURL, systemURL])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cleanedURL.path))
     }
 
     func testTranscribeMeetingWaitsForCleanedMicRenderAndUsesCleanedSource() async throws {
