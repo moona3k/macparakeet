@@ -635,6 +635,80 @@ enum MeetingCleanedMicrophoneRenderScheduler {
 }
 
 extension MeetingRecordingOutput {
+    /// True when an archived meeting carries a cleaned microphone that no
+    /// render of this revision produced (issue #1249). A freshly stopped or
+    /// recovered meeting already owns a readiness handle and is never stale.
+    func hasStaleCleanedMicrophone(fileManager: FileManager = .default) -> Bool {
+        guard cleanedMicrophoneReadiness == nil, cleanedMicrophoneAudioURL != nil else {
+            return false
+        }
+        // Without readable metadata the render could not record its revision
+        // either, so leave the artifact alone.
+        guard let metadata = try? MeetingRecordingMetadataStore.load(
+            from: folderURL, fileManager: fileManager)
+        else {
+            return false
+        }
+        return metadata.echoSuppression?.rendererRevision != MeetingCleanedMicRenderer.currentRevision
+    }
+
+    /// Re-derives the cleaned microphone from the preserved raw sources
+    /// (ADR-028) and returns the output that waits on that render. The
+    /// resolution that follows is the one stop and recovery already use, so a
+    /// slow or failed render falls back to the raw microphone.
+    func schedulingCleanedMicrophoneRefresh(
+        conditionerFactory: @escaping @Sendable () -> any MicConditioning,
+        policy: MeetingCleanedMicrophoneReadinessPolicy,
+        fileManager: FileManager = .default
+    ) -> MeetingRecordingOutput {
+        let outputURL = folderURL.appendingPathComponent(
+            MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
+        let eventName = "meeting_retranscribe_cleaned_mic"
+        let readiness: MeetingCleanedMicrophoneReadiness
+        if policy.shouldAttemptRender(for: durationSeconds) {
+            readiness = MeetingCleanedMicrophoneRenderScheduler.schedule(
+                outputURL: outputURL,
+                microphoneURL: sourceAlignment.microphone == nil ? nil : microphoneAudioURL,
+                systemURL: sourceAlignment.system == nil ? nil : systemAudioURL,
+                sourceAlignment: sourceAlignment,
+                sessionID: sessionID,
+                conditionerFactory: conditionerFactory,
+                fileManager: fileManager,
+                eventName: eventName
+            )
+        } else {
+            readiness = MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
+                outputURL: outputURL,
+                sessionID: sessionID,
+                fileManager: fileManager,
+                eventName: eventName
+            )
+        }
+        return MeetingRecordingOutput(
+            sessionID: sessionID,
+            displayName: displayName,
+            folderURL: folderURL,
+            mixedAudioURL: mixedAudioURL,
+            microphoneAudioURL: microphoneAudioURL,
+            systemAudioURL: systemAudioURL,
+            cleanedMicrophoneAudioURL: outputURL,
+            cleanedMicrophoneReadiness: readiness,
+            durationSeconds: durationSeconds,
+            sourceAlignment: sourceAlignment,
+            captureReport: captureReport,
+            speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
+            previewSpeechEngine: previewSpeechEngine,
+            startContext: startContext,
+            userNotes: userNotes,
+            calendarEventSnapshot: calendarEventSnapshot,
+            meetingTypeId: meetingTypeId,
+            startedAt: startedAt,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride
+        )
+    }
+
     func resolvedMicrophoneTranscriptionSource(
         policy: MeetingCleanedMicrophoneReadinessPolicy = .production,
         fileManager: FileManager = .default
@@ -752,7 +826,8 @@ extension MeetingRecordingOutput {
                     modelVersion: existing.modelVersion,
                     renderDurationMs: existing.renderDurationMs,
                     delayEstimateMs: existing.delayEstimateMs,
-                    probeBestCorrelation: existing.probeBestCorrelation
+                    probeBestCorrelation: existing.probeBestCorrelation,
+                    rendererRevision: existing.rendererRevision
                 )
             case .rawTimeout, .rawRenderFailed, .rawMissingSystemReference, .rawNoAECAssets,
                     .skippedNoEchoPath, .predictedRenderTimeout:
@@ -765,7 +840,8 @@ extension MeetingRecordingOutput {
             modelVersion: renderSummary?.modelVersion,
             renderDurationMs: renderSummary?.renderDurationMs,
             delayEstimateMs: renderSummary?.delayEstimateMs,
-            probeBestCorrelation: renderSummary?.probeBestCorrelation
+            probeBestCorrelation: renderSummary?.probeBestCorrelation,
+            rendererRevision: renderSummary == nil ? nil : MeetingCleanedMicRenderer.currentRevision
         )
     }
 

@@ -198,6 +198,88 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(echo.renderDurationMs, 123)
         XCTAssertEqual(echo.delayEstimateMs, 42)
         XCTAssertEqual(try XCTUnwrap(echo.probeBestCorrelation), 0.41, accuracy: 0.0001)
+        XCTAssertEqual(echo.rendererRevision, MeetingCleanedMicRenderer.currentRevision)
+    }
+
+    func testArchivedCleanedMicWithoutRevisionIsStale() throws {
+        let (dir, output) = try makeArchivedCleanedOutput(revision: nil)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertTrue(output.hasStaleCleanedMicrophone())
+    }
+
+    func testArchivedCleanedMicFromOlderRevisionIsStale() throws {
+        let (dir, output) = try makeArchivedCleanedOutput(
+            revision: MeetingCleanedMicRenderer.currentRevision - 1)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertTrue(output.hasStaleCleanedMicrophone())
+    }
+
+    func testArchivedCleanedMicFromCurrentRevisionIsFresh() throws {
+        let (dir, output) = try makeArchivedCleanedOutput(
+            revision: MeetingCleanedMicRenderer.currentRevision)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertFalse(output.hasStaleCleanedMicrophone())
+    }
+
+    func testMeetingWithoutCleanedMicIsNeverStale() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: dualSourceAlignment()),
+            folderURL: dir
+        )
+        let output = makeOutput(
+            folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: nil)
+
+        XCTAssertFalse(output.hasStaleCleanedMicrophone())
+    }
+
+    func testFreshlyRecordedMeetingIsNeverStale() throws {
+        let (dir, archived) = try makeArchivedCleanedOutput(revision: nil)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let refreshed = archived.schedulingCleanedMicrophoneRefresh(
+            conditionerFactory: { PassthroughMicConditioner() },
+            policy: .init(floorSeconds: 1, durationMultiplier: 0, capSeconds: 1)
+        )
+
+        XCTAssertFalse(refreshed.hasStaleCleanedMicrophone())
+    }
+
+    func testRevisionRoundTripsAndLegacyMetadataDecodesWithoutIt() throws {
+        let encoded = try JSONEncoder().encode(
+            MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed, rendererRevision: 3))
+        XCTAssertEqual(
+            try JSONDecoder().decode(MeetingEchoSuppressionMetadata.self, from: encoded).rendererRevision, 3)
+
+        let legacy = Data(#"{"reasonCode":"cleanedUsed","modelVersion":"m"}"#.utf8)
+        XCTAssertNil(
+            try JSONDecoder().decode(MeetingEchoSuppressionMetadata.self, from: legacy).rendererRevision)
+    }
+
+    private func makeArchivedCleanedOutput(revision: Int?) throws -> (URL, MeetingRecordingOutput) {
+        let dir = try makeTempDir()
+        let rawURL = dir.appendingPathComponent("microphone-raw.m4a")
+        let cleanedURL = dir.appendingPathComponent("microphone-cleaned.m4a")
+        try Data([0x00]).write(to: rawURL)
+        try writeM4A(to: cleanedURL)
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: dualSourceAlignment(),
+                echoSuppression: MeetingEchoSuppressionMetadata(
+                    reasonCode: .cleanedUsed, rendererRevision: revision)
+            ),
+            folderURL: dir
+        )
+        return (
+            dir,
+            makeOutput(
+                folderURL: dir, microphoneAudioURL: rawURL, cleanedMicrophoneAudioURL: cleanedURL)
+        )
     }
 
     func testResolvedSourcePreservesArchivedCleanedRenderMetadata() async throws {
