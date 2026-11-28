@@ -65,9 +65,13 @@ Coordination (readiness gate, PR #671):
 Re-render on re-transcription (issue #1249):
 
 - `echoSuppression.rendererRevision` records `MeetingCleanedMicRenderer.currentRevision`
-  at render time. Re-transcribing an archived meeting whose cleaned mic has a
-  missing or different revision re-derives it from the raw sources before STT,
-  on the same bounded readiness gate (raw fallback on timeout or failure).
+  at render time. When the sidecar is readable, re-transcribing an archived
+  meeting whose cleaned mic has a missing or different revision re-derives it
+  from the raw sources before STT, on the same bounded readiness gate (raw
+  fallback on timeout or failure). Unreadable or absent metadata leaves the
+  artifact alone. The refresh never deletes the published file, which any other
+  run on the folder may be using: a render replaces it atomically and a failed
+  one keeps it for the next attempt.
   Bump the constant when a render change should reach existing meetings.
 
 Render skip (echo probe, PR #676):
@@ -84,7 +88,8 @@ Render skip (echo probe, PR #676):
 - The same render/skip summary is persisted into the session's
   `meeting-recording-metadata.json` sidecar as additive optional
   `echoSuppression` fields (`reasonCode` plus optional `modelVersion`,
-  `renderDurationMs`, `delayEstimateMs`, `probeBestCorrelation`), per
+  `renderDurationMs`, `delayEstimateMs`, `probeBestCorrelation`,
+  `rendererRevision`), per
   `spec/contracts/meeting-artifacts-v1.md`, so shared artifact folders
   self-describe cleaned-vs-raw routing without app logs.
 

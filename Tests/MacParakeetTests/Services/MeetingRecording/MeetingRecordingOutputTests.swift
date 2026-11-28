@@ -334,7 +334,8 @@ final class MeetingRecordingOutputTests: XCTestCase {
                     modelVersion: "localvqe-v1.4-aec-200K-f32.gguf",
                     renderDurationMs: 234,
                     delayEstimateMs: 18,
-                    probeBestCorrelation: 0.52
+                    probeBestCorrelation: 0.52,
+                    rendererRevision: MeetingCleanedMicRenderer.currentRevision
                 )
             ),
             folderURL: dir
@@ -348,8 +349,10 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let decision = try await output.resolvedMicrophoneTranscriptionSource()
 
         XCTAssertEqual(decision.reason, .rawInvalidArtifact)
+        XCTAssertTrue(output.hasStaleCleanedMicrophone())
         let echo = try XCTUnwrap(MeetingRecordingMetadataStore.load(from: dir).echoSuppression)
         XCTAssertEqual(echo.reasonCode, .rawInvalidArtifact)
+        XCTAssertNil(echo.rendererRevision)
         XCTAssertEqual(echo.modelVersion, "localvqe-v1.4-aec-200K-f32.gguf")
         XCTAssertEqual(echo.renderDurationMs, 234)
         XCTAssertEqual(echo.delayEstimateMs, 18)

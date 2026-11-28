@@ -853,7 +853,9 @@ extension MeetingRecordingOutput {
                     renderDurationMs: existing.renderDurationMs,
                     delayEstimateMs: existing.delayEstimateMs,
                     probeBestCorrelation: existing.probeBestCorrelation,
-                    rendererRevision: existing.rendererRevision
+                    // An undecodable artifact must not stay marked current, or
+                    // a later re-transcription would never replace it.
+                    rendererRevision: nil
                 )
             case .rawTimeout, .rawRenderFailed, .rawMissingSystemReference, .rawNoAECAssets,
                     .skippedNoEchoPath, .predictedRenderTimeout:

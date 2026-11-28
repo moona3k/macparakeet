@@ -123,7 +123,10 @@ The v1 folder can contain these stable filenames:
   when preview was disabled or unsupported, and for legacy folders. It may
   also include additive `echoSuppression` provenance with
   `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
-  `delayEstimateMs`, `probeBestCorrelation`, and `rendererRevision` fields so
+  `delayEstimateMs`, `probeBestCorrelation`, and `rendererRevision` fields
+  (`rendererRevision` is an optional integer copied from
+  `MeetingCleanedMicRenderer.currentRevision` at render time; absent means the
+  artifact predates versioning and is re-rendered on re-transcription) so
   shared artifact folders can explain cleaned-vs-raw microphone routing without app logs. It
   may also include additive `startContext` with the one-shot local start
   snapshot. `calendarEventSnapshot`, when present, is local EventKit context
@@ -432,6 +435,7 @@ already deleted.
 - `MeetingAudioRetentionSweeperTests`
 - `TranscriptionDeletionCleanupTests`
 - `TranscriptionRepositoryTests`
+- `MeetingRecordingOutputTests` (`rendererRevision` stale/fresh compatibility)
 
 Focused coverage pins stable filenames, schema/schemaVersion, manifest path
 references, `meeting.md` frontmatter/sections, transcript essentials,
