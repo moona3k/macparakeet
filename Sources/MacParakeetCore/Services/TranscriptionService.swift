@@ -353,6 +353,7 @@ public actor TranscriptionService:
     private let meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy
     private let meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?
     private let speakerVoiceprints: SpeakerVoiceprintServicing?
+    private let meetingMicConditionerFactory: @Sendable () -> any MicConditioning
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -461,7 +462,10 @@ public actor TranscriptionService:
         meetingAutomationHookRunner: MeetingAutomationHookRunning? = MeetingAutomationHookRunner(),
         meetingCleanedMicrophoneReadinessPolicy: MeetingCleanedMicrophoneReadinessPolicy = .production,
         meetingFinalizationBenchmarkObserver: MeetingFinalizationBenchmarkObserver?,
-        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil,
+        meetingMicConditionerFactory: (@escaping @Sendable () -> any MicConditioning) = {
+            MeetingEchoSuppressionFactory.makeConditioner(configuration: .fromEnvironment())
+        }
     ) {
         self.audioProcessor = audioProcessor
         self.sttTranscriber = sttTranscriber
@@ -499,6 +503,7 @@ public actor TranscriptionService:
         self.meetingCleanedMicrophoneReadinessPolicy = meetingCleanedMicrophoneReadinessPolicy
         self.meetingFinalizationBenchmarkObserver = meetingFinalizationBenchmarkObserver
         self.speakerVoiceprints = speakerVoiceprints
+        self.meetingMicConditionerFactory = meetingMicConditionerFactory
     }
 
     public func transcribe(
@@ -1678,6 +1683,12 @@ public actor TranscriptionService:
         var outputs: [MeetingTranscriptFinalizer.SourceTranscript] = []
         let activeSources = [AudioSource.microphone, .system].filter { recording.sourceAlignment.track(for: $0) != nil }
         let speechEngine = speechEngineOverride
+        let recording = recording.hasStaleCleanedMicrophone()
+            ? recording.schedulingCleanedMicrophoneRefresh(
+                conditionerFactory: meetingMicConditionerFactory,
+                policy: meetingCleanedMicrophoneReadinessPolicy
+            )
+            : recording
         let microphoneDecision = activeSources.contains(.microphone)
             ? try await resolveMeetingMicrophoneSource(for: recording)
             : nil

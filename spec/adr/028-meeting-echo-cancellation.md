@@ -68,6 +68,14 @@ Coordination (readiness gate, PR #671):
   `skippedNoEchoPath`, `predictedRenderTimeout`. Silent raw fallback is a
   defect.
 
+Re-render on re-transcription (issue #1249):
+
+- `echoSuppression.rendererRevision` records `MeetingCleanedMicRenderer.currentRevision`
+  at render time. Re-transcribing an archived meeting whose cleaned mic has a
+  missing or different revision re-derives it from the raw sources before STT,
+  on the same bounded readiness gate (raw fallback on timeout or failure).
+  Bump the constant when a render change should reach existing meetings.
+
 Render skip (echo probe, PR #676):
 
 - Before running the model, the delay estimator doubles as a cheap probe

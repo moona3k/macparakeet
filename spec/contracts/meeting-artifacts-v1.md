@@ -123,8 +123,8 @@ The v1 folder can contain these stable filenames:
   when preview was disabled or unsupported, and for legacy folders. It may
   also include additive `echoSuppression` provenance with
   `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
-  `delayEstimateMs`, and `probeBestCorrelation` fields so shared artifact
-  folders can explain cleaned-vs-raw microphone routing without app logs. It
+  `delayEstimateMs`, `probeBestCorrelation`, and `rendererRevision` fields so
+  shared artifact folders can explain cleaned-vs-raw microphone routing without app logs. It
   may also include additive `startContext` with the one-shot local start
   snapshot. `calendarEventSnapshot`, when present, is local EventKit context
   and can include attendee/organizer names and emails. New finalized recordings

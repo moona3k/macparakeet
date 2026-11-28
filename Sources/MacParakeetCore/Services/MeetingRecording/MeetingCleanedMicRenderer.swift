@@ -20,6 +20,12 @@ import OSLog
 final class MeetingCleanedMicRenderer {
     static let cleanedMicrophoneFileName = MeetingArtifactAudioFileNames.cleanedMicrophone
 
+    /// Bump when a change to the render pipeline or its echo suppressor makes
+    /// previously derived artifacts worth re-rendering (issue #1249). Artifacts
+    /// whose metadata carries no revision predate versioning and count as stale.
+    /// 1: first versioned render (adaptive delay, early-reference read, #1248).
+    static let currentRevision = 1
+
     /// Sample rate the echo suppressor expects; the cleaned artifact is a derived
     /// STT input (not the playback/export `meeting-playback.m4a`), so 16 kHz mono is fine.
     static let renderSampleRate = 16_000

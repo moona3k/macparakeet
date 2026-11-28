@@ -186,19 +186,24 @@ public struct MeetingEchoSuppressionMetadata: Sendable, Codable, Equatable {
     public let renderDurationMs: Int?
     public let delayEstimateMs: Int?
     public let probeBestCorrelation: Float?
+    /// `MeetingCleanedMicRenderer.currentRevision` at render time. `nil` for
+    /// artifacts rendered before versioning existed.
+    public let rendererRevision: Int?
 
     public init(
         reasonCode: MeetingCleanedMicrophoneRoutingReason,
         modelVersion: String? = nil,
         renderDurationMs: Int? = nil,
         delayEstimateMs: Int? = nil,
-        probeBestCorrelation: Float? = nil
+        probeBestCorrelation: Float? = nil,
+        rendererRevision: Int? = nil
     ) {
         self.reasonCode = reasonCode
         self.modelVersion = modelVersion
         self.renderDurationMs = renderDurationMs
         self.delayEstimateMs = delayEstimateMs
         self.probeBestCorrelation = probeBestCorrelation
+        self.rendererRevision = rendererRevision
     }
 }
 
