@@ -402,6 +402,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
         let metadata = try MeetingRecordingMetadataStore.load(from: dir)
         let echo = try XCTUnwrap(metadata.echoSuppression)
         XCTAssertEqual(echo.reasonCode, .skippedNoEchoPath)
+        XCTAssertNil(echo.rendererRevision)
         XCTAssertNil(echo.modelVersion)
         XCTAssertNil(echo.renderDurationMs)
         XCTAssertNil(echo.delayEstimateMs)

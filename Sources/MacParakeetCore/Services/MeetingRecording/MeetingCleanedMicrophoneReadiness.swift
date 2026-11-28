@@ -869,7 +869,11 @@ extension MeetingRecordingOutput {
             renderDurationMs: renderSummary?.renderDurationMs,
             delayEstimateMs: renderSummary?.delayEstimateMs,
             probeBestCorrelation: renderSummary?.probeBestCorrelation,
-            rendererRevision: renderSummary == nil ? nil : MeetingCleanedMicRenderer.currentRevision
+            // Only a render that published a validated artifact certifies it. A
+            // skipped or invalid one may leave an older file in place, which
+            // must stay stale so the next re-transcription tries again.
+            rendererRevision: reason == .cleanedUsed && renderSummary != nil
+                ? MeetingCleanedMicRenderer.currentRevision : nil
         )
     }
 

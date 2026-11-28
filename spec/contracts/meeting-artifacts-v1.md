@@ -125,8 +125,12 @@ The v1 folder can contain these stable filenames:
   `reasonCode` plus optional `modelVersion`, `renderDurationMs`,
   `delayEstimateMs`, `probeBestCorrelation`, and `rendererRevision` fields
   (`rendererRevision` is an optional integer copied from
-  `MeetingCleanedMicRenderer.currentRevision` at render time; absent means the
-  artifact predates versioning and is re-rendered on re-transcription) so
+  `MeetingCleanedMicRenderer.currentRevision` when a render published a
+  validated cleaned artifact; absent means the artifact predates versioning or
+  was not certified by its last resolution. With a readable sidecar, a cleaned
+  artifact without the current revision is refreshed on re-transcription, and a
+  refresh that times out or fails falls back to the raw microphone and retries
+  next time; an unreadable or absent sidecar leaves the artifact unchanged) so
   shared artifact folders can explain cleaned-vs-raw microphone routing without app logs. It
   may also include additive `startContext` with the one-shot local start
   snapshot. `calendarEventSnapshot`, when present, is local EventKit context
